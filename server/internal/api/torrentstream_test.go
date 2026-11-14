@@ -17,6 +17,7 @@ import (
 	"github.com/anacrolix/torrent"
 	"github.com/anacrolix/torrent/bencode"
 	"github.com/anacrolix/torrent/metainfo"
+	"github.com/v0-0x/kumobox-movies/server/internal/share"
 	"github.com/v0-0x/kumobox-movies/server/internal/stream"
 	"github.com/v0-0x/kumobox-movies/server/internal/torrentstream"
 )
@@ -183,4 +184,120 @@ func useTorrentCache(t *testing.T, s *Server) {
 	t.Helper()
 	s.app.TorrentStream = torrentstream.New(filepath.Join(seedDir(t), "cache"))
 	t.Cleanup(s.app.TorrentStream.Close)
+}
+
+// A device with no BitTorrent client (a TV) has the computer its downloads
+// go to stream the torrent: the player reads it from there, through this
+// Moviko, and no other device may.
+func TestTorrentStreamThroughHost(t *testing.T) {
+	_ = newCatalogServer(t) // its TMDB stand-in, for the servers below
+	host, hostSrv := sharingServer(t)
+	guest, _ := sharingServer(t)
+	useTorrentCache(t, host)
+	guest.app.TorrentStream.Unavailable = true
+	cfg := guest.app.Settings.Get()
+	cfg.TMDB.APIKey, cfg.Providers.Archive = testTMDBKey, false
+	if _, err := guest.app.Settings.Save(cfg); err != nil {
+		t.Fatal(err)
+	}
+	stream := func(magnet, name string) string {
+		return jsonBody(t, map[string]any{"mediaId": 155, "player": "builtin",
+			"stream": map[string]any{"id": "torrent:x", "kind": "torrent", "provider": "torrents", "title": name, "magnet": magnet, "fileIdx": -1}})
+	}
+	// No computer takes its downloads: said so.
+	if w := do(guest, "POST", "/api/providers/play", local, stream("magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567", "x"), nil); w.Code != http.StatusBadRequest {
+		t.Fatalf("without a computer: %d %s", w.Code, w.Body)
+	}
+
+	addr := strings.TrimPrefix(hostSrv.URL, "http://")
+	if w := do(guest, "POST", "/api/sharing/connect", local, `{"address":"`+addr+`"}`, nil); w.Code != http.StatusOK {
+		t.Fatalf("connect: %d %s", w.Code, w.Body)
+	}
+	eventually(t, "the host to list the guest", func() bool { _, ok := peerIn(host, guest); return ok })
+	gid, hid := guest.app.Share.ID(), host.app.Share.ID()
+	yes := true
+	if err := host.app.Share.SetAllowed(gid, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := host.app.Share.SetGrants(gid, share.Grants{Downloads: &yes}); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "downloads to go to the host", func() bool {
+		do(guest, "POST", "/api/sharing/refresh", local, "{}", nil)
+		return guest.app.Settings.Get().Sharing.DownloadTo == hid
+	})
+
+	dir := seedDir(t)
+	name := "The.Dark.Knight.2008.1080p.mp4"
+	data := make([]byte, 700<<10)
+	for i := range data {
+		data[i] = byte(i * 11)
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	info := metainfo.Info{PieceLength: 64 << 10}
+	if err := info.BuildFromFilePath(filepath.Join(dir, name)); err != nil {
+		t.Fatal(err)
+	}
+	var mi metainfo.MetaInfo
+	var err error
+	if mi.InfoBytes, err = bencode.Marshal(info); err != nil {
+		t.Fatal(err)
+	}
+	tcfg := torrent.NewDefaultClientConfig()
+	tcfg.DataDir, tcfg.Seed, tcfg.NoDHT, tcfg.DisableIPv6, tcfg.ListenPort = dir, true, true, true, 0
+	seeder, err := torrentstream.NewClientRetrying(tcfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer seeder.Close()
+	tor, err := seeder.AddTorrent(&mi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tor.VerifyData(); err != nil {
+		t.Fatal(err)
+	}
+	h := mi.HashInfoBytes()
+	magnet := mi.Magnet(&h, &info).String() + fmt.Sprintf("&x.pe=127.0.0.1:%d", seeder.LocalPort())
+
+	var played struct {
+		Action  string
+		Sources []struct {
+			URL, Remote, Filename, Torrent string
+		}
+	}
+	w := do(guest, "POST", "/api/providers/play", local, stream(magnet, name), nil)
+	decodeBody(t, w, &played)
+	if played.Action != "builtin" || len(played.Sources) != 1 || played.Sources[0].Filename != name || !strings.HasPrefix(played.Sources[0].Torrent, hid+".") ||
+		!strings.HasPrefix(played.Sources[0].Remote, "remote:") {
+		t.Fatalf("played: %d %s", w.Code, w.Body)
+	}
+	id := played.Sources[0].Torrent
+	sid := strings.TrimPrefix(id, hid+".")
+	// Its file, read from the host: a range of it as a seek asks.
+	r := do(guest, "GET", played.Sources[0].URL, local, "", func(r *http.Request) { r.Header.Set("Range", "bytes=300000-300099") })
+	if r.Code != http.StatusPartialContent || !bytes.Equal(r.Body.Bytes(), data[300000:300100]) {
+		t.Fatalf("file: %d, %d bytes", r.Code, r.Body.Len())
+	}
+	if w := do(guest, "GET", "/api/torrentstream/"+id, local, "", nil); w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"name":"`+name+`"`) || !strings.Contains(w.Body.String(), `"id":"`+id+`"`) {
+		t.Fatalf("status: %d %s", w.Code, w.Body)
+	}
+	// Not for a browser on the host's network, nor without the grant.
+	if w := do(host, "GET", "/api/peer/torrentstream/"+sid+"/file", lan, "", nil); w.Code == http.StatusOK || w.Code == http.StatusPartialContent {
+		t.Fatalf("the torrent, unsigned: %d", w.Code)
+	}
+	if host.ownsTorrent("someone-else", sid) || !host.ownsTorrent(gid, sid) {
+		t.Fatal("the torrent isn't the guest's alone")
+	}
+	if w := do(guest, "DELETE", "/api/torrentstream/"+id, local, "", nil); w.Code != http.StatusOK {
+		t.Fatalf("stop: %d %s", w.Code, w.Body)
+	}
+	if _, ok := host.app.TorrentStream.Status(sid); ok {
+		t.Fatal("still streamed on the host after the stop")
+	}
+	if w := do(guest, "GET", played.Sources[0].URL, local, "", nil); w.Code != http.StatusNotFound {
+		t.Fatalf("after stop: %d", w.Code)
+	}
 }

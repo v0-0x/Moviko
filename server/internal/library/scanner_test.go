@@ -102,6 +102,10 @@ func TestWatcherSeesFoldersMovedIn(t *testing.T) {
 	watchDebounce = 50 * time.Millisecond
 	t.Cleanup(func() { watchDebounce = debounce })
 	s.StartWatcher()
+	// The folders are found in the background: watched a moment later.
+	for deadline := time.Now().Add(10 * time.Second); !s.WatcherReady() && time.Now().Before(deadline); {
+		time.Sleep(10 * time.Millisecond)
+	}
 	t.Cleanup(func() {
 		// No scan may still read the folders when they're removed.
 		s.StopWatcher()

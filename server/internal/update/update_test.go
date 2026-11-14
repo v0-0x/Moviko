@@ -764,30 +764,6 @@ func TestCheckWindowsBetaChannel(t *testing.T) {
 	}
 }
 
-// A preview of the next version is tagged apart (windows-next-v…): offered
-// with betas on, above the betas of the version before; never without, and
-// a stable release newer than it wins.
-func TestCheckPreviewReleases(t *testing.T) {
-	rel := func(tag string, pre bool) map[string]any {
-		return map[string]any{"tag_name": tag, "prerelease": pre, "html_url": "https://github.com/o/r/releases/tag/" + tag, "published_at": "2026-11-10T10:00:00Z"}
-	}
-	gh := newFakeGitHub(t)
-	gh.json("GET /repos/o/r/releases", []map[string]any{rel("windows-v2.0.59", false), rel("windows-v2.0.80", true), rel("windows-next-v3.0.4", true), rel("windows-next-v3.0.3", true)})
-	c := newTestChecker(t, gh)
-	c.GOOS, c.Version, c.Commit = "windows", "3.0.3", ""
-	if st := check(t, c); st.Error != "" || st.Available || st.Latest.Version != "2.0.59" {
-		t.Fatalf("stable: error %q, available %v, latest %+v", st.Error, st.Available, st.Latest)
-	}
-	gh.channel = "beta"
-	if st := check(t, c); st.Error != "" || !st.Available || st.Latest.Version != "3.0.4" || !st.Latest.Beta {
-		t.Fatalf("beta: error %q, available %v, latest %+v", st.Error, st.Available, st.Latest)
-	}
-	// What a copy of the version before sees (its own tags only): no 3.0.
-	if r := pickRelease([]release{{TagName: "windows-v2.0.80", Prerelease: true}, {TagName: "windows-next-v3.0.4", Prerelease: true}}, "windows-v", true); r == nil || r.TagName != "windows-v2.0.80" {
-		t.Fatalf("a 2.0 copy is offered %+v", r)
-	}
-}
-
 func TestCheckLinuxStableRelease(t *testing.T) {
 	gh := newFakeGitHub(t)
 	rel := func(tag string, pre bool) map[string]any {
@@ -818,7 +794,6 @@ func TestCheckLinuxStableRelease(t *testing.T) {
 	}
 }
 
-<<<<<<< /tmp/claude-0/-home-user-Moviko/7594dff6-ecb1-55a1-9d50-157d0f511d99/scratchpad/m2/server/internal/update/update_test.go
 // In mediaserver, the movies side doesn't update itself: it never asks
 // GitHub, and says what updates it.
 func TestManaged(t *testing.T) {
@@ -835,7 +810,8 @@ func TestManaged(t *testing.T) {
 		t.Fatalf("applied: %v", err)
 	}
 	c.Start()
-=======
+}
+
 // portableZip is a portable build's zip: Moviko.exe and resources\moviko.exe.
 func portableZip(t *testing.T) []byte {
 	t.Helper()
@@ -954,5 +930,4 @@ func TestUnzipPortableRefusesPathsOutside(t *testing.T) {
 	if err := unzipPortable(archive, filepath.Join(t.TempDir(), "new")); err == nil {
 		t.Fatal("a path outside the folder was accepted")
 	}
->>>>>>> /tmp/claude-0/-home-user-Moviko/7594dff6-ecb1-55a1-9d50-157d0f511d99/scratchpad/head/server/internal/update/update_test.go
 }

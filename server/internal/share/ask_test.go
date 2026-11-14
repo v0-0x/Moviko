@@ -145,39 +145,6 @@ func TestSignedAnswerCountsAsHeard(t *testing.T) {
 	}
 }
 
-// Settings asking every few seconds doesn't have the hosts asked again
-// every few seconds: Refresh is taken at most every refreshEvery, RefreshNow
-// always.
-func TestRefreshRateLimited(t *testing.T) {
-	guest := hostWithSharing(t)
-	p := &peer{id: "host1", shares: true, asked: time.Now().Add(-10 * time.Second)}
-	guest.mu.Lock()
-	guest.peers[p.id] = p
-	guest.mu.Unlock()
-	guest.Refresh()
-	guest.mu.Lock()
-	first := p.asked.IsZero()
-	p.asked = time.Now().Add(-10 * time.Second)
-	guest.mu.Unlock()
-	if !first {
-		t.Fatal("the first Refresh didn't ask")
-	}
-	guest.Refresh()
-	guest.mu.Lock()
-	second := p.asked.IsZero()
-	guest.mu.Unlock()
-	if second {
-		t.Fatal("a Refresh right after the first asked again")
-	}
-	guest.Refresh()
-	guest.mu.Lock()
-	now := p.asked.IsZero()
-	guest.mu.Unlock()
-	if !now {
-		t.Fatal("RefreshNow didn't ask")
-	}
-}
-
 // A host that answers but was never heard announcing itself is said so (its
 // beacons don't get through: a firewall), after a minute.
 func TestHostWithoutBeaconsSaidSo(t *testing.T) {

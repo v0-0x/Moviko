@@ -64,7 +64,7 @@ func (s *Service) Prompts() []Prompt {
 	return out
 }
 
-// compareVersions compares two Moviko versions (2.0.<commits since 2.0.0's>,
+// compareVersions compares two Moviko versions (3.0.<commits since 3.0.0's>, 2.0.<n> and
 // 1.0.<number of commits> before):
 // ok is false when either isn't one, or is a build's default (1.0.0: built
 // by hand, its version unknown).

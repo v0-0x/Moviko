@@ -589,3 +589,93 @@ func TestAutoDownloaderSendsElsewhere(t *testing.T) {
 		t.Fatalf("here: %+v", rep)
 	}
 }
+
+// A rule's size limits, and why a release is skipped.
+func TestRuleSizeLimits(t *testing.T) {
+	const mb = 1 << 20
+	r := &Rule{MinSizeMB: 300, MaxSizeMB: 2000}
+	for _, tc := range []struct {
+		size int64
+		want string
+	}{{0, ""}, {500 * mb, ""}, {100 * mb, "Too small"}, {4000 * mb, "Too large"}} {
+		if got := r.skip(&SearchResult{Name: "Show.S01E01.1080p.WEB-GRP", Seeders: 9, Size: tc.size}); got != tc.want {
+			t.Errorf("%d MB: %q, want %q", tc.size/mb, got, tc.want)
+		}
+	}
+	for name, want := range map[string]string{"Show.S01E01.1080p.WEB.HDTV-GRP": "Has hdtv", "Show.S01E01.720p.WEB-GRP": "Other resolution", "Show.S01E01.1080p.BluRay-GRP": "Missing web"} {
+		res := &SearchResult{Name: name, Seeders: 9}
+		annotate(res)
+		if got := (&Rule{Resolution: "1080", MustContain: []string{"web"}, MustNotContain: []string{"hdtv"}}).skip(res); got != want {
+			t.Errorf("%s: %q, want %q", name, got, want)
+		}
+	}
+}
+
+// A test run says what a rule would grab and why it skips the rest, and
+// grabs nothing; with a delay, an episode waits until its first release has
+// been out that long, so a preferred group's can show up.
+func TestAutoDownloaderDryRunAndDelay(t *testing.T) {
+	at := newAutoTest(t, severanceSource())
+	show := severance()
+	at.cat.media[show.ID] = show
+	at.cat.progress[show.ID] = 2000 // season 1 watched
+	rule := at.saveRule(t, Rule{MediaID: show.ID, Enabled: true, Resolution: "1080p", ReleaseGroups: []string{"ntb"}, MustNotContain: []string{"hdtv"}, DelayMinutes: 30})
+	if rule.DelayMinutes != 30 {
+		t.Fatalf("saved rule: %+v", rule)
+	}
+	reasons := func(cands []Candidate) map[string]string {
+		out := map[string]string{}
+		for _, c := range cands {
+			out[c.Name] = c.Reason
+			if c.Grab {
+				out[c.Name] = "GRAB"
+			}
+		}
+		return out
+	}
+	// A test run: the releases were never seen (they have no date), so each
+	// episode waits, and nothing is remembered.
+	cands, err := at.DryRun(context.Background(), rule.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := reasons(cands)
+	for name, want := range map[string]string{
+		"Severance.S02E01.1080p.ATVP.WEB-DL.DDP5.1.H.264-NTb": "Waiting (30 min)",
+		"Severance.S02E01.720p.WEB.H264-GRP":                  "Other resolution",
+		"Severance.S02E02.1080p.HDTV.x264-GRP":                "Has hdtv",
+		"Severance.S02E03.1080p.WEB.H264-GRP":                 "Too few seeders",
+	} {
+		if got[name] != want {
+			t.Errorf("%s: %q, want %q (all: %v)", name, got[name], want, got)
+		}
+	}
+	if len(at.client.added()) != 0 || len(at.Items()) != 0 || len(at.firstSeen) != 0 {
+		t.Fatalf("a test run left a trace: %v %v %v", at.client.added(), at.itemKeys(), at.firstSeen)
+	}
+	// A run sees them first now: nothing is grabbed until the delay is over.
+	if rep, err := at.Run(context.Background()); err != nil || rep.Added != 0 {
+		t.Fatalf("first run: %+v %v", rep, err)
+	}
+	at.now = func() time.Time { return autoNow.Add(31 * time.Minute) }
+	rep, err := at.Run(context.Background())
+	if err != nil || rep.Added != 2 {
+		t.Fatalf("after the delay: %+v %v", rep, err)
+	}
+	// Without a delay, a test run says what's grabbed: the preferred group's.
+	other := newAutoTest(t, severanceSource())
+	other.cat.media[show.ID] = show
+	other.cat.progress[show.ID] = 2000
+	rule = other.saveRule(t, Rule{MediaID: show.ID, Enabled: true, Resolution: "1080p", ReleaseGroups: []string{"ntb"}})
+	cands, err = other.DryRun(context.Background(), rule.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got = reasons(cands)
+	if got["Severance.S02E01.1080p.ATVP.WEB-DL.DDP5.1.H.264-NTb"] != "GRAB" || got["Severance.S02E01.1080p.WEB.H264-GRP"] != "Worse release" {
+		t.Errorf("without a delay: %v", got)
+	}
+	if _, err := other.DryRun(context.Background(), 999); !errors.Is(err, ErrNoRule) {
+		t.Errorf("no such rule: %v", err)
+	}
+}

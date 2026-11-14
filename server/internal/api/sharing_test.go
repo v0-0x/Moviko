@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -296,6 +297,32 @@ func TestPeerRequestsChecked(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "Show - 01.mkv") {
 		t.Errorf("files when allowed: %d %s", resp.StatusCode, body)
+	}
+	// Gzipped for a client that takes it, and not sent again when it has
+	// that version (its ETag).
+	etag := resp.Header.Get("ETag")
+	req, _ = http.NewRequest("GET", hostSrv.URL+"/api/peer/files", nil)
+	req.Header.Set("Accept-Encoding", "gzip")
+	_ = other.app.Share.Sign(req, hostID, who.Key)
+	if resp, err := http.DefaultClient.Do(req); err == nil {
+		zr, zerr := gzip.NewReader(resp.Body)
+		var unzipped []byte
+		if zerr == nil {
+			unzipped, _ = io.ReadAll(zr)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Encoding") != "gzip" || zerr != nil || !strings.Contains(string(unzipped), "Show - 01.mkv") {
+			t.Errorf("files gzipped: %d %q %v", resp.StatusCode, resp.Header.Get("Content-Encoding"), zerr)
+		}
+	}
+	req, _ = http.NewRequest("GET", hostSrv.URL+"/api/peer/files", nil)
+	req.Header.Set("If-None-Match", etag)
+	_ = other.app.Share.Sign(req, hostID, who.Key)
+	if resp, err := http.DefaultClient.Do(req); err == nil {
+		resp.Body.Close()
+		if etag == "" || resp.StatusCode != http.StatusNotModified {
+			t.Errorf("files with the version it has (%q): %d, want 304", etag, resp.StatusCode)
+		}
 	}
 	outside := filepath.Join(t.TempDir(), "secret.txt")
 	_ = os.WriteFile(outside, []byte("secret"), 0o644)

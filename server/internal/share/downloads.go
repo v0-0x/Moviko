@@ -161,7 +161,7 @@ func (s *Service) askDownloadHost(ctx context.Context, path string, body any) (r
 	return raw, name, true, err
 }
 
-// AskHost asks an Moviko this one uses (its ID) something at path (GET
+// AskHost asks a Moviko this one uses (its ID) something at path (GET
 // without a body, else POST): its answer, and its name for messages.
 func (s *Service) AskHost(ctx context.Context, host, path string, body any) (raw json.RawMessage, name string, err error) {
 	p := s.host(host)
@@ -171,16 +171,6 @@ func (s *Service) AskHost(ctx context.Context, host, path string, body any) (raw
 	name = s.nameOf(p)
 	raw, err = s.askPeer(ctx, p, name, path, body)
 	return raw, name, err
-}
-
-// HostName is the name of an Moviko this one knows (its ID), or "".
-func (s *Service) HostName(id string) string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if p := s.peers[id]; p != nil {
-		return p.name
-	}
-	return ""
 }
 
 func (s *Service) askPeer(ctx context.Context, p *peer, name, path string, body any) (raw json.RawMessage, err error) {

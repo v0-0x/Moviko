@@ -32,7 +32,7 @@ const (
 // -X <module>/internal/config.Commit=…": packaging/arch/PKGBUILD and the
 // Windows release workflow do, from the commit they build.
 var (
-	// AppVersion is 2.0.<commits since 2.0.0's> in those builds (1.0.<number
+	// AppVersion is 3.0.<commits since 3.0.0's> in those builds (1.0.<number
 	// of commits> before it; see update.VersionOf).
 	AppVersion = "1.0.0"
 	// Commit is the git commit Moviko was built from; see BuildCommit.
@@ -259,15 +259,15 @@ type UISettings struct {
 	ColorTheme      string `json:"colorTheme"`
 	Seasonal        string `json:"seasonal"`
 	SeasonalEffects bool   `json:"seasonalEffects"`
-	// Moviko's look from before 2.0 (its components, sidebar and holiday
-	// themes), with the same color themes.
+	// Moviko's look from before the current one (before 3.0), instead of
+	// it.
 	ClassicLook bool `json:"classicLook"`
 }
 
 // ColorThemes and Holidays are the values UISettings takes (their colors are
 // in web/src/lib/themes.ts).
 var (
-	ColorThemes = []string{"kumobox", "midnight", "forest", "sakura", "ember", "ocean", "dusk", "black"}
+	ColorThemes = []string{"kumobox", "graphite", "midnight", "forest", "sakura", "ember", "ocean", "dusk", "black", "white", "paper", "phosphor", "amber", "ice", "rose"}
 	Holidays    = []string{"newyear", "valentine", "sakura", "summer", "halloween", "christmas"}
 )
 
