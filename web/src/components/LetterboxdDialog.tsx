@@ -189,7 +189,7 @@ export function LetterboxdDialog({ open, onOpenChange }: { open: boolean; onOpen
                         </p>
                     </div>
                     {lan ? (
-                        <p className={classic ? "rounded-lg border border-line px-4 py-3 text-sm text-muted" : "border-l border-line-strong pl-4 text-sm text-muted"}>Letterboxd is connected on the computer Moviko runs on, in Settings › Letterboxd.</p>
+                        <p className={classic ? "rounded-lg border border-line px-4 py-3 text-sm text-muted" : "border-l border-line-strong pl-4 text-sm text-muted"}>Letterboxd is connected on the computer Moviko runs on, in Settings › Accounts.</p>
                     ) : (
                         <>
                             <Field label="Letterboxd username" help="As in letterboxd.com/username. Your profile and diary must be public.">

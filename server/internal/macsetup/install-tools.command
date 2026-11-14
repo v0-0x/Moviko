@@ -1,7 +1,7 @@
 #!/bin/bash
 # Moviko setup for macOS: puts the programs Moviko uses in Moviko's own folder,
 # ready-made for this Mac (Apple silicon or Intel), with no Homebrew and no
-# password. Moviko opens it in Terminal from Settings > Desktop app & programs
+# password. Moviko opens it in Terminal from Settings > App & data
 # (server/internal/macsetup), with MOVIKO_BIN set to that folder.
 #
 #   ffmpeg, ffprobe  the in-app player (most files), stream downloads and

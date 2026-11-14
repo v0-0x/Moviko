@@ -1,16 +1,16 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, ChevronDown, Info, MoreVertical, Pencil, Play, Plus, RotateCcw, Rss, Search, Trash2 } from "lucide-react"
+import { AlertTriangle, ChevronDown, FlaskConical, Info, MoreVertical, Pencil, Play, Plus, RotateCcw, Rss, Search, Trash2 } from "lucide-react"
 import { useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { toast } from "@/lib/toast"
 import { MediaPicker } from "@/components/MediaPicker"
-import { Button, ContextArea, Dialog, Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger, EmptyState, Field, IconButton, Input, Select, Switch } from "@/components/ui"
+import { Badge, Button, ContextArea, Dialog, Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger, EmptyState, Field, IconButton, Input, Select, Spinner, Switch } from "@/components/ui"
 import { api } from "@/lib/api"
 import { formatKey, mediaIsShow, mediaRef, seasonEpisodeCount, splitKey } from "@/lib/ids"
 import { fetchEntry, useAutoItems, useAutoRules, useCollection, useRuleWanted, useSaveSettings, useStatus } from "@/lib/queries"
 import { useClassic } from "@/lib/themes"
 import type { AutoItem, AutoRule, AutoRunReport, Media } from "@/lib/types"
-import { cn, entryUrl, poster, relativeTime, title } from "@/lib/utils"
+import { cn, entryUrl, formatBytes, poster, relativeTime, title } from "@/lib/utils"
 import { PathInput } from "./settings/parts"
 
 const RESOLUTIONS = [
@@ -217,12 +217,15 @@ function RuleCard({ rule, shows, onEdit }: { rule: AutoRule; shows: Media[]; onE
     const name = media ? title(media) : rule.title || mediaRef(rule.mediaId)
     const classic = useClassic()
     const navigate = useNavigate()
+    const [testing, setTesting] = useState(false)
     // What it takes, on one line.
     const facts = [
         rule.resolution ? `${rule.resolution}p` : "Any resolution",
         rule.releaseGroups.length > 0 && `Prefers ${rule.releaseGroups.join(", ")}`,
         rule.packs && "Season packs",
         rule.minSeeders > 1 && `≥ ${rule.minSeeders} seeders`,
+        (rule.minSizeMb || rule.maxSizeMb) && `${rule.minSizeMb || 0}–${rule.maxSizeMb ? `${rule.maxSizeMb} MB` : "any size"}`,
+        !!rule.delayMinutes && `Waits ${rule.delayMinutes} min`,
         ...rule.mustContain.map(w => `+${w}`),
         ...rule.mustNotContain.map(w => `−${w}`),
         rule.startFrom > 0 && `From ${formatKey(rule.startFrom)}`,
@@ -232,6 +235,9 @@ function RuleCard({ rule, shows, onEdit }: { rule: AutoRule; shows: Media[]; onE
         <>
             <DropdownItem icon={<Pencil />} onSelect={onEdit}>
                 Edit
+            </DropdownItem>
+            <DropdownItem icon={<FlaskConical />} onSelect={() => setTesting(true)}>
+                Test
             </DropdownItem>
             <DropdownItem icon={<Info />} onSelect={() => navigate(entryUrl({ id: rule.mediaId }))}>
                 Its page
@@ -243,6 +249,7 @@ function RuleCard({ rule, shows, onEdit }: { rule: AutoRule; shows: Media[]; onE
         </>
     )
     return (
+        <>
         <ContextArea menu={menu} className={cn("flex items-center gap-4 fade-in", classic ? "card p-3" : "border-b border-line py-3")}>
             <Link to={entryUrl({ id: rule.mediaId })} className={cn("focus-ring shrink-0 rounded-lg transition-opacity", !rule.enabled && "opacity-60")}>
                 {media ? <img {...poster(media, 44)} alt="" className="h-16 w-11 rounded-lg object-cover" /> : <div className="h-16 w-11 rounded-lg bg-white/[0.05]" />}
@@ -279,6 +286,8 @@ function RuleCard({ rule, shows, onEdit }: { rule: AutoRule; shows: Media[]; onE
                 </Dropdown>
             </div>
         </ContextArea>
+            {testing && rule.id !== undefined && <TestDialog id={rule.id} name={name} onClose={() => setTesting(false)} />}
+        </>
     )
 }
 
@@ -426,6 +435,15 @@ function RuleDialog({ rule, shows, canPickFolder, onClose }: { rule: AutoRule; s
                     <Field label="Minimum seeders">
                         <Input type="number" min={1} value={r.minSeeders} onChange={e => setR({ ...r, minSeeders: Math.max(0, Number(e.target.value)) })} />
                     </Field>
+                    <Field label="Size (MB)">
+                        <div className="flex gap-2">
+                            <Input type="number" min={0} placeholder="Min" aria-label="Minimum size (MB)" value={r.minSizeMb || ""} onChange={e => setR({ ...r, minSizeMb: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} />
+                            <Input type="number" min={0} placeholder="Max" aria-label="Maximum size (MB)" value={r.maxSizeMb || ""} onChange={e => setR({ ...r, maxSizeMb: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} />
+                        </div>
+                    </Field>
+                    <Field label="Wait before grabbing" help="Minutes, for a release from a preferred group.">
+                        <Input type="number" min={0} placeholder="0" value={r.delayMinutes || ""} onChange={e => setR({ ...r, delayMinutes: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} />
+                    </Field>
                     <Field label="Preferred release groups" help="Preferred first, comma separated.">
                         <WordsInput value={r.releaseGroups} onChange={v => setR({ ...r, releaseGroups: v })} placeholder="NTb, FLUX" />
                     </Field>
@@ -477,6 +495,65 @@ function RuleDialog({ rule, shows, canPickFolder, onClose }: { rule: AutoRule; s
                     setR(x => ({ ...x, mediaId: m.id, title: title(m), startFrom: 0 }))
                 }}
             />
+        </Dialog>
+    )
+}
+
+// What a rule's run would do now (POST /api/autodownloader/rules/{id}/test):
+// each release found, grabbed or why it's left.
+type Candidate = { episode: number; pack?: boolean; name: string; group: string; resolution: string; seeders: number; size: number; grab: boolean; reason?: string }
+
+function TestDialog({ id, name, onClose }: { id: number; name: string; onClose: () => void }) {
+    const { data, error, isFetching, refetch } = useQuery({
+        queryKey: ["auto-test", id],
+        queryFn: () => api.post<Candidate[]>(`/api/autodownloader/rules/${id}/test`),
+        gcTime: 0,
+        retry: false,
+    })
+    const grabs = (data ?? []).filter(c => c.grab).length
+    return (
+        <Dialog
+            open
+            onOpenChange={v => !v && onClose()}
+            title={`Test: ${name}`}
+            description={data && (grabs ? `Would grab ${grabs}` : "Nothing to grab")}
+            className="w-[min(94vw,620px)]"
+            footer={
+                <>
+                    <Button variant="ghost" loading={isFetching} onClick={() => refetch()}>
+                        Again
+                    </Button>
+                    <Button variant="primary" onClick={onClose}>
+                        Close
+                    </Button>
+                </>
+            }
+        >
+            {isFetching && !data ? (
+                <div className="grid place-items-center py-10">
+                    <Spinner />
+                </div>
+            ) : error ? (
+                <p className="text-sm text-rose-300">{(error as Error).message}</p>
+            ) : (data ?? []).length === 0 ? (
+                <p className="text-sm text-muted">No results</p>
+            ) : (
+                <ul className="-mx-2 flex flex-col">
+                    {data!.map((c, i) => (
+                        <li key={i} tabIndex={0} className={cn("focus-ring flex items-start gap-3 rounded-lg px-2 py-2", !c.grab && "opacity-70")}>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm [overflow-wrap:anywhere]">{c.name}</p>
+                                <p className="mt-0.5 text-xs text-muted">
+                                    {[c.pack ? "Season pack" : c.episode > 0 && formatKey(c.episode), c.group, c.resolution, `${c.seeders} seeders`, c.size > 0 && formatBytes(c.size)].filter(Boolean).join(" · ")}
+                                </p>
+                            </div>
+                            <Badge tone={c.grab ? "green" : "gray"} className="mt-0.5 shrink-0">
+                                {c.grab ? "Grab" : c.reason}
+                            </Badge>
+                        </li>
+                    ))}
+                </ul>
+            )}
         </Dialog>
     )
 }

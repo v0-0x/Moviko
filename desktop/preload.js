@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld("movikoDesktop", {
     // Opens a web page (TMDB, Letterboxd, a provider's site…) in the system
     // browser.
     openExternal: url => ipcRenderer.send("moviko:open-external", url),
-    // The desktop app's own settings (Settings › Desktop app & programs).
+    // The desktop app's own settings (Settings › App & data).
     getPrefs: () => ipcRenderer.invoke("moviko:get-prefs"),
     setPref: (name, value) => ipcRenderer.invoke("moviko:set-pref", name, value),
     // Quits Moviko, server and all.

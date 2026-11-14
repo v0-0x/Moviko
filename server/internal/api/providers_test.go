@@ -21,6 +21,7 @@ import (
 	"github.com/v0-0x/kumobox-movies/server/internal/downloads"
 	"github.com/v0-0x/kumobox-movies/server/internal/player"
 	"github.com/v0-0x/kumobox-movies/server/internal/providers/cinejoy"
+	"github.com/v0-0x/kumobox-movies/server/internal/providers/webplayers"
 	"github.com/v0-0x/kumobox-movies/server/internal/stream"
 )
 
@@ -209,7 +210,7 @@ func TestStremioAddonInstall(t *testing.T) {
 	// in their order.
 	var infos []app.ProviderInfo
 	decodeBody(t, do(s, "GET", "/api/providers", local, "", nil), &infos)
-	n := 1 + len(streamSites)
+	n := 1 + len(streamSites) + len(webplayers.Sites)
 	if len(infos) != n+2 || infos[0].ID != "archive" || infos[0].Enabled || infos[n].ID != "stremio:test.adult" || infos[n+1].ID != "stremio:test.addon" ||
 		!infos[n+1].Enabled || infos[n+1].Kind != "stremio" || infos[n+1].Icon == "" || strings.Join(infos[n+1].Types, ",") != "movie,tv" {
 		t.Fatalf("providers: %+v", infos)
@@ -594,6 +595,54 @@ func TestProviderPlayRefresh(t *testing.T) {
 	}
 	if src := played.Sources[0]; !strings.HasPrefix(src.Remote, stream.RemotePrefix) || src.OriginalURL != "https://cdn.example/dk.1080p.mp4" {
 		t.Fatalf("source: %+v", src)
+	}
+}
+
+// A web player is listed off, turned on in the settings (with a mirror),
+// answers with its page, and plays as a page for the app's own window: by
+// its stream, or as the provider asked for by name.
+func TestWebPlayers(t *testing.T) {
+	s := newProvidersServer(t)
+	for _, p := range s.app.StreamProviders() {
+		if strings.HasPrefix(p.ID(), webplayers.Prefix) {
+			t.Fatalf("%s is on by default", p.ID())
+		}
+	}
+	cfg := s.app.Settings.Get()
+	cfg.Providers.WebPlayers = map[string]config.StreamSite{"vidnest": {Enabled: true, URL: " vidnest.example "}, "aether": {}, "": {Enabled: true}}
+	raw, _ := json.Marshal(cfg)
+	wantCode(t, do(s, "PUT", "/api/settings", lan, string(raw), nil), http.StatusOK, "LAN settings")
+	if got := s.app.Settings.Get().Providers.WebPlayers; len(got) != 0 {
+		t.Fatalf("a LAN device changed the web players: %+v", got)
+	}
+	wantCode(t, do(s, "PUT", "/api/settings", local, string(raw), nil), http.StatusOK, "settings")
+	if got := s.app.Settings.Get().Providers.WebPlayers; len(got) != 1 || got["vidnest"] != (config.StreamSite{Enabled: true, URL: "vidnest.example"}) {
+		t.Fatalf("web players: %+v", got)
+	}
+
+	var listed struct {
+		Streams []struct {
+			ID, Kind, Provider, ExternalURL string
+			Embed                           bool
+		}
+	}
+	decodeBody(t, do(s, "GET", "/api/providers/streams?mediaId=155&provider=web:vidnest", local, "", nil), &listed)
+	if len(listed.Streams) != 1 || listed.Streams[0].Kind != "external" || !listed.Streams[0].Embed || listed.Streams[0].ExternalURL != "https://vidnest.example/movie/155" {
+		t.Fatalf("streams: %+v", listed.Streams)
+	}
+	var played struct{ Action, URL, Provider, ProviderName string }
+	decodeBody(t, do(s, "POST", "/api/providers/play", local, jsonBody(t, map[string]any{"mediaId": 155, "streamId": listed.Streams[0].ID}), nil), &played)
+	if played.Action != "embed" || played.URL != "https://vidnest.example/movie/155" || played.Provider != "web:vidnest" || played.ProviderName != "Vidnest" {
+		t.Fatalf("played: %+v", played)
+	}
+	played.Action = ""
+	decodeBody(t, do(s, "POST", "/api/providers/play", local, jsonBody(t, map[string]any{"mediaId": 155, "provider": "web:vidnest", "player": "builtin"}), nil), &played)
+	if played.Action != "embed" {
+		t.Fatalf("by its name: %+v", played)
+	}
+	// mpv has no use for a page.
+	if w := do(s, "POST", "/api/providers/play", local, jsonBody(t, map[string]any{"mediaId": 155, "provider": "web:vidnest", "player": "mpv"}), nil); w.Code == http.StatusOK {
+		t.Fatalf("mpv got a page: %s", w.Body.String())
 	}
 }
 

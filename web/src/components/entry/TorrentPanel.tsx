@@ -104,10 +104,11 @@ export function TorrentPanel({ entry, episode }: { entry: EntryView; episode?: n
         sending: sending === key(r),
         disabled: noClient || sending !== null,
         onDownload: () => download([r], key(r)),
-        // Played as it downloads, here (not on a TV): the episode it holds,
+        // Played as it downloads, here (on a TV, through the computer its
+        // downloads go to): the episode it holds,
         // or of a pack the one looked for.
         onStream:
-            !tv && (r.infoHash || r.magnetLink)
+            (!tv || status?.settings?.sharing?.downloadTo) && (r.infoHash || r.magnetLink)
                 ? () =>
                       playStream(media.id, show ? (r.episodeNumber > 0 ? r.episodeNumber : episodeKey(season, ep)) : MOVIE_EPISODE, {
                           player: "builtin",

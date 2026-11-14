@@ -106,7 +106,7 @@ let mainWindow = null
 let baseUrl = null
 let tray = null
 
-// The desktop app's own preferences (Settings › Desktop app & programs),
+// The desktop app's own preferences (Settings › App & data),
 // kept next to its browser data.
 //   keepRunning     closing the window leaves Moviko running (tray icon, or the
 //                   Dock on a Mac): streaming to other devices, downloads and
@@ -138,7 +138,7 @@ function savePrefs() {
     }
 }
 
-// Starting with the computer (Settings › Desktop app & programs), off unless
+// Starting with the computer (Settings › App & data), off unless
 // turned on: the system's own login items on Windows and macOS, an autostart
 // entry on Linux. Started that way, Moviko opens in the background (tray, or
 // the Dock on a Mac) when it keeps running without its window; otherwise
@@ -1231,7 +1231,7 @@ function wentToBackground() {
         type: "info",
         title: "Moviko",
         message: "Moviko keeps running",
-        detail: `Streaming to your other devices, downloads and the auto downloader keep going while its window is closed. ${where}\n\nYou can change this in Settings › Desktop app & programs.`,
+        detail: `Streaming to your other devices, downloads and the auto downloader keep going while its window is closed. ${where}\n\nYou can change this in Settings › App & data.`,
         buttons: ["OK", "Quit Moviko"],
         defaultId: 0,
         cancelId: 0,

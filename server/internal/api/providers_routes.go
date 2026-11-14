@@ -787,7 +787,7 @@ func (s *Server) refreshStremioAddons(r *http.Request) (any, error) {
 }
 
 // stremioCatalog is GET /api/providers/stremio/catalog?url=: an addon
-// collection (the first of Settings › Providers by default), the installed
+// collection (the first of Settings › Streaming & torrents by default), the installed
 // addons marked: {url, catalogs, addons}. Devices on the LAN read the
 // collections of the settings only.
 func (s *Server) stremioCatalog(r *http.Request) (any, error) {
@@ -874,7 +874,7 @@ func (s *Server) nuvioRepo(r *http.Request) (any, error) {
 }
 
 // addNuvioRepo is POST /api/providers/nuvio/repos {url}: checks the
-// repository and keeps it in Settings › Providers.
+// repository and keeps it in Settings › Streaming & torrents.
 func (s *Server) addNuvioRepo(r *http.Request) (any, error) {
 	if !isTrusted(r) {
 		return nil, errLANManage

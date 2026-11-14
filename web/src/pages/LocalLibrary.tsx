@@ -91,7 +91,7 @@ export default function LocalLibraryPage() {
     // The libraries other Moviko apps on the network share with this one.
     const { data: shared } = useSharedLibraries()
     const [source, setSource] = usePersisted<string>("kumobox-local-source", "local")
-    // This computer's library off (Settings › Local library): only the
+    // This computer's library off (Settings › Library): only the
     // shared ones, the first one to begin with.
     const off = !!status?.settings.library.off
     const host = off ? (shared?.find(l => l.host.id === source) ?? shared?.[0]) : source === "local" ? undefined : shared?.find(l => l.host.id === source)

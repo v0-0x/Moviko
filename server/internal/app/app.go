@@ -184,6 +184,8 @@ func New(dataDir string) (*App, error) {
 		Update: update.New(hub, exits), Exits: exits,
 		ctx: ctx, cancel: cancel, DataDir: dataDir, prefetch: newPrefetcher(),
 	}
+	// A playlist changed: the other windows and devices show it.
+	a.Playlists.OnChange = func() { hub.Publish("playlists-updated", nil) }
 	a.HLS = stream.NewHLS(a.Local, hlsDir(dataDir))
 	a.Notify = notify.New(settings, hub, d, platform)
 	a.Trash = library.NewTrash(d, files, func() []string { return a.Settings.Get().LibraryDirs() })

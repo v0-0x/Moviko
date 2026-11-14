@@ -54,7 +54,7 @@ func TestNoAPIKey(t *testing.T) {
 		t.Fatal("configured without a key")
 	}
 	_, err := p.Media(context.Background(), 155, false)
-	if !errors.Is(err, ErrNoAPIKey) || !strings.Contains(err.Error(), "Settings › Metadata") {
+	if !errors.Is(err, ErrNoAPIKey) || !strings.Contains(err.Error(), "Settings › Accounts") {
 		t.Fatalf("got %v, want ErrNoAPIKey", err)
 	}
 	if _, err := p.Discover(context.Background()); !errors.Is(err, ErrNoAPIKey) {

@@ -410,7 +410,7 @@ export function useProviders() {
 // The streams of a movie or episode: see useLiveStreams (lib/liveStreams),
 // which shows them as the providers find them.
 
-// How each streaming provider's searches went (Settings › Providers).
+// How each streaming provider's searches went (Settings › Streaming & torrents).
 export function useProviderHealth(enabled = true) {
     return useQuery({ queryKey: ["provider-health"], queryFn: () => api.get<ProviderHealth[]>("/api/providers/health"), enabled, refetchInterval: 60_000 })
 }
@@ -419,7 +419,7 @@ export function useStremioAddons() {
     return useQuery({ queryKey: ["stremio-addons"], queryFn: () => api.get<StremioAddon[] | null>("/api/providers/stremio/addons") })
 }
 
-// An addon collection ("" for the first of Settings › Providers).
+// An addon collection ("" for the first of Settings › Streaming & torrents).
 export function useStremioCatalog(url: string, enabled = true) {
     return useQuery({
         queryKey: ["stremio-catalog", url],

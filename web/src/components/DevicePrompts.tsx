@@ -40,7 +40,7 @@ export function DevicePrompts() {
         setBusy(p.id)
         try {
             await api.post(`/api/sharing/peers/${encodeURIComponent(p.id)}`, share ? { allowed: true } : { declined: true })
-            if (share) toast.success(`Sharing this library with ${p.name}. More in Settings › Other devices.`)
+            if (share) toast.success(`Sharing this library with ${p.name}. More in Settings › Devices & network.`)
             await qc.invalidateQueries({ queryKey: ["status"] })
             qc.invalidateQueries({ queryKey: ["sharing"] })
         } catch (e: any) {

@@ -28,7 +28,7 @@ import (
 // Movies and episodes are streamed from, in this order: the user's own
 // Jellyfin, Emby and Plex servers, the built-in Internet Archive provider
 // and the built-in streaming sites of the luffy and FreeFlix apps and
-// Streambert's web players (Settings › Providers), the Stremio addons the
+// Streambert's web players (Settings › Streaming & torrents), the Stremio addons the
 // user installed (in their
 // order), the Nuvio providers and the online streaming extensions. The
 // stream service asks the enabled ones; the Providers page lists them all.
@@ -159,7 +159,7 @@ func (a *App) wireProviders() error {
 	return nil
 }
 
-// mediaServers are the media servers of Settings › Providers.
+// mediaServers are the media servers of Settings › Streaming & torrents.
 func (a *App) mediaServers() []mediaserver.Config {
 	var out []mediaserver.Config
 	for _, s := range a.Settings.Get().Providers.MediaServers {

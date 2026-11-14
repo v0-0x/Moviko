@@ -4,7 +4,7 @@ import type { WatchProvider, WatchProviders } from "@/lib/types"
 import { img } from "@/lib/utils"
 import { Tooltip } from "../ui"
 
-// Where else the title can be watched in the region of Settings › Metadata
+// Where else the title can be watched in the region of Settings › Accounts
 // (TMDB's "where to watch", data from JustWatch): free services, with or
 // without ads, then the subscriptions that have it. Each logo opens TMDB's
 // watch page for the title (it links to the services) in the browser.

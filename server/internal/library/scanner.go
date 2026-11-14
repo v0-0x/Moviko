@@ -183,7 +183,7 @@ func (s *Scanner) Scan(ctx context.Context, opts ScanOptions) (res *ScanResult, 
 		return nil, ErrLibraryOff
 	}
 	if len(walked) == 0 {
-		return nil, errors.New("no library directory found — set one in Settings › Local library")
+		return nil, errors.New("no library directory found — set one in Settings › Library")
 	}
 
 	existing, err := s.Store.All()
@@ -402,8 +402,8 @@ func (s *Scanner) removedFiles(byPath map[string]*LocalFile, found map[string]fs
 	return removed
 }
 
-// ErrLibraryOff: this computer's library is off (Settings › Local library).
-var ErrLibraryOff = errors.New("this computer's library is off: it plays the ones your other computers share with it (Settings › Local library)")
+// ErrLibraryOff: this computer's library is off (Settings › Library).
+var ErrLibraryOff = errors.New("this computer's library is off: it plays the ones your other computers share with it (Settings › Library)")
 
 // Forget drops from the index the files of folders that left the library
 // (taken out of it, or the library turned off); they stay on the disk. A

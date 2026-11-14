@@ -21,7 +21,7 @@ PC": click **More info**, then **Run anyway**.
 
 Movie and show details (posters, seasons, episodes, cast) come from
 [TMDB](https://www.themoviedb.org): the first time, Moviko asks for your free
-TMDB API key (**Settings › Metadata**). Letterboxd tracking needs only your
+TMDB API key (**Settings › Accounts**). Letterboxd tracking needs only your
 Letterboxd username.
 
 ## Programs Moviko uses
@@ -59,7 +59,7 @@ your `PATH`, enter its full path there.
 | mpv | `scoop install mpv` ([Scoop](#scoop), extras bucket) or [mpv.io](https://mpv.io/installation/); then choose it in **Settings › Playback** |
 | Torrents | qBittorrent: `winget install qBittorrent.qBittorrent`, [then turn on its Web UI](#qbittorrent); or Transmission: `winget install Transmission.Transmission` |
 
-Hardware encoding for the in-app player (**Settings › Video conversion**):
+Hardware encoding for the in-app player (**Settings › Players & conversion**):
 NVENC (NVIDIA) and Quick Sync (Intel) work on Windows; VA-API is
 Linux only.
 
@@ -94,7 +94,7 @@ access (**Edit › Preferences › Remote**).
 | `%APPDATA%\Moviko` | Your data: the database (your list, diary, library matches, settings, watch progress), downloaded artwork, extension storage |
 | `%LOCALAPPDATA%\Moviko` | Cache and temporary files: the in-app player's segments (`hls`), the running server's address and token (`run`), the app window's browser data (`electron`), the last downloaded update (`update`) |
 | `%LOCALAPPDATA%\Programs\Moviko` | The app, when installed with the installer |
-| `%USERPROFILE%\Videos` | The library folder, until you pick yours in **Settings › Local library** |
+| `%USERPROFILE%\Videos` | The library folder, until you pick yours in **Settings › Library** |
 
 Uninstalling keeps your data; delete the first two folders to remove it too.
 

@@ -84,7 +84,9 @@ export function usePlay() {
             openExternal(streamPage(s))
             return
         }
-        if (s?.kind === "torrent" && tv) return sendTorrent(mediaId, episode, s)
+        // A TV has no torrent client: the computer its downloads go to
+        // streams the torrent to it; without one, it's sent to a client.
+        if (s?.kind === "torrent" && tv && !settings?.sharing?.downloadTo) return sendTorrent(mediaId, episode, s)
         if (streamPlayer(opts.player) === "builtin") {
             playerStore.set({ kind: "stream", mediaId, episode, provider, streamId: s?.id, stream: s, start: opts.start })
             return

@@ -484,7 +484,7 @@ func h(fn func(r *http.Request) (any, error)) http.HandlerFunc {
 				status = http.StatusNotFound
 			case errors.Is(err, catalog.ErrNoAPIKey), errors.Is(err, catalog.ErrUnauthorized):
 				// No TMDB key, or TMDB refused it: nothing to retry until
-				// it's fixed in Settings › Metadata. (Not 401, which means
+				// it's fixed in Settings › Accounts. (Not 401, which means
 				// this server's own password.)
 				status = http.StatusPreconditionFailed
 			}

@@ -3,6 +3,7 @@ package config
 
 import (
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -436,6 +437,7 @@ func (c Settings) clone() Settings {
 	c.Providers.StremioCatalogs = slices.Clone(c.Providers.StremioCatalogs)
 	c.Providers.NuvioRepos = slices.Clone(c.Providers.NuvioRepos)
 	c.Providers.MediaServers = slices.Clone(c.Providers.MediaServers)
+	c.Providers.WebPlayers = maps.Clone(c.Providers.WebPlayers)
 	c.TorrentSources.Torznab = slices.Clone(c.TorrentSources.Torznab)
 	return c
 }

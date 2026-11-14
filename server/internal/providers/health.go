@@ -11,7 +11,7 @@ import (
 //
 // Providers come and go: sites close, addons move, scrapers break. Moviko
 // keeps, for each provider, how its last searches went, so the user can see
-// which ones work (Settings › Providers), and so a provider that keeps
+// which ones work (Settings › Streaming & torrents), and so a provider that keeps
 // failing stops slowing down the automatic picks (the Play button, auto
 // play next), which otherwise wait for its timeout every time.
 

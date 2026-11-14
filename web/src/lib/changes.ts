@@ -6,6 +6,41 @@ export type Release = { id: number; title: string; changes: Change[] }
 
 export const RELEASES: Release[] = [
     {
+        id: 6,
+        title: "Moviko 3.0",
+        changes: [
+            {
+                title: "A new look",
+                text: "Fewer boxes, words you click, one ink on one ground: Black, White, Graphite, Paper, Phosphor, Amber, Ice and Rose (White and Paper are light). Right-click a movie, an episode or a row for its menu. The look from before is Settings › Appearance › Classic look.",
+                to: "/settings?tab=appearance",
+            },
+            {
+                title: "Settings in ten pages",
+                text: "Instead of eighteen, with shorter help. The search box still finds any setting by its name.",
+                to: "/settings",
+            },
+            {
+                title: "Playlists",
+                text: "Queue movies and episodes (one, or the rest of a season; files and online ones) and play them in a row, from their menus and the Playlists page.",
+                to: "/playlists",
+            },
+            {
+                title: "Web players",
+                text: "VidSrc, Vidfast, Vidlove, Aether, Vidrift, Vidnest, DeVideoSrc (German), Frembed (French) and KinoHub (Russian), the players of the Streambert app: each opens the site's own player in Moviko's window. Off until you turn them on in Providers & extensions › Built in.",
+                to: "/extensions?tab=builtin",
+            },
+            {
+                title: "In the player",
+                text: "Image subtitles (PGS, VobSub) are drawn into the picture by the computer that has the file. In the menu: a subtitle file of your own, volume up to 300%, stats (i) and a screenshot (Shift+S).",
+            },
+            {
+                title: "Torrents and downloads",
+                text: "A TV streams a torrent through the computer its downloads go to. With several library folders, Settings › Library says which one downloads go to.",
+                to: "/settings?tab=library",
+            },
+        ],
+    },
+    {
         id: 5,
         title: "KumoBox is now Moviko",
         changes: [

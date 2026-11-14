@@ -69,7 +69,7 @@ func (s *healthStore) flush() {
 	}
 }
 
-// ProviderHealth is a provider's health for the UI (Settings › Providers).
+// ProviderHealth is a provider's health for the UI (Settings › Streaming & torrents).
 type ProviderHealth struct {
 	ProviderInfo
 	providers.HealthStat

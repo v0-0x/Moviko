@@ -310,6 +310,8 @@ function ProviderIcon({ src, className }: { src?: string; className?: string }) 
 // direct links).
 function StreamRow({ s, provider, addonSubs, mediaId, episode }: { s: ProviderStream; provider?: ProviderInfo; addonSubs: number; mediaId: number; episode: number }) {
     const { playStream, sendTorrent, remote } = usePlay()
+    // A TV streams a torrent through the computer its downloads go to.
+    const noStream = tv && !useStatus().data?.settings?.sharing?.downloadTo
     const [busy, setBusy] = useState(false)
     const lines = s.title
         .split("\n")
@@ -417,7 +419,7 @@ function StreamRow({ s, provider, addonSubs, mediaId, episode }: { s: ProviderSt
                                 <Copy className="size-4" />
                             </IconButton>
                         )}
-                        {tv ? (
+                        {noStream ? (
                             <Button size="sm" variant="white" icon={<Magnet className="size-3.5" />} onClick={() => sendTorrent(mediaId, episode, s)}>
                                 Send to torrent client
                             </Button>

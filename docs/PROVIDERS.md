@@ -4,7 +4,7 @@ Moviko finds something to watch for a movie or an episode by asking
 **providers**. Each one answers with streams: direct links (played in the
 app or in mpv), torrents (streamed through the torrent client), YouTube
 videos or web pages to open. All enabled providers are asked at once, each
-within `providers.timeoutSeconds` (Settings › Providers), and the streams
+within `providers.timeoutSeconds` (Settings › Streaming & torrents), and the streams
 are listed best first: direct links before torrents, the preferred quality
 (`providers.preferredQuality`) first, then higher qualities, then the most
 seeded. With a default provider (`onlineStream.defaultProvider`, empty for
@@ -13,7 +13,7 @@ with the direct links. What the providers answered is kept five minutes.
 
 | Kind | Provider id | What | Ids it needs |
 |---|---|---|---|
-| Media servers | `jellyfin:<host:port>`, `emby:…`, `plex:…` | the user's own Jellyfin, Emby and Plex servers (Settings › Providers), asked first | TMDB id (IMDb id as a fallback) |
+| Media servers | `jellyfin:<host:port>`, `emby:…`, `plex:…` | the user's own Jellyfin, Emby and Plex servers (Settings › Streaming & torrents), asked first | TMDB id (IMDb id as a fallback) |
 | Internet Archive (built in) | `archive` | public-domain and freely licensed films hosted by archive.org | title + year |
 | luffy's site (built in, off by default) | `cinejoy` | Cinejoy, the source of the [luffy](https://github.com/DemonKingSwarn/luffy) command-line app: HLS (or MP4) from its servers | TMDB id |
 | FreeFlix's sites (built in, off by default) | `vidlink`, `hexa`, `xpass`, `mapple`, `videasy` | the movie and show resolvers of the [FreeFlix](https://github.com/freedy237/freeflix-cli) command-line app ("GoldenMS") | TMDB id (Videasy: title too) |
@@ -35,7 +35,7 @@ have answered, the list is the ranked one above.
 
 Above them, **Watch free** lists the services where the title is free,
 with or without ads, and **On streaming services** those that have it with
-a subscription, in the region of Settings › Metadata (TMDB's "where to
+a subscription, in the region of Settings › Accounts (TMDB's "where to
 watch", data from JustWatch: the `free`, `ads` and `flatrate` tiers of
 `Media.watchProviders`). Their logos open TMDB's watch page for the title
 in the browser. They show even without any provider enabled.
@@ -47,7 +47,7 @@ lasts across restarts): answers and failures, failures in a row, the last
 error (the links it names cut down to their host: addon links can carry
 the addon's settings) and the last ten answers' times. An answer with no
 streams is a success; an addon that can't be asked about the title (no
-IMDb id...) counts neither way. **Settings › Providers › Provider health**
+IMDb id...) counts neither way. **Settings › Streaming & torrents › Provider health**
 lists them, with a **Test** button (this computer only) asking the provider
 right away for Night of the Living Dead (1968), a public-domain film.
 
@@ -166,7 +166,7 @@ the settings).
 
 ### Media servers (Jellyfin, Emby, Plex)
 
-Settings › Providers › Media servers (`providers.mediaServers`: `[{kind:
+Settings › Streaming & torrents › Media servers (`providers.mediaServers`: `[{kind:
 "jellyfin" | "emby" | "plex", name, url, token, userId}]`), with a **Test**
 button (`POST /api/providers/mediaservers/test`, this computer only)
 showing the server's name and version. The token is a Jellyfin or Emby API
@@ -209,7 +209,7 @@ default source) and **Vidlink, Hexa, Xpass, Mapple and Videasy** from
 movies & series source; FreeFlix's other sources are anime or French
 sites, and its YTS/EZTV torrents are already Moviko torrent sources).
 They're unofficial sites: each is off until turned on, on the Providers &
-extensions page (Built-in) or in Settings › Providers, which also takes a
+extensions page (Built-in) or in Settings › Streaming & torrents, which also takes a
 mirror's address for each (`providers.sites`: `{cinejoy, vidlink, hexa,
 xpass, mapple, videasy: {enabled, url}, decryptUrl}`). Each is a provider
 of its own (its health, its Test button, the default provider), asked
@@ -257,8 +257,8 @@ Providers & extensions › Built in has the players the
 (its `src/utils/api.js`), each off until it's turned on: **VidSrc**,
 **Vidfast**, **Vidlove**, **Aether** and **Vidrift** (several audio
 languages), **Vidnest**, **DeVideoSrc** (German), **Frembed** (French)
-and **KinoHub** (Russian, movies only). Settings › Providers has a
-mirror's address for each.
+and **KinoHub** (Russian, movies only). Settings › Streaming & torrents
+has a mirror's address for each.
 
 They aren't like the other providers: a web player hands out no video
 link. Its stream is the page of the site's player for the movie or the
@@ -515,7 +515,7 @@ Differences with the Nuvio app:
 * Providers run in Moviko's extension sandbox: they can't reach this
   computer or the local network (`localhost`, `192.168.x.x`... are
   refused, for the repository and the code too), a call to `getStreams`
-  gets the provider timeout of Settings › Providers, loading the file
+  gets the provider timeout of Settings › Streaming & torrents, loading the file
   30 seconds. So a development server on the LAN (`npm start` in the
   nuvio-providers repository) can't be used: publish the repository
   somewhere public (a GitHub repository, a gist...) to test it.

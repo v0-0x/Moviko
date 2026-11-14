@@ -149,7 +149,7 @@ func (s *Server) uploadHere(w http.ResponseWriter, r *http.Request, from string)
 	if err != nil || i < 0 || i >= len(dirs) {
 		msg := "no such library folder"
 		if len(dirs) == 0 {
-			msg = "this Moviko has no library folder to put files in (Settings › Local library)"
+			msg = "this Moviko has no library folder to put files in (Settings › Library)"
 		}
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": msg})
 		return

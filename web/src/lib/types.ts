@@ -1026,6 +1026,11 @@ export type AutoRule = {
     mustContain: string[]
     mustNotContain: string[]
     minSeeders: number
+    // Releases outside this size (MB; 0: no limit) are left, and a release
+    // that isn't from a preferred group waits delayMinutes for one that is.
+    minSizeMb?: number
+    maxSizeMb?: number
+    delayMinutes?: number
     packs: boolean
     destination: string
     startFrom: number

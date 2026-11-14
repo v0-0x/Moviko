@@ -7,7 +7,7 @@ import { cn, formatBytes } from "@/lib/utils"
 import { Button, Dialog, Progress, Select } from "./ui"
 
 // Files and folders from this computer into a server's library: one that
-// takes this device's downloads (Settings › Other devices: Let it download
+// takes this device's downloads (Settings › Devices & network: Let it download
 // here), or, on mediaserver's own pages, that server. The files go a piece
 // at a time (server: internal/upload), each after the last: one cut short
 // carries on where it stopped the next time it's sent.
@@ -231,7 +231,7 @@ export function UploadDialog({
         >
             {targets.isLoading ? null : !list.length ? (
                 <p className="text-sm leading-relaxed text-muted">
-                    No server takes files from this device yet. On the server, in <b>Settings › Other devices</b> (on mediaserver, <b>Devices</b>), turn on <b>Let it download here</b>
+                    No server takes files from this device yet. On the server, in <b>Settings › Devices & network</b> (on mediaserver, <b>Devices</b>), turn on <b>Let it download here</b>
                     for this device.
                 </p>
             ) : (
@@ -253,7 +253,7 @@ export function UploadDialog({
                             ) : folderOptions.length ? (
                                 <Select value={String(folder)} onChange={v => setFolder(Number(v))} disabled={busy} options={folderOptions} />
                             ) : folders.data ? (
-                                <span className="text-[12.5px] font-normal text-amber-300">Set its library folder in its Settings › Local library.</span>
+                                <span className="text-[12.5px] font-normal text-amber-300">Set its library folder in its Settings › Library.</span>
                             ) : (
                                 <span className="text-[12.5px] font-normal text-muted">…</span>
                             )}

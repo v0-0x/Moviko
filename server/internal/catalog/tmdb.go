@@ -20,7 +20,7 @@ import (
 
 // TMDB (The Movie Database) v3 API client. Every movie and show's data
 // comes from it. The key, language and region are read from the settings
-// on every request, so changing them in Settings › Metadata takes effect at
+// on every request, so changing them in Settings › Accounts takes effect at
 // once.
 
 const (
@@ -31,9 +31,9 @@ const (
 var (
 	// ErrNoAPIKey: no TMDB key is configured. The app still runs (library,
 	// players, settings); the UI asks for a key.
-	ErrNoAPIKey = errors.New("no TMDB API key: add your free TMDB key in Settings › Metadata (get one at themoviedb.org › Settings › API)")
+	ErrNoAPIKey = errors.New("no TMDB API key: add your free TMDB key in Settings › Accounts (get one at themoviedb.org › Settings › API)")
 	// ErrUnauthorized: TMDB refused the key.
-	ErrUnauthorized = errors.New("TMDB refused the API key: check it in Settings › Metadata")
+	ErrUnauthorized = errors.New("TMDB refused the API key: check it in Settings › Accounts")
 	// ErrNotFound: TMDB has no such movie, show, season or match.
 	ErrNotFound = errors.New("not found on TMDB")
 

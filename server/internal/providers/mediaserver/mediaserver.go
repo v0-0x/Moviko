@@ -35,7 +35,7 @@ const (
 	Plex     = "plex"
 )
 
-// Config is a media server as Settings › Providers has it.
+// Config is a media server as Settings › Streaming & torrents has it.
 type Config struct {
 	Kind  string
 	Name  string

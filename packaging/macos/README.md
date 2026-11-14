@@ -25,7 +25,7 @@ Or, in Terminal, once: `xattr -dr com.apple.quarantine /Applications/Moviko.app`
 
 Movie and show details (posters, seasons, episodes, cast) come from
 [TMDB](https://www.themoviedb.org): the first time, Moviko asks for your free
-TMDB API key (**Settings › Metadata**). Letterboxd tracking needs only your
+TMDB API key (**Settings › Accounts**). Letterboxd tracking needs only your
 Letterboxd username.
 
 ## Programs Moviko uses
@@ -37,7 +37,7 @@ Letterboxd username.
 | mpv | The external player (optional: Moviko has its own) |
 | qBittorrent or Transmission | Torrents (optional) |
 
-**Settings › Desktop app & programs › Install missing programs** downloads ready-made
+**Settings › App & data › Install missing programs** downloads ready-made
 ffmpeg, ffprobe and yt-dlp for your Mac (Apple silicon or Intel) into Moviko's
 own folder, `~/Library/Application Support/Moviko/bin`, in a Terminal window:
 no Homebrew, no password. ffmpeg comes from
@@ -68,7 +68,7 @@ Torrents**.
 | The window's own data (browser cache, local storage) | `~/Library/Application Support/Moviko/electron` |
 | Programs the setup downloaded | `~/Library/Application Support/Moviko/bin` |
 | Updates being downloaded | `~/Library/Caches/moviko/update` |
-| The local library, until you pick yours in **Settings › Local library** | `~/Movies` |
+| The local library, until you pick yours in **Settings › Library** | `~/Movies` |
 
 ## Updates
 

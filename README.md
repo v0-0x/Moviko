@@ -16,7 +16,7 @@
 - Works with **every video format**: mkv, mp4, avi, webm, mov, wmv, flv, ts/m2ts, ogm, rmvb, vob, 3gp, divx and more.
 - **Auto refresh**: watches the folders and rescans when files appear, and refreshes on startup.
 - **Local library** page with only the titles you have on disk: recently added, filters by list status, sorting, grid or list view with the episodes you have per season, size, resolution and release group, and one-click "play next".
-- **Library sharing** between the Moviko apps on your computers and TVs at home: they find each other by themselves (or by address). On the computer with the files, turn on **Share my library** for the others in **Settings › Other devices**: its movies and shows show up on theirs and play like local files, converted by the computer that has them when needed. Watching updates the list (and Letterboxd diary) of the device you watch on, never the other's. Connected to the same Letterboxd account, Continue watching carries over to the second; positions saved while the other was off are sent when it's back, it syncs by itself when a device comes back on the network, and **Sync** on Home brings both up to date at once. A computer that's asleep can be **woken from the TV** (Wake-on-LAN on in its settings), and it **stays awake while another device plays its files**. Home asks whether to share with a new Moviko (a TV) when it shows up.
+- **Library sharing** between the Moviko apps on your computers and TVs at home: they find each other by themselves (or by address). On the computer with the files, turn on **Share my library** for the others in **Settings › Devices & network**: its movies and shows show up on theirs and play like local files, converted by the computer that has them when needed. Watching updates the list (and Letterboxd diary) of the device you watch on, never the other's. Connected to the same Letterboxd account, Continue watching carries over to the second; positions saved while the other was off are sent when it's back, it syncs by itself when a device comes back on the network, and **Sync** on Home brings both up to date at once. A computer that's asleep can be **woken from the TV** (Wake-on-LAN on in its settings), and it **stays awake while another device plays its files**. Home asks whether to share with a new Moviko (a TV) when it shows up.
 - Library tools to fix matches by hand, change season/episode numbers, lock files and ignore junk; **Missing episodes** (the gaps in your shows and the episodes aired since, with torrents a click away); **Clean up** (how full the drive is, what you watched a while ago, episodes there twice, put away into a trash that can be undone for 30 days). Safe with removable drives; symlinked folders are followed.
 - Stays smooth with libraries of thousands of titles and files: the Local library and library tools only draw what's on screen.
 
@@ -43,24 +43,29 @@
 - Skips intros, recaps and end credits by the file's chapter names, auto play next across seasons, "Continue watching" row, now-playing bar for mpv.
 - An **Up next** card in the end credits, Start over, **previews on the seek bar** (also where Left/Right go on a TV), and **subtitles your way**: size, background and position for each device, timing moved with z / x (kept per movie or show).
 - **Picture in picture** in the desktop app (p): the video goes on in a small window on top of the others, with Moviko's controls and subtitles; its button brings it back to the big player where it's at.
+- **Playlists**: queue movies and episodes (one, or the rest of a season; files and online ones) and play them in a row, from their menus and the **Playlists** page; a playlist carries on in the small window.
+- **Image subtitles** (PGS, VobSub) are drawn into the picture by the computer that has the file, so they show in the in-app player and on a TV.
+- In the player's menu: a subtitle file of your own, **volume boost** up to 300%, **stats** (i) and a **screenshot** of the frame (Shift+S; the desktop app saves it in Pictures/Moviko).
 
 **Streaming providers**
-- **Your own Jellyfin, Emby and Plex servers**: add them in Settings › Providers (with a Test button) and their movies and episodes show in Watch online, matched by TMDB/IMDb id, playing the files as they are. Their tokens stay on this computer.
+- **Your own Jellyfin, Emby and Plex servers**: add them in Settings › Streaming & torrents (with a Test button) and their movies and episodes show in Watch online, matched by TMDB/IMDb id, playing the files as they are. Their tokens stay on this computer.
 - **Internet Archive** built in: thousands of public-domain and Creative Commons films, streamed straight from archive.org.
 - **The luffy and FreeFlix sites** built in: the sources of the [luffy](https://github.com/DemonKingSwarn/luffy) and [FreeFlix](https://github.com/freedy237/freeflix-cli) command-line apps (Cinejoy; Vidlink, Hexa, Xpass, Mapple, Videasy), ported, each a provider you turn on (they're off by default) and can point at a mirror. Movies and episodes are found by their TMDB id; Cinejoy's own request encoder runs sandboxed and pinned to the build luffy checked.
+- **Web players** built in: the players the [Streambert](https://github.com/truelockmc/streambert) app streams from (VidSrc, Vidfast, Vidlove, Aether, Vidrift, Vidnest, DeVideoSrc in German, Frembed in French, KinoHub in Russian), each a provider you turn on (they're off by default) and can point at a mirror. A web player hands out no video link: its page, the site's own player, opens in Moviko's window. The desktop app keeps it apart from Moviko (no popups, no downloads, it stays on its site) and follows the video, so your list and Continue watching keep up; in a browser or on a TV you mark it watched from its bar.
 - **Stremio addons**: browse the official addon collection (or any other collection) and install or uninstall addons in one click, open their configuration page, paste any addon's manifest URL, or import the addons of your Stremio account (your password isn't kept). Their streams play in Moviko; torrent streams go to your torrent client; subtitle addons add subtitles to online streams in the in-app player, found for the very file playing (by its size and OpenSubtitles hash).
 - **Nuvio provider repositories**: add a repository URL and install its JavaScript providers, which run in Moviko's sandbox.
 - **Moviko/Seanime-style extensions** from an extension marketplace.
 - **Watch free**: Watch online lists the free and ad-supported services that have the title in your region (and the subscriptions that do), from TMDB/JustWatch, linking to where to watch it.
-- **Watch online** shows each provider's sources as soon as it answers, with a spinner for those still looking. **Provider health** (Settings › Providers) shows which providers work and how fast, with a Test button; one that keeps failing is listed last and skipped by automatic picks until it answers again. A show's next episodes play from the provider and version (quality, release) you watched it in last.
+- **Watch online** shows each provider's sources as soon as it answers, with a spinner for those still looking. **Provider health** (Settings › Streaming & torrents) shows which providers work and how fast, with a Test button; one that keeps failing is listed last and skipped by automatic picks until it answers again. A show's next episodes play from the provider and version (quality, release) you watched it in last.
 - **Download** movies and episodes (single or ranges) straight into your library; they're matched instantly. Video files are fetched by Moviko itself (picking up where they stopped after a dropped connection), HLS streams with ffmpeg and web pages with yt-dlp, never from your own computer or local network.
 
 See [docs/PROVIDERS.md](docs/PROVIDERS.md) for the formats and how to write a provider.
 
 **Torrents**
 - **qBittorrent** (Web UI API, v4 and v5) and **Transmission** sync: list, pause/resume, remove (with data), open folder, active count in the sidebar. Moviko can launch the client for you.
-- Search from any movie or show page, by IMDb/TMDB/TVDB id where the source supports it: **Torznab** indexers (**Jackett**, **Prowlarr**), **YTS** (movies), **EZTV** (shows), **The Pirate Bay**, **Torrents-CSV**, **Internet Archive**, plus extension providers. Results are merged, de-duplicated and filtered to the right season/episode, with resolution, release group, pack and seeder badges. Each source can be turned off or pointed at a mirror (**Settings › Torrents**).
-- **Auto downloader** for shows: rules per show (resolution, release groups, keywords, minimum seeders, season packs) grab new episodes as they air.
+- Search from any movie or show page, by IMDb/TMDB/TVDB id where the source supports it: **Torznab** indexers (**Jackett**, **Prowlarr**), **YTS** (movies), **EZTV** (shows), **The Pirate Bay**, **Torrents-CSV**, **Internet Archive**, plus extension providers. Results are merged, de-duplicated and filtered to the right season/episode, with resolution, release group, pack and seeder badges. Each source can be turned off or pointed at a mirror (**Settings › Streaming & torrents**).
+- **Stream a torrent**: it plays within seconds while it downloads, and nothing is kept; on a TV it streams through the computer its downloads go to.
+- **Auto downloader** for shows: rules per show (resolution, release groups, keywords, a size range, minimum seeders, a wait before grabbing, season packs) grab new episodes as they air.
 
 **Extensions & plugins**
 - Runs online-streaming, torrent and Nuvio providers in a sandboxed JavaScript runtime with the APIs extensions use (`fetch`, `LoadDoc`/cheerio, `CryptoJS`, `$store`, `$storage`, user config…), and **UI plugins** (trays, title-page buttons, webviews, toasts, storage). Plugins never get file, command or local-network access, and an extension that uses too much memory is stopped (see [docs/PROVIDERS.md](docs/PROVIDERS.md)).
@@ -68,16 +73,17 @@ See [docs/PROVIDERS.md](docs/PROVIDERS.md) for the formats and how to write a pr
 **Your movies & shows**
 - **Alerts** when a new episode of a show you're watching airs, or something is ready to watch (a download or a torrent finished): in Moviko, or as the system's notifications.
 - **What should I watch?** (the dice on Home) picks something from your list. **Stats**: your movies and shows in numbers, and what you watched month by month.
-- **Backup and restore** (Settings › Backup & data): settings, watch history, list and diary, choices, matches, auto downloader rules, Stremio add-ons and extensions as one file; restoring merges with what's there.
+- **Backup and restore** (Settings › App & data): settings, watch history, list and diary, choices, matches, auto downloader rules, Stremio add-ons and extensions as one file; restoring merges with what's there.
+- **Right-click menus** on movies, shows, episodes and list rows (the list, playlists, downloads, library tools…); on a TV the remote's Menu key opens them.
 
-**Extras**: can keep running in the tray (or the Dock) when its window is closed, so streaming to other devices and downloads go on, and start in the background when you log in (Settings › Desktop app & programs, both off unless you turn them on); updates itself from the Home page (stable releases, or betas too: Settings › Updates & about), Discord rich presence (local IPC), **color themes** (Midnight, Forest, Sakura, Ember, Ocean, Dusk, true Black…) and accent colours, **holiday themes** that come on by themselves in their month, each with its own colours, decorations and animation (Halloween's moon, cobweb and bats in October, Christmas lights and snow in December, Valentine's hearts in February, a cherry branch and falling petals in April, summer lanterns and fireflies in August, New Year's fireworks), or always one, or none — all switched from **Themes** in the sidebar (or Settings › Appearance), along with the **classic look** (Moviko as it looked before 2.0), spoiler blur, Ctrl+K quick search, a layout for phones, server logs and cache viewer.
+**Extras**: can keep running in the tray (or the Dock) when its window is closed, so streaming to other devices and downloads go on, and start in the background when you log in (Settings › App & data, both off unless you turn them on); updates itself from the Home page (stable releases, or betas too: Settings › Updates & about), Discord rich presence (local IPC), **color themes**, each one ink on one ground (Black, White, Graphite, Paper, Phosphor, Amber, Ice, Rose; White and Paper are light; the Classic look keeps the ones from before) and accent colours, **holiday themes** that come on by themselves in their month, each with its own colours, decorations and animation (Halloween's moon, cobweb and bats in October, Christmas lights and snow in December, Valentine's hearts in February, a cherry branch and falling petals in April, summer lanterns and fireflies in August, New Year's fireworks), or always one, or none — all switched from **Themes** in the sidebar (or Settings › Appearance), along with the **classic look** (Moviko as it looked before 2.0), spoiler blur, Ctrl+K quick search, a layout for phones, server logs and cache viewer.
 
 ## Closed network by design
 
 | Who | Access |
 |---|---|
 | The desktop window | Always (authenticated with a per-run token) |
-| A browser on this PC | Only when **Settings › Network & web UI › Web UI** is on (`http://127.0.0.1:43311`) |
+| A browser on this PC | Only when **Settings › Devices & network › Web UI** is on (`http://127.0.0.1:43311`) |
 | Devices on your home network | Only when **Allow devices on my network** is on. They can be password protected (Settings warns while they aren't), and can't change paths/programs, install, set up, turn on or off or remove providers, extensions and plugins, see keys or browse folders. |
 | Moviko on your other computers and TVs | With **Library sharing** on: they see it, and only those you turn on get the library, and nothing else unless you also let them download there (each Moviko has its own key pair; requests are signed, and play only files of the library). |
 | Other apps on an Android TV or phone | **Never**: the Moviko app's own window proves itself with a per-install token. |
@@ -111,14 +117,14 @@ pkill -f /usr/lib/moviko          # Moviko can't be replaced while it runs
 git pull && cd packaging/arch && makepkg -sif
 ```
 
-`-f` rebuilds (without it makepkg reinstalls the package it built last time). Build from a `git clone`, not a downloaded ZIP: without git the package's version can't be read.
+`-f` rebuilds (without it makepkg reinstalls the package it built last time). Build from a `git clone` when you can: without git the version comes from a `VERSION` file at the root, the folder's name (a release's source zip unpacks to `Moviko-windows-v3.0.4`) or, failing those, the newest release on GitHub.
 
 ### First run
-1. **Settings › Metadata (TMDB)**: paste a free TMDB key. Create a themoviedb.org account, then [Settings › API](https://www.themoviedb.org/settings/api); either the "API Key" or the "API Read Access Token" works. Moviko shows a banner until it has one: every title, poster and episode comes from TMDB.
-2. **Settings › Local library**: pick your movies/TV folder(s) and save. The first scan starts on its own.
+1. **Settings › Accounts (TMDB)**: paste a free TMDB key. Create a themoviedb.org account, then [Settings › API](https://www.themoviedb.org/settings/api); either the "API Key" or the "API Read Access Token" works. Moviko shows a banner until it has one: every title, poster and episode comes from TMDB.
+2. **Settings › Library**: pick your movies/TV folder(s) and save. The first scan starts on its own.
 3. Click your avatar, then **Connect Letterboxd** (optional): your username, and optionally your Letterboxd export.
 4. **Providers & extensions**: install Stremio addons, add a Nuvio repository or turn on the luffy and FreeFlix sites (the Internet Archive provider is on already).
-5. **Settings › Torrents** (optional): your qBittorrent/Transmission details, and your Jackett/Prowlarr indexers.
+5. **Settings › Streaming & torrents** (optional): your qBittorrent/Transmission details, and your Jackett/Prowlarr indexers.
 
 ### Headless / other devices
 ```bash
@@ -135,15 +141,15 @@ What to install alongside it, where it keeps its data, how to build it and how r
 
 ## macOS
 
-Moviko runs on macOS 13 Ventura or newer, on Apple silicon and Intel Macs (one universal app): get the disk image (`Moviko-X.Y.Z-macos-universal.dmg`) from the newest **Moviko X.Y.Z for macOS** [release](https://github.com/v0-0x/kumobox-movies/releases) (tag `macos-vX.Y.Z`) and drag Moviko to Applications. It isn't notarized by Apple: the first time, allow it in System Settings › Privacy & Security (**Open Anyway**). Moviko downloads the programs it uses (ffmpeg, yt-dlp, mpv) from **Settings › Desktop app & programs**, with no Homebrew needed, and updates itself from its Home page.
+Moviko runs on macOS 13 Ventura or newer, on Apple silicon and Intel Macs (one universal app): get the disk image (`Moviko-X.Y.Z-macos-universal.dmg`) from the newest **Moviko X.Y.Z for macOS** [release](https://github.com/v0-0x/kumobox-movies/releases) (tag `macos-vX.Y.Z`) and drag Moviko to Applications. It isn't notarized by Apple: the first time, allow it in System Settings › Privacy & Security (**Open Anyway**). Moviko downloads the programs it uses (ffmpeg, yt-dlp, mpv) from **Settings › App & data**, with no Homebrew needed, and updates itself from its Home page.
 
 How to open it the first time, where it keeps its data, how to build it: [packaging/macos/README.md](packaging/macos/README.md).
 
 ## Android / Fire TV
 
-Moviko for Android is made for TVs (a Fire TV Stick, Android TV) and plays the libraries the computers at home share, with the remote: get `Moviko-X.Y.Z-android.apk` from the newest **Moviko X.Y.Z for Android** [release](https://github.com/v0-0x/kumobox-movies/releases) (tag `android-vX.Y.Z`). On a Fire TV, install the **Downloader** app, allow it in Settings › My Fire TV › Developer options › Install unknown apps, and open the APK's address in it. Then, on a computer with Moviko, turn on **Library sharing** (Settings › Other devices): the TV shows up there. Turn on **Share my library** for it, and if you like **Let it download here** (the TV's downloads and torrents go to that computer, and it becomes where the TV downloads by default). Its downloads page and auto downloader then work on that computer. The app updates itself from its Home page (if Android's install question was cancelled, **Install** asks again); see [android/README.md](android/README.md). (Android releases are published once Moviko's Android signing key is in the repository's secrets: [android/README.md](android/README.md#signing).)
+Moviko for Android is made for TVs (a Fire TV Stick, Android TV) and plays the libraries the computers at home share, with the remote: get `Moviko-X.Y.Z-android.apk` from the newest **Moviko X.Y.Z for Android** [release](https://github.com/v0-0x/kumobox-movies/releases) (tag `android-vX.Y.Z`). On a Fire TV, install the **Downloader** app, allow it in Settings › My Fire TV › Developer options › Install unknown apps, and open the APK's address in it. Then, on a computer with Moviko, turn on **Library sharing** (Settings › Devices & network): the TV shows up there. Turn on **Share my library** for it, and if you like **Let it download here** (the TV's downloads and torrents go to that computer, and it becomes where the TV downloads by default). Its downloads page and auto downloader then work on that computer. The app updates itself from its Home page (if Android's install question was cancelled, **Install** asks again); see [android/README.md](android/README.md). (Android releases are published once Moviko's Android signing key is in the repository's secrets: [android/README.md](android/README.md#signing).)
 
-When something doesn't play right on the TV (no picture, it stops), the TV writes what it saw to its log and to the computer's (Settings › Logs & cache), which helps find out why.
+When something doesn't play right on the TV (no picture, it stops), the TV writes what it saw to its log and to the computer's (Settings › App & data), which helps find out why.
 
 ## Development
 
@@ -170,5 +176,5 @@ Data lives in `~/.local/share/moviko` (SQLite database, artwork cache, extension
 ## Notes
 - TMDB's API may rate-limit large first scans; Moviko waits and retries automatically.
 - Letterboxd only tracks films: shows are tracked in Moviko. The public diary feed holds your most recent viewings; import your Letterboxd export once to bring in everything older.
-- Image-based subtitles (PGS/VobSub) only render in mpv.
+- Image-based subtitles (PGS/VobSub) show in mpv as they are; the in-app player has them drawn into the picture by the computer that has the file.
 - Moviko is a personal project, unaffiliated with TMDB, Letterboxd, Stremio, Nuvio, the Internet Archive, luffy, FreeFlix or the sites they stream from. This product uses the TMDB API but is not endorsed or certified by TMDB. Licensed GPL-3.0.
