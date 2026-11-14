@@ -440,7 +440,7 @@ function StreamRow({ s, provider, addonSubs, mediaId, episode }: { s: ProviderSt
                 )}
                 {(s.kind === "youtube" || s.kind === "external") && (
                     <Button size="sm" variant="white" icon={s.kind === "youtube" ? <SquarePlay className="size-3.5" /> : <ExternalLink className="size-3.5" />} onClick={() => playStream(mediaId, episode, { stream: s })}>
-                        Open
+                        {s.embed ? "Watch" : "Open"}
                     </Button>
                 )}
             </div>

@@ -31,6 +31,7 @@ const PHONE = "(max-width: 639px)"
 
 // The player (with hls.js) and a holiday's falling effects load when the
 // page is up, not before it: half of what the app starts with otherwise.
+const WebPlayerOverlay = lazy(() => import("./components/WebPlayer").then(m => ({ default: m.WebPlayerOverlay })))
 const PlayerOverlay = lazy(() => import("./components/player/Player").then(m => ({ default: m.PlayerOverlay })))
 const HolidayEffects = lazy(() => import("./components/HolidayEffects").then(m => ({ default: m.HolidayEffects })))
 const EntryPage = lazy(() => import("./pages/Entry"))
@@ -210,6 +211,7 @@ function MovikoApp() {
             <QuickSearch />
             <Suspense>
                 <PlayerOverlay />
+                <WebPlayerOverlay />
             </Suspense>
             <WhatsNew />
             {ui && look.effects && look.holiday?.effect && (

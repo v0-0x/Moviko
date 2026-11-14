@@ -316,3 +316,15 @@ func (s *Service) BurnsSubtitles(path string) (bool, string) {
 	}
 	return true, name
 }
+
+// ForwardPath forwards a GET to a Moviko this one uses (its ID) at path
+// (with its query), and passes its answer on as it is (a torrent it
+// streams for this one).
+func (s *Service) ForwardPath(w http.ResponseWriter, r *http.Request, host, path string) {
+	p := s.host(host)
+	if p == nil {
+		http.Error(w, errNotShared.Error(), http.StatusNotFound)
+		return
+	}
+	s.forward(w, r, p, http.MethodGet, path, nil)
+}

@@ -99,13 +99,16 @@ const (
 	defaultAPI = "https://api.github.com"
 	// packagedExe is where packaging/arch/PKGBUILD installs the server.
 	packagedExe = "/usr/lib/moviko/moviko"
-	// VersionBase is the number of commits of the commit that's 2.0.0
-	// (desktop/package.json's movikoVersionBase): a build's version is
-	// 2.0.<commits since then>, as the PKGBUILD and the release workflows
-	// make it, and was 1.0.<commits> before.
+	// VersionBase is the number of commits of the commit that's 2.0.0: a
+	// build's version was 2.0.<commits since then> until 3.0.0
+	// (Version3Base), as the PKGBUILD and the release workflows make it,
+	// and 1.0.<commits> before.
 	VersionBase = 161
-	maxChanges  = 30
-	maxLogLines = 20
+	// Version3Base: the same for 3.0.0 (desktop/package.json's
+	// movikoVersionBase since 3.0).
+	Version3Base = 174
+	maxChanges   = 30
+	maxLogLines  = 20
 	// failureFile keeps why an update failed after Moviko had quit for it
 	// (in CacheDir), for the next run to show.
 	failureFile = "last-failure.txt"
@@ -357,9 +360,13 @@ func (c *Checker) applyable() (bool, string) {
 		}
 		return true, "Moviko downloads the new version, builds it with makepkg and installs it with pacman, which asks for your password."
 	case "windows":
-		// <install dir>\resources\moviko.exe, next to <install dir>\Uninstall Moviko.exe.
-		if err != nil || !isFile(filepath.Join(filepath.Dir(filepath.Dir(exe)), "Uninstall Moviko.exe")) {
-			return false, "This is a portable copy of Moviko: to update it, download the new portable zip."
+		// <install dir>\resources\moviko.exe, next to <install dir>\Uninstall Moviko.exe
+		// when installed; unzipped anywhere, without it, when portable.
+		if err != nil || filepath.Base(filepath.Dir(exe)) != "resources" {
+			return false, "Moviko can't tell where it runs from: download the new version from its page."
+		}
+		if c.portable(exe) {
+			return true, "Moviko downloads the new portable zip, puts it in place once Moviko has closed, and opens Moviko again. Nothing is installed."
 		}
 		return true, "Moviko downloads the installer and runs it: Moviko closes, the new version installs and Moviko opens again."
 	case "darwin":
@@ -368,6 +375,18 @@ func (c *Checker) applyable() (bool, string) {
 		return true, "Moviko downloads the new version and Android asks you to install it."
 	}
 	return false, "Moviko can't update itself on this system."
+}
+
+// portable says whether this Windows copy is the portable build (unzipped
+// anywhere, no uninstaller next to it) rather than the installed one.
+func (c *Checker) portable(exe string) bool {
+	return c.GOOS == "windows" && exe != "" && filepath.Base(filepath.Dir(exe)) == "resources" && !isFile(filepath.Join(portableRoot(exe), "Uninstall Moviko.exe"))
+}
+
+// portableRoot is the folder the portable build was unzipped into, from
+// its server: <root>\resources\moviko.exe.
+func portableRoot(exe string) string {
+	return filepath.Dir(filepath.Dir(exe))
 }
 
 func isFile(p string) bool {
@@ -633,6 +652,11 @@ func releaseAsset(goos, version string) string {
 	return "Moviko-Setup-" + version + "-windows-x64.exe"
 }
 
+// portableAsset names the portable Windows build's zip.
+func portableAsset(version string) string {
+	return "Moviko-" + version + "-windows-x64-portable.zip"
+}
+
 // releaseFile says what that file is, for messages.
 func releaseFile(goos string) string {
 	switch goos {
@@ -671,6 +695,9 @@ func (c *Checker) checkReleases(ctx context.Context, g *github) (result, error) 
 		res.note = "This copy is a beta, newer than the newest stable release (" + version + "). It stays until a newer stable release comes out."
 	}
 	file := releaseAsset(c.GOOS, version)
+	if exe, err := c.Executable(); err == nil && c.portable(exe) {
+		file = portableAsset(version)
+	}
 	for _, a := range best.Assets {
 		if a.Name == file {
 			res.asset = &asset{ID: a.ID, Name: a.Name, Size: a.Size, Digest: a.Digest}
@@ -688,6 +715,9 @@ func (c *Checker) checkReleases(ctx context.Context, g *github) (result, error) 
 
 // VersionOf is the version of the build with n commits.
 func VersionOf(n int) string {
+	if n >= Version3Base {
+		return fmt.Sprintf("3.0.%d", n-Version3Base)
+	}
 	if n >= VersionBase {
 		return fmt.Sprintf("2.0.%d", n-VersionBase)
 	}
@@ -813,7 +843,11 @@ func (c *Checker) Apply() error {
 		var err error
 		switch c.GOOS {
 		case "windows":
-			err = c.applyWindows(c.ctx, g, target, inst)
+			if exe, e := c.Executable(); e == nil && c.portable(exe) {
+				err = c.applyWindowsPortable(c.ctx, g, target, inst, portableRoot(exe))
+			} else {
+				err = c.applyWindows(c.ctx, g, target, inst)
+			}
 		case "darwin":
 			err = c.applyMac(c.ctx, g, target, inst)
 		case "android":

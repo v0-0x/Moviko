@@ -100,7 +100,7 @@ export function WatchPicker({ open, onOpenChange }: { open: boolean; onOpenChang
                         {classic ? (
                             <img src={cover(m, "poster")} alt="" className="aspect-[2/3] w-32 shrink-0 rounded-lg object-cover shadow-xl sm:w-40" />
                         ) : (
-                            <div className="marks w-32 shrink-0 self-start sm:w-40">
+                            <div className="w-32 shrink-0 self-start sm:w-40">
                                 <img src={cover(m, "poster")} alt="" className="aspect-[2/3] w-full rounded-lg object-cover" />
                             </div>
                         )}

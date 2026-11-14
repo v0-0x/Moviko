@@ -38,6 +38,7 @@ func (s *Server) routes() {
 	s.noteRoutes()
 	s.cleanupRoutes()
 	s.backupRoutes()
+	s.playlistRoutes()
 
 	// --- core
 	m.HandleFunc("GET /api/status", h(s.status))

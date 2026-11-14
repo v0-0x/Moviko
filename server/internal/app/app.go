@@ -31,6 +31,7 @@ import (
 	"github.com/v0-0x/kumobox-movies/server/internal/lifecycle"
 	"github.com/v0-0x/kumobox-movies/server/internal/notify"
 	"github.com/v0-0x/kumobox-movies/server/internal/player"
+	"github.com/v0-0x/kumobox-movies/server/internal/playlist"
 	"github.com/v0-0x/kumobox-movies/server/internal/providers"
 	"github.com/v0-0x/kumobox-movies/server/internal/providers/stremio"
 	"github.com/v0-0x/kumobox-movies/server/internal/share"
@@ -56,6 +57,7 @@ type App struct {
 	Torrents   *torrent.Manager
 	// TorrentStream plays torrents as they download (package torrentstream).
 	TorrentStream *torrentstream.Engine
+	Playlists     *playlist.Store
 	AutoDL        *torrent.AutoDownloader
 	Extensions    *extensions.Manager
 	Stream        *stream.Service
@@ -167,10 +169,13 @@ func New(dataDir string) (*App, error) {
 	torrents := torrent.NewManager(settings, hub)
 	exts := extensions.NewManager(d, settings, hub)
 	ctx, cancel := context.WithCancel(context.Background())
+	// What's fetched in the background for a page (titles TMDB didn't say
+	// about in time) stops with the app.
+	lib.Ctx = ctx
 	exits := lifecycle.NewExits()
 
 	a := &App{
-		DB: d, Settings: settings, Hub: hub, Platform: platform, Files: files, Scanner: scanner,
+		DB: d, Playlists: playlist.New(d), Settings: settings, Hub: hub, Platform: platform, Files: files, Scanner: scanner,
 		Library: lib, History: hist, Player: pl, Downloads: dls, Torrents: torrents,
 		AutoDL:     torrent.NewAutoDownloader(d, torrents, platform, files, hub),
 		Extensions: exts, Stream: stream.NewService(streamOptions(settings)), Local: stream.NewLocal(settings, files, d),
@@ -408,7 +413,7 @@ func (a *App) Shutdown() {
 	a.Awake.Close()
 	a.Update.Stop()
 	a.HLS.Close()
-	a.Scanner.StopWatcher()
+	a.Scanner.Stop()
 	a.Discord.Clear()
 	a.Extensions.Shutdown()
 	// The background jobs end with ctx; what they write (the database, the

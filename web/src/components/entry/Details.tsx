@@ -266,7 +266,7 @@ function Trailer({ id, thumbnail }: { id: string; thumbnail?: string }) {
                     YouTube <ExternalLink className="size-3.5" />
                 </a>
             </div>
-            <div className="marks on-dark relative w-full max-w-3xl overflow-hidden rounded-lg bg-black ring-1 ring-white/10">
+            <div className="on-dark relative w-full max-w-3xl overflow-hidden rounded-lg bg-black ring-1 ring-white/10">
                 {playing ? (
                     <iframe
                         src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0`}

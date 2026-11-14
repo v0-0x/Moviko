@@ -2,6 +2,7 @@ package update
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -277,8 +278,9 @@ func TestCheckWindowsPicksNewestRelease(t *testing.T) {
 	if !slices.Contains(gh.paths(), "/repos/o/r/releases?per_page=100") {
 		t.Fatalf("requests: %q", gh.paths())
 	}
-	// A portable copy (no uninstaller next to it) can't install it.
-	if st.CanApply || !strings.Contains(st.ApplyNote, "portable") {
+	// Not Moviko's layout (<root>\resources\moviko.exe): it can't tell whether
+	// it's installed or portable, so it doesn't update itself.
+	if st.CanApply || !strings.Contains(st.ApplyNote, "can't tell") {
 		t.Fatalf("canApply %v: %q", st.CanApply, st.ApplyNote)
 	}
 
@@ -705,8 +707,8 @@ func TestRepositoryByNumber(t *testing.T) {
 }
 
 // The version from the number of commits matches what the release
-// workflows and the PKGBUILD make (desktop/package.json says where 2.0.0
-// is), and is newer than every 1.0.
+// workflows and the PKGBUILD make (desktop/package.json says where 3.0.0
+// is), and each is newer than the ones before.
 func TestVersionOf(t *testing.T) {
 	raw, err := os.ReadFile("../../../desktop/package.json")
 	if err != nil {
@@ -719,10 +721,13 @@ func TestVersionOf(t *testing.T) {
 	if err := json.Unmarshal(raw, &pkg); err != nil {
 		t.Fatal(err)
 	}
-	if pkg.Base != VersionBase || !strings.HasPrefix(pkg.Version, "2.0.") {
-		t.Fatalf("desktop/package.json says %s from commit %d; the updater %d", pkg.Version, pkg.Base, VersionBase)
+	if pkg.Base != Version3Base || !strings.HasPrefix(pkg.Version, "3.0.") {
+		t.Fatalf("desktop/package.json says %s from commit %d; the updater %d", pkg.Version, pkg.Base, Version3Base)
 	}
-	for n, want := range map[int]string{VersionBase: "2.0.0", VersionBase + 5: "2.0.5", 139: "1.0.139"} {
+	if compareVersions(VersionOf(Version3Base), VersionOf(Version3Base-1)) <= 0 {
+		t.Error("3.0.0 isn't newer than the last 2.0")
+	}
+	for n, want := range map[int]string{Version3Base: "3.0.0", Version3Base + 5: "3.0.5", VersionBase: "2.0.0", VersionBase + 5: "2.0.5", 139: "1.0.139"} {
 		if got := VersionOf(n); got != want {
 			t.Errorf("VersionOf(%d) = %s, want %s", n, got, want)
 		}
@@ -759,6 +764,30 @@ func TestCheckWindowsBetaChannel(t *testing.T) {
 	}
 }
 
+// A preview of the next version is tagged apart (windows-next-v…): offered
+// with betas on, above the betas of the version before; never without, and
+// a stable release newer than it wins.
+func TestCheckPreviewReleases(t *testing.T) {
+	rel := func(tag string, pre bool) map[string]any {
+		return map[string]any{"tag_name": tag, "prerelease": pre, "html_url": "https://github.com/o/r/releases/tag/" + tag, "published_at": "2026-11-10T10:00:00Z"}
+	}
+	gh := newFakeGitHub(t)
+	gh.json("GET /repos/o/r/releases", []map[string]any{rel("windows-v2.0.59", false), rel("windows-v2.0.80", true), rel("windows-next-v3.0.4", true), rel("windows-next-v3.0.3", true)})
+	c := newTestChecker(t, gh)
+	c.GOOS, c.Version, c.Commit = "windows", "3.0.3", ""
+	if st := check(t, c); st.Error != "" || st.Available || st.Latest.Version != "2.0.59" {
+		t.Fatalf("stable: error %q, available %v, latest %+v", st.Error, st.Available, st.Latest)
+	}
+	gh.channel = "beta"
+	if st := check(t, c); st.Error != "" || !st.Available || st.Latest.Version != "3.0.4" || !st.Latest.Beta {
+		t.Fatalf("beta: error %q, available %v, latest %+v", st.Error, st.Available, st.Latest)
+	}
+	// What a copy of the version before sees (its own tags only): no 3.0.
+	if r := pickRelease([]release{{TagName: "windows-v2.0.80", Prerelease: true}, {TagName: "windows-next-v3.0.4", Prerelease: true}}, "windows-v", true); r == nil || r.TagName != "windows-v2.0.80" {
+		t.Fatalf("a 2.0 copy is offered %+v", r)
+	}
+}
+
 func TestCheckLinuxStableRelease(t *testing.T) {
 	gh := newFakeGitHub(t)
 	rel := func(tag string, pre bool) map[string]any {
@@ -789,6 +818,7 @@ func TestCheckLinuxStableRelease(t *testing.T) {
 	}
 }
 
+<<<<<<< /tmp/claude-0/-home-user-Moviko/7594dff6-ecb1-55a1-9d50-157d0f511d99/scratchpad/m2/server/internal/update/update_test.go
 // In mediaserver, the movies side doesn't update itself: it never asks
 // GitHub, and says what updates it.
 func TestManaged(t *testing.T) {
@@ -805,4 +835,124 @@ func TestManaged(t *testing.T) {
 		t.Fatalf("applied: %v", err)
 	}
 	c.Start()
+=======
+// portableZip is a portable build's zip: Moviko.exe and resources\moviko.exe.
+func portableZip(t *testing.T) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, body := range map[string]string{"Moviko.exe": "MZ the new Moviko", "resources/moviko.exe": "MZ the new server", "LICENSE.txt": "MIT"} {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = w.Write([]byte(body))
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// portableWindows: the portable build, unzipped anywhere (no uninstaller).
+func portableWindows(t *testing.T, c *Checker) string {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "Moviko portable")
+	if err := os.MkdirAll(filepath.Join(dir, "resources"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c.GOOS, c.Version = "windows", "1.0.9"
+	c.Executable = func() (string, error) { return filepath.Join(dir, "resources", "moviko.exe"), nil }
+	return dir
+}
+
+// The portable build updates itself: the portable zip (not the installer)
+// is downloaded and unpacked, and a script that puts it in place and
+// starts Moviko runs once Moviko has shut down.
+func TestApplyWindowsPortable(t *testing.T) {
+	archive := portableZip(t)
+	sum := sha256.Sum256(archive)
+	releases := windowsReleases([]byte("installer"))
+	for _, r := range releases {
+		for _, a := range r["assets"].([]map[string]any) {
+			if a["id"] == 41 {
+				a["size"], a["digest"] = len(archive), "sha256:"+hex.EncodeToString(sum[:])
+			}
+		}
+	}
+	gh := newFakeGitHub(t)
+	gh.json("GET /repos/o/r/releases", releases)
+	gh.mux.HandleFunc("GET /repos/o/r/releases/assets/41", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(archive) })
+	c := newTestChecker(t, gh)
+	root := portableWindows(t, c)
+	var started []string
+	c.StartInstaller = func(path string, args ...string) error {
+		started = append([]string{path}, args...)
+		return nil
+	}
+	st := check(t, c)
+	if !st.Available || !st.CanApply {
+		t.Fatalf("available %v, canApply %v (%s), error %q", st.Available, st.CanApply, st.ApplyNote, st.Error)
+	}
+	if !strings.Contains(st.ApplyNote, "portable zip") {
+		t.Fatalf("apply note %q", st.ApplyNote)
+	}
+	if err := c.Apply(); err != nil {
+		t.Fatal(err)
+	}
+	var exit lifecycle.Exit
+	select {
+	case exit = <-c.Exits.C():
+	case <-time.After(10 * time.Second):
+		t.Fatalf("Moviko wasn't asked to quit: %+v", c.Status())
+	}
+	if exit.Code != lifecycle.CodeInstalling || exit.Restart || exit.Before == nil {
+		t.Fatalf("exit %+v", exit)
+	}
+	if st := waitState(t, c); st.State != StateInstalling {
+		t.Fatalf("state %q: %s", st.State, st.Message)
+	}
+	if started != nil {
+		t.Fatal("the script started before Moviko quit")
+	}
+	if err := exit.Before(); err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join(c.CacheDir, "update.cmd")
+	if want := []string{"cmd.exe", "/c", script}; !slices.Equal(started, want) {
+		t.Fatalf("started %q, want %q", started, want)
+	}
+	// Unpacked beside it, and the script moves it over the old build.
+	if b, _ := os.ReadFile(filepath.Join(c.CacheDir, "new", "resources", "moviko.exe")); string(b) != "MZ the new server" {
+		t.Fatalf("unpacked server %q", b)
+	}
+	b, err := os.ReadFile(script)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`set "NEW=` + filepath.Join(c.CacheDir, "new") + `"`, `set "APP=` + root + `"`, "robocopy", `\Moviko.exe" --updated`} {
+		if !strings.Contains(string(b), want) {
+			t.Fatalf("the script lacks %q:\n%s", want, b)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(c.CacheDir, "Moviko-1.0.10-windows-x64-portable.zip")); err == nil {
+		t.Fatal("the zip wasn't removed once unpacked")
+	}
+}
+
+// A zip with a path outside the folder is refused.
+func TestUnzipPortableRefusesPathsOutside(t *testing.T) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	w, _ := zw.Create("../evil.exe")
+	_, _ = w.Write([]byte("x"))
+	_ = zw.Close()
+	archive := filepath.Join(t.TempDir(), "bad.zip")
+	if err := os.WriteFile(archive, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := unzipPortable(archive, filepath.Join(t.TempDir(), "new")); err == nil {
+		t.Fatal("a path outside the folder was accepted")
+	}
+>>>>>>> /tmp/claude-0/-home-user-Moviko/7594dff6-ecb1-55a1-9d50-157d0f511d99/scratchpad/head/server/internal/update/update_test.go
 }
