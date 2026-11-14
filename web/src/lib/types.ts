@@ -485,6 +485,9 @@ export type ProviderSettings = {
     archive: boolean
     // The streaming sites of the luffy and FreeFlix apps, built in.
     sites: StreamSiteSettings
+    // Streambert's web players, by their key (lib/streamSites.ts); one
+    // that was never turned on isn't there.
+    webPlayers?: Record<string, StreamSite>
     stremioCatalogs: string[]
     nuvioRepos: string[]
     preferredQuality: string // 2160p, 1080p, 720p, 480p or "" (best first)
@@ -711,6 +714,8 @@ export type ProviderStream = {
     magnet?: string
     externalUrl?: string
     youTubeId?: string
+    // externalUrl is a web player's page: it shows in the app's own window.
+    embed?: boolean
     notWebReady?: boolean
     filename?: string
     seeders?: number
@@ -769,6 +774,8 @@ export type PlayResult =
     | { action: "mpv"; provider: string }
     | { action: "torrent"; savePath: string }
     | { action: "external"; url: string }
+    // A web player's page, for the app's own window (components/WebPlayer).
+    | { action: "embed"; url: string; provider: string; providerName: string }
 
 // POST /api/providers/stremio/import: a Stremio account's addons, those
 // installed and those left out (with why).

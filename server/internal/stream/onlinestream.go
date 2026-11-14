@@ -696,6 +696,10 @@ type Pick struct {
 	// Refresh asks the providers again rather than taking the links found
 	// a moment ago (the player does when none of them could be read).
 	Refresh bool
+	// Pages: a web player named as Provider has no link, only its page
+	// (Stream.Embed): that's answered rather than "no direct link". For
+	// callers that can show a page.
+	Pages bool
 }
 
 // BestFor returns the best direct link for a movie or episode, with the
@@ -716,6 +720,15 @@ func (s *Service) BestFor(ctx context.Context, media *catalog.Media, episode int
 	}
 	if direct := preferVersion(res.Direct(), v); len(direct) > 0 {
 		return direct[0], res, nil
+	}
+	// A web player asked for by name (the default provider, the one a show
+	// was last watched from) has no link, only its page: that's its best.
+	if pick.Pages && pick.Provider != "" {
+		for _, st := range res.Streams {
+			if st.Embed && st.ExternalURL != "" && st.Provider == pick.Provider {
+				return st, res, nil
+			}
+		}
 	}
 	return Stream{}, res, noDirect(res)
 }

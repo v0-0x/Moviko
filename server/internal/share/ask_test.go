@@ -169,7 +169,7 @@ func TestRefreshRateLimited(t *testing.T) {
 	if second {
 		t.Fatal("a Refresh right after the first asked again")
 	}
-	guest.RefreshNow()
+	guest.Refresh()
 	guest.mu.Lock()
 	now := p.asked.IsZero()
 	guest.mu.Unlock()

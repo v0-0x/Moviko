@@ -64,6 +64,28 @@ type Rule struct {
 	// the last watched (the list's progress). Episodes before the progress
 	// are never wanted.
 	StartFrom int `json:"startFrom"`
+	// Size limits of a release in MB (0: none); a pack's is all of it.
+	MinSizeMB int `json:"minSizeMb"`
+	MaxSizeMB int `json:"maxSizeMb"`
+	// DelayMinutes: how long to wait after an episode's first release
+	// appears, so that a preferred one (a group listed earlier) can show up.
+	DelayMinutes int `json:"delayMinutes"`
+}
+
+// Candidate is a search result as a rule's test run sees it: grabbed, or
+// skipped and why.
+type Candidate struct {
+	// Episode is the episode's key, or the season's (season*1000) for a
+	// pack.
+	Episode    int    `json:"episode"`
+	Pack       bool   `json:"pack,omitempty"`
+	Name       string `json:"name"`
+	Group      string `json:"group"`
+	Resolution string `json:"resolution"`
+	Seeders    int    `json:"seeders"`
+	Size       int64  `json:"size"`
+	Grab       bool   `json:"grab"`
+	Reason     string `json:"reason,omitempty"`
 }
 
 // AutoItem is something the auto downloader grabbed.
@@ -111,6 +133,10 @@ type AutoDownloader struct {
 	hub      *events.Hub
 	mu       sync.Mutex
 	now      func() time.Time
+	// firstSeen: when a run first saw a release that has no publish date
+	// (for DelayMinutes), by infohash or name.
+	seenMu    sync.Mutex
+	firstSeen map[string]time.Time
 	// Send, when set, sends a release where this Moviko's downloads go (the
 	// computer a TV's go to), and reports whether it did; else it goes to
 	// the torrent client here.
@@ -186,6 +212,7 @@ func (r *Rule) tidy() {
 	r.MustNotContain = words(r.MustNotContain)
 	r.Resolution = strings.TrimSuffix(wantedResolution(r.Resolution), "p")
 	r.MinSeeders = max(r.MinSeeders, 0)
+	r.MinSizeMB, r.MaxSizeMB, r.DelayMinutes = max(r.MinSizeMB, 0), max(r.MaxSizeMB, 0), max(r.DelayMinutes, 0)
 	r.StartFrom = max(r.StartFrom, 0)
 	r.Title = strings.TrimSpace(r.Title)
 	r.Destination = strings.TrimSpace(r.Destination)
@@ -509,12 +536,54 @@ func episodeLimit(m *catalog.Media, now time.Time) int {
 
 // runRule looks for the wanted episodes of a rule and grabs what it finds.
 func (a *AutoDownloader) runRule(ctx context.Context, r *Rule, coll *catalog.Collection, rep *RunReport) error {
+	_, err := a.scan(ctx, r, coll, rep, true)
+	return err
+}
+
+// ErrNoRule: the rule asked for doesn't exist.
+var ErrNoRule = errors.New("no such rule")
+
+// DryRun runs a rule's searches and picks without grabbing or recording
+// anything: what it would grab, and why it skips the rest.
+func (a *AutoDownloader) DryRun(ctx context.Context, id int) ([]Candidate, error) {
+	r, err := a.Rule(id)
+	if err != nil {
+		return nil, err
+	}
+	if r == nil {
+		return nil, ErrNoRule
+	}
+	if a.catalog == nil {
+		return nil, errors.New("the auto downloader isn't set up")
+	}
+	coll, err := a.catalog.Collection(ctx, catalog.TypeTV, false)
+	if err != nil {
+		return nil, fmt.Errorf("the list couldn't be loaded to check what's watched: %v", err)
+	}
+	rep := &RunReport{Errors: []string{}}
+	out, err := a.scan(ctx, r, coll, rep, false)
+	if err != nil {
+		return nil, err
+	}
+	if len(out) == 0 && len(rep.Errors) > 0 {
+		return nil, errors.New(rep.Errors[0])
+	}
+	if out == nil {
+		out = []Candidate{}
+	}
+	return out, nil
+}
+
+// scan looks for the wanted episodes of a rule. With grab, it sends what it
+// picks to the torrent client; without (a test run), it grabs and records
+// nothing and returns every result with what became of it.
+func (a *AutoDownloader) scan(ctx context.Context, r *Rule, coll *catalog.Collection, rep *RunReport, grab bool) ([]Candidate, error) {
 	if a.catalog == nil || a.files == nil {
-		return errors.New("the auto downloader isn't set up")
+		return nil, errors.New("the auto downloader isn't set up")
 	}
 	w, err := a.wanted(ctx, r, coll)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	media, wanted, files, limit := w.media, w.keys, w.files, w.limit
 	if r.Title == "" {
@@ -522,8 +591,9 @@ func (a *AutoDownloader) runRule(ctx context.Context, r *Rule, coll *catalog.Col
 	}
 	rep.Wanted += len(wanted)
 	if len(wanted) == 0 {
-		return nil
+		return nil, nil
 	}
+	var out []Candidate
 	base := showQuery(media)
 	searches := 0
 	search := func(q MediaQuery) []*SearchResult {
@@ -549,10 +619,16 @@ func (a *AutoDownloader) runRule(ctx context.Context, r *Rule, coll *catalog.Col
 		if r.Packs && len(eps) >= packMinWanted && seasonAired(media, season, limit) && searches < maxSearches {
 			q := base
 			q.Season, q.Episode, q.Resolution = season, 0, r.Resolution
-			if best := pickPack(search(q), r, season); best != nil {
-				err := a.grab(ctx, r, media, files, best, season, catalog.EpisodeKey(season, 0))
+			packKey := catalog.EpisodeKey(season, 0)
+			best, cands := a.choose(r, search(q), packKey, season, grab)
+			out = append(out, cands...)
+			if best != nil && !grab {
+				continue
+			}
+			if best != nil {
+				err := a.grab(ctx, r, media, files, best, season, packKey)
 				if errors.Is(err, errClientDown) {
-					return err
+					return out, err
 				}
 				if err == nil {
 					rep.Added++
@@ -563,18 +639,19 @@ func (a *AutoDownloader) runRule(ctx context.Context, r *Rule, coll *catalog.Col
 		}
 		for _, key := range eps {
 			if searches >= maxSearches || ctx.Err() != nil {
-				return ctx.Err()
+				return out, ctx.Err()
 			}
 			q := base
 			q.Season, q.Episode = catalog.SplitKey(key)
 			q.Resolution = r.Resolution
-			best := pickEpisode(search(q), r, key)
-			if best == nil {
+			best, cands := a.choose(r, search(q), key, -1, grab)
+			out = append(out, cands...)
+			if best == nil || !grab {
 				continue
 			}
 			err := a.grab(ctx, r, media, files, best, season, key)
 			if errors.Is(err, errClientDown) {
-				return err
+				return out, err
 			}
 			if err != nil {
 				rep.fail(r, fmt.Errorf("%s: %w", best.Name, err))
@@ -583,7 +660,92 @@ func (a *AutoDownloader) runRule(ctx context.Context, r *Rule, coll *catalog.Col
 			rep.Added++
 		}
 	}
-	return nil
+	return out, nil
+}
+
+// choose picks, among results, the release of the episode key (or, with
+// packSeason >= 0, the pack of that whole season) the rule likes best, nil
+// when none passes or the rule's delay isn't over. It also returns every
+// result that is of that episode (or a pack of that season) with what
+// became of it; remember is false for a test run, which leaves no trace.
+func (a *AutoDownloader) choose(r *Rule, results []*SearchResult, key, packSeason int, remember bool) (*SearchResult, []Candidate) {
+	now := a.now()
+	var ok []*SearchResult
+	var out []Candidate
+	var idx []int // out's index of each of ok
+	var first time.Time
+	for _, res := range results {
+		if res == nil {
+			continue
+		}
+		if packSeason >= 0 {
+			// Not a range of episodes, nor several seasons: those would
+			// bring what isn't wanted.
+			if f := checkName(res.Name); !res.IsBatch || f.Episode >= 0 || f.SeasonFrom != packSeason || f.SeasonTo != packSeason {
+				continue
+			}
+		} else if res.IsBatch || res.EpisodeNumber != key {
+			continue
+		}
+		c := Candidate{Episode: key, Pack: packSeason >= 0, Name: res.Name, Group: res.ReleaseGroup, Resolution: res.Resolution, Seeders: res.Seeders, Size: res.Size, Reason: r.skip(res)}
+		if c.Reason == "" {
+			if at := a.appeared(res, now, remember); first.IsZero() || at.Before(first) {
+				first = at
+			}
+			ok = append(ok, res)
+			idx = append(idx, len(out))
+		}
+		out = append(out, c)
+	}
+	best := r.best(ok)
+	waiting := ""
+	if delay := time.Duration(r.DelayMinutes) * time.Minute; best != nil && delay > 0 {
+		if left := first.Add(delay).Sub(now); left > 0 {
+			waiting = fmt.Sprintf("Waiting (%d min)", int(left.Minutes()+0.999))
+			best = nil
+		}
+	}
+	for i, res := range ok {
+		switch {
+		case waiting != "":
+			out[idx[i]].Reason = waiting
+		case res == best:
+			out[idx[i]].Grab = true
+		default:
+			out[idx[i]].Reason = "Worse release"
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Grab && !out[j].Grab })
+	return best, out
+}
+
+// appeared is when a release came out: its publish date, or else when a
+// run first saw it (now, the first time; a test run doesn't note it).
+func (a *AutoDownloader) appeared(res *SearchResult, now time.Time, remember bool) time.Time {
+	if t, err := time.Parse(time.RFC3339, res.Date); err == nil {
+		return t
+	}
+	key := res.InfoHash
+	if key == "" {
+		key = res.Name
+	}
+	a.seenMu.Lock()
+	defer a.seenMu.Unlock()
+	if t, ok := a.firstSeen[key]; ok {
+		return t
+	}
+	if remember {
+		if a.firstSeen == nil {
+			a.firstSeen = map[string]time.Time{}
+		}
+		for k, t := range a.firstSeen {
+			if now.Sub(t) > 7*24*time.Hour {
+				delete(a.firstSeen, k)
+			}
+		}
+		a.firstSeen[key] = now
+	}
+	return now
 }
 
 // showQuery is the search for a show, without season and episode.
@@ -628,12 +790,15 @@ func seasonAired(media *catalog.Media, season, limit int) bool {
 }
 
 // passes reports whether a release passes a rule's filters.
-func (r *Rule) passes(res *SearchResult) bool {
+func (r *Rule) passes(res *SearchResult) bool { return r.skip(res) == "" }
+
+// skip says why the rule skips a release, or "" when it passes its filters.
+func (r *Rule) skip(res *SearchResult) string {
 	if res.Seeders < max(r.MinSeeders, 1) {
-		return false
+		return "Too few seeders"
 	}
 	if want := wantedResolution(r.Resolution); want != "" && res.Resolution != want {
-		return false
+		return "Other resolution"
 	}
 	// "WEB-DL" is in "Show.S01E01.WEB-DL" and in "Show S01E01 WEB DL".
 	name := strings.ToLower(res.Name)
@@ -645,15 +810,23 @@ func (r *Rule) passes(res *SearchResult) bool {
 	}
 	for _, w := range r.MustContain {
 		if !has(w) {
-			return false
+			return "Missing " + w
 		}
 	}
 	for _, w := range r.MustNotContain {
 		if has(w) {
-			return false
+			return "Has " + w
 		}
 	}
-	return true
+	// An unknown size (0) passes.
+	const mb = 1 << 20
+	if r.MinSizeMB > 0 && res.Size > 0 && res.Size < int64(r.MinSizeMB)*mb {
+		return "Too small"
+	}
+	if r.MaxSizeMB > 0 && res.Size > int64(r.MaxSizeMB)*mb {
+		return "Too large"
+	}
+	return ""
 }
 
 // groupRank is where a release's group comes in the rule's preferred
@@ -687,36 +860,6 @@ func (r *Rule) best(candidates []*SearchResult) *SearchResult {
 		}
 	}
 	return best
-}
-
-// pickEpisode picks the release of the one episode key that the rule
-// likes best, nil when none passes.
-func pickEpisode(results []*SearchResult, r *Rule, key int) *SearchResult {
-	var ok []*SearchResult
-	for _, res := range results {
-		if res != nil && !res.IsBatch && res.EpisodeNumber == key && r.passes(res) {
-			ok = append(ok, res)
-		}
-	}
-	return r.best(ok)
-}
-
-// pickPack picks the pack of the whole season that the rule likes best
-// (not a range of episodes, nor several seasons: those would bring what
-// isn't wanted).
-func pickPack(results []*SearchResult, r *Rule, season int) *SearchResult {
-	var ok []*SearchResult
-	for _, res := range results {
-		if res == nil || !res.IsBatch {
-			continue
-		}
-		f := checkName(res.Name)
-		if f.Episode >= 0 || f.SeasonFrom != season || f.SeasonTo != season || !r.passes(res) {
-			continue
-		}
-		ok = append(ok, res)
-	}
-	return r.best(ok)
 }
 
 // grab sends a release to the torrent client and records key (an

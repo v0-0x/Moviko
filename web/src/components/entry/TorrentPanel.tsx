@@ -6,6 +6,7 @@ import { api } from "@/lib/api"
 import { episodeKey, firstEpisode, formatKey, latestAired, MOVIE_EPISODE, mediaIsShow, nextEpisode, seasonEpisodeCount, splitKey } from "@/lib/ids"
 import { usePlay } from "@/lib/play"
 import { type TorrentSearchBody, useStatus, useTorrentProviders, useTorrentSearch } from "@/lib/queries"
+import { useClassic } from "@/lib/themes"
 import { tv } from "@/lib/tv"
 import type { EntryView, Media, TorrentProviderInfo, TorrentResult } from "@/lib/types"
 import { cn, copyText, formatBytes, relativeTime } from "@/lib/utils"
@@ -29,6 +30,7 @@ type SortKey = "best" | "seeders" | "size" | "date"
 // episode (a key), when given, is the episode to look for first: the one
 // "Find torrents" was picked for on the Episodes tab.
 export function TorrentPanel({ entry, episode }: { entry: EntryView; episode?: number }) {
+    const classic = useClassic()
     const { data: status } = useStatus()
     const settings = status?.settings
     const media = entry.media
@@ -144,7 +146,7 @@ export function TorrentPanel({ entry, episode }: { entry: EntryView; episode?: n
 
     return (
         <div className="flex flex-col gap-5">
-            <div className="card flex flex-col gap-4 p-4">
+            <div className={cn("flex flex-col gap-4", classic && "card p-4")}>
                 {show && (
                     <div className="flex flex-wrap items-end gap-3">
                         <Tabs
@@ -210,7 +212,7 @@ export function TorrentPanel({ entry, episode }: { entry: EntryView; episode?: n
             </div>
 
             {noClient && (
-                <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                <div className={cn("border px-4 py-3 text-sm text-amber-200", classic ? "rounded-xl border-amber-500/25 bg-amber-500/10" : "rounded-sm border-amber-400/45")}>
                     No torrent client is set up, so nothing can be downloaded yet —{" "}
                     <Link to="/settings?tab=torrent-client" className="underline">
                         choose qBittorrent or Transmission
@@ -222,8 +224,13 @@ export function TorrentPanel({ entry, episode }: { entry: EntryView; episode?: n
             {errors.length > 0 && !search.isPending && <SourceErrors errors={errors} failedAll={all.length === 0} />}
 
             {chosen.length > 0 && (
-                <div className="sticky top-3 z-20 flex items-center justify-between rounded-xl border border-line-strong bg-surface-2/95 px-4 py-3 shadow-lg shadow-black/40 backdrop-blur rise-in">
-                    <span className="text-sm">{chosen.length} selected</span>
+                <div
+                    className={cn(
+                        "sticky top-3 z-20 flex items-center justify-between gap-3 border py-2 pr-2 pl-4 rise-in",
+                        classic ? "rounded-xl border-white/10 bg-surface-2/95 shadow-lg shadow-black/40 backdrop-blur" : "rounded-sm border-line bg-bg",
+                    )}
+                >
+                    <span className={classic ? "text-sm tabular-nums" : "label"}>{chosen.length} selected</span>
                     <Button variant="primary" size="sm" loading={sending === "selected"} disabled={noClient} icon={<ArrowDownToLine className="size-4" />} onClick={() => download(chosen, "selected")}>
                         Send to {clientName}
                     </Button>

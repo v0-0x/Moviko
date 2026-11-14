@@ -4,7 +4,7 @@ import { Link } from "react-router-dom"
 import { Button, Input, Select, Switch } from "@/components/ui"
 import { api } from "@/lib/api"
 import { useProviders, useStatus } from "@/lib/queries"
-import { DEFAULT_DECRYPT_URL, SITE_OFF, STREAM_SITES, type StreamSiteKey } from "@/lib/streamSites"
+import { DEFAULT_DECRYPT_URL, SITE_OFF, STREAM_SITES, WEB_PLAYERS, type StreamSiteKey } from "@/lib/streamSites"
 import type { StreamSite, StreamSiteSettings, TorrentSource, TorrentSourceSettings, TorznabIndexer } from "@/lib/types"
 import { Ext, Group, LanOnly, ListInput, Password, PathInput, Row, type SectionProps, Stack, useLan } from "./parts"
 import { MediaServersGroup } from "./MediaServers"
@@ -20,6 +20,8 @@ export function ProvidersSection({ draft, set }: SectionProps) {
     const p = draft.providers
     const dl = draft.downloads
     const sites = p?.sites
+    const players = p?.webPlayers ?? {}
+    const setPlayer = (key: string, v: StreamSite) => set("providers", { webPlayers: { ...players, [key]: v } })
     const setSite = (key: StreamSiteKey, v: StreamSite) => sites && set("providers", { sites: { ...sites, [key]: v } as StreamSiteSettings })
     return (
         <>
@@ -105,6 +107,34 @@ export function ProvidersSection({ draft, set }: SectionProps) {
                         />
                     </Stack>
                 )}
+            </Group>
+
+            <Group title="Web players, from Streambert" description="Unofficial sites, off until you turn them on. Each opens the site's own player in Moviko's window, and can point to a mirror.">
+                {WEB_PLAYERS.map(site => {
+                    const cur = players[site.key] ?? SITE_OFF
+                    return (
+                        <div key={site.key} className="flex flex-col gap-2.5 px-4 py-3.5">
+                            <div className="flex items-center justify-between gap-6">
+                                <div className="min-w-0">
+                                    <p className="text-sm font-medium">{site.name}</p>
+                                    <p className="mt-0.5 text-xs text-subtle">
+                                        {site.movieOnly ? "Movies only · " : ""}
+                                        {site.help}
+                                    </p>
+                                </div>
+                                <Switch checked={cur.enabled} disabled={lan} onChange={v => setPlayer(site.key, { ...cur, enabled: v })} />
+                            </div>
+                            {cur.enabled && (
+                                <Input
+                                    value={cur.url}
+                                    disabled={lan}
+                                    placeholder={`Mirror address (optional, default ${site.url})`}
+                                    onChange={e => setPlayer(site.key, { ...cur, url: e.target.value.trim() })}
+                                />
+                            )}
+                        </div>
+                    )
+                })}
             </Group>
 
             <Group

@@ -4,6 +4,7 @@ import { api, desktop } from "./api"
 import { isShow } from "./ids"
 import { useStatus } from "./queries"
 import { playerStore } from "./store"
+import { webPlayerStore } from "./webPlayer"
 import { tv } from "./tv"
 import type { PlayResult, ProviderStream } from "./types"
 import { safeUrl } from "./utils"
@@ -69,12 +70,16 @@ export function usePlay() {
     // Plays a provider's stream: a direct link, or a torrent as it
     // downloads (on a TV, which can't: it goes to the torrent client), in
     // the in-app player or mpv; a YouTube video or a web page opens in the
-    // browser. Without a stream, the best direct link of
+    // browser, a web player's page in the app's own window. Without a stream, the best direct link of
     // provider ("" for any) plays.
     const playStream = async (mediaId: number, episode: number, opts: { stream?: ProviderStream; provider?: string; player?: "mpv" | "builtin"; start?: number } = {}) => {
         const s = opts.stream
         const provider = s?.provider ?? opts.provider ?? ""
         if (provider) rememberProvider(mediaId, provider)
+        if (s?.kind === "external" && s.embed && s.externalUrl) {
+            webPlayerStore.set({ mediaId, episode, url: s.externalUrl, provider: s.provider, providerName: s.providerName })
+            return
+        }
         if (s && (s.kind === "youtube" || s.kind === "external")) {
             openExternal(streamPage(s))
             return

@@ -446,7 +446,7 @@ func (s *Server) providerPlay(r *http.Request) (any, error) {
 // comes first.
 func (s *Server) pickStream(ctx context.Context, media *catalog.Media, episode int, body providerPlayBody) (stream.Stream, *stream.Result, error) {
 	if body.Refresh {
-		return s.app.Stream.BestFor(ctx, media, episode, stream.Pick{Provider: body.Provider, Refresh: true})
+		return s.app.Stream.BestFor(ctx, media, episode, stream.Pick{Provider: body.Provider, Refresh: true, Pages: body.Player != "mpv"})
 	}
 	if body.StreamID != "" {
 		st, res, err := s.app.Stream.Find(ctx, media, episode, body.StreamID)
@@ -464,7 +464,7 @@ func (s *Server) pickStream(ctx context.Context, media *catalog.Media, episode i
 		}
 		return stream.Wrap(st), nil, nil
 	}
-	return s.app.Stream.BestFor(ctx, media, episode, stream.Pick{Provider: body.Provider})
+	return s.app.Stream.BestFor(ctx, media, episode, stream.Pick{Provider: body.Provider, Pages: body.Player != "mpv"})
 }
 
 // playerSource is a direct link as the in-app player takes it: through the

@@ -42,10 +42,6 @@ const (
 	// A Moviko that proved who it is this lately keeps its address: beacons
 	// don't move it (see heard).
 	verifiedFor = time.Minute
-	// How often Settings (open, or the library page) may have the hosts
-	// asked again before their turn (Refresh): they answer from their
-	// library's version, but each answer costs a server a little.
-	refreshEvery = 15 * time.Second
 	// How many Movikos only heard of (not paired, not added by hand) are kept.
 	maxStrangers = 64
 	// The largest request body read from a Moviko that isn't paired.
@@ -107,10 +103,6 @@ type Service struct {
 	// The shared files as sent (SharedFilesJSON), encoded once per version.
 	filesJSONVer       string
 	filesJSON, filesGz []byte
-	// When the hosts were last asked again on request (Refresh): at most
-	// every refreshEvery, however often Settings asks.
-	refreshMu   sync.Mutex
-	refreshedAt time.Time
 	// This computer's network cards (Hello), read at most every minute.
 	macsMu    sync.Mutex
 	macsAt    time.Time
@@ -1844,23 +1836,9 @@ func (s *Service) SetGrants(id string, g Grants) error {
 	return nil
 }
 
-// Refresh asks the hosts again what they share, soon (Settings or the
-// library page is open): at most every refreshEvery, so a page asking every
-// few seconds doesn't have every server answer every few seconds.
+// Refresh asks the hosts again what they share, now (Settings or the
+// library page is open, or you asked).
 func (s *Service) Refresh() {
-	s.refreshMu.Lock()
-	soon := time.Since(s.refreshedAt) < refreshEvery
-	if !soon {
-		s.refreshedAt = time.Now()
-	}
-	s.refreshMu.Unlock()
-	if !soon {
-		s.RefreshNow()
-	}
-}
-
-// RefreshNow asks the hosts again what they share, now (you asked).
-func (s *Service) RefreshNow() {
 	now := time.Now()
 	s.mu.Lock()
 	for _, p := range s.peers {

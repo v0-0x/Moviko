@@ -36,6 +36,7 @@ import { isItem, itemLabel, playlistNext, playlistStore } from "@/lib/playlist"
 import { useSettings, useStatus } from "@/lib/queries"
 import { skipAt, skipName, skipOn, skipRun, isSkippable } from "@/lib/skips"
 import { playerStore, useStore, type PlayerRequest } from "@/lib/store"
+import { webPlayerStore } from "@/lib/webPlayer"
 import { formatDelay, setSubDelay, subDelay, subLine, subStyleStore, subStyleVars } from "@/lib/subtitles"
 import { useClassic } from "@/lib/themes"
 import type { EntryView, EpisodeView, PlayResult, Probe, Settings, SkipInterval, StreamSource, StreamSubtitle, TorrentStreamStatus, TrackPrefs } from "@/lib/types"
@@ -410,6 +411,13 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                         start: req.start,
                     })
                     if (cancelled) return
+                    // A web player (the default provider can be one): its
+                    // page takes over from this player.
+                    if (res.action === "embed") {
+                        webPlayerStore.set({ mediaId: req.mediaId, episode: req.episode, url: res.url, provider: res.provider, providerName: res.providerName })
+                        playerStore.set(null)
+                        return
+                    }
                     if (res.action !== "builtin") throw new Error("This source can't be played in the app")
                     prefsRef.current = res.tracks
                     key = res.key || req.episode
