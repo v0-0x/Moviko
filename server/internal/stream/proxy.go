@@ -72,7 +72,7 @@ var localProxyClient = &http.Client{
 
 // Credentials, when set, gives the headers authenticating a request for a
 // stream's link with the media server it's on (the token of a Jellyfin,
-// Emby or Plex server of Settings › Providers), nil for any other link.
+// Emby or Plex server of Settings › Streaming & torrents), nil for any other link.
 // Moviko adds them when it fetches the link itself (proxy, relay) or has
 // mpv or a downloader fetch it on this computer: they're never handed to
 // the browser, nor put in links.

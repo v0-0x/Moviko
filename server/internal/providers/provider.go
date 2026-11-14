@@ -108,6 +108,10 @@ type Stream struct {
 
 	ExternalURL string `json:"externalUrl,omitempty"`
 	YouTubeID   string `json:"youTubeId,omitempty"`
+	// Embed is set when ExternalURL is a web player (a site's page that is
+	// nothing but its player): Moviko shows it in its own window instead
+	// of sending it to the browser.
+	Embed bool `json:"embed,omitempty"`
 
 	// NotWebReady is set when a browser can't play URL as is (wrong
 	// container, needs headers...): it goes through mpv, the proxy or a

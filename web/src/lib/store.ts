@@ -45,11 +45,14 @@ export const trayOpenStore = createStore<{ pluginId: string; trayId: string } | 
 // In-app player. Handed from one player to another (picture in picture and
 // back, lib/pip.ts): where it was (start), and the tracks picked there.
 export type HandedTracks = { audio?: number; sub?: string; source?: number }
-export type PlayerRequest =
+// playlist: the playlist being played, when this episode is handed to the
+// small window or back (lib/pip.ts), so it carries on there.
+export type PlayerRequest = (
     | { kind: "local"; path: string; mediaId: number; episode: number; start?: number; tracks?: HandedTracks }
     // A provider's stream (streamId, or the stream itself when its id may be
     // gone), or the best direct link of provider ("" for any).
     | { kind: "stream"; mediaId: number; episode: number; provider?: string; streamId?: string; stream?: ProviderStream; start?: number; tracks?: HandedTracks }
+) & { playlist?: import("./playlist").PlaylistPosition }
 
 export const playerStore = createStore<PlayerRequest | null>(null)
 

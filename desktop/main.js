@@ -5,7 +5,7 @@
 // window makes carries the per-run shell token, which is how the server
 // recognises its own desktop window when the browser Web UI is turned off.
 
-const { app, BrowserWindow, ipcMain, shell, session, Menu, dialog, nativeImage, nativeTheme, Tray, Notification, powerMonitor, screen, clipboard } = require("electron")
+const { app, BrowserWindow, WebContentsView, ipcMain, shell, session, Menu, dialog, nativeImage, nativeTheme, Tray, Notification, powerMonitor, screen, clipboard } = require("electron")
 const { spawn, execFileSync } = require("node:child_process")
 const fs = require("node:fs")
 const os = require("node:os")
@@ -106,7 +106,7 @@ let mainWindow = null
 let baseUrl = null
 let tray = null
 
-// The desktop app's own preferences (Settings › Desktop app & programs),
+// The desktop app's own preferences (Settings › App & data),
 // kept next to its browser data.
 //   keepRunning     closing the window leaves Moviko running (tray icon, or the
 //                   Dock on a Mac): streaming to other devices, downloads and
@@ -138,7 +138,7 @@ function savePrefs() {
     }
 }
 
-// Starting with the computer (Settings › Desktop app & programs), off unless
+// Starting with the computer (Settings › App & data), off unless
 // turned on: the system's own login items on Windows and macOS, an autostart
 // entry on Linux. Started that way, Moviko opens in the background (tray, or
 // the Dock on a Mac) when it keeps running without its window; otherwise
@@ -465,6 +465,16 @@ function installShellHeader() {
         if (token) details.requestHeaders["X-KumoBox-Shell"] = token
         cb({ requestHeaders: details.requestHeaders })
     })
+    // The player's screenshots (PNG from a blob:) go straight to Pictures/Moviko, no Save dialog.
+    session.defaultSession.on("will-download", (_e, item) => {
+        if (!item.getURL().startsWith("blob:") || !item.getFilename().toLowerCase().endsWith(".png")) return
+        const dir = path.join(app.getPath("pictures"), "Moviko")
+        fs.mkdirSync(dir, { recursive: true })
+        item.setSavePath(path.join(dir, item.getFilename()))
+        item.once("done", (_ev, state) => {
+            if (state === "completed" && Notification.isSupported()) new Notification({ title: "Screenshot saved", body: item.getFilename() }).show()
+        })
+    })
 }
 
 // A page of Moviko's: at its address (the one it had when it started, or the
@@ -552,7 +562,7 @@ function windowBounds() {
 function waitingPage(text) {
     const logo =
         '<svg viewBox="0 0 64 64" width="56" height="56"><path d="M59.86 59.86C59.27 60.45 58.63 60.95 57.87 61.4C57.12 61.85 56.31 62.23 55.33 62.56C54.36 62.88 53.35 63.15 52.01 63.36C50.66 63.58 50.57 63.74 47.24 63.84C43.9 63.95 37.08 64 32 64C26.92 64 20.1 63.95 16.76 63.84C13.43 63.74 13.34 63.58 11.99 63.36C10.65 63.15 9.64 62.88 8.67 62.56C7.69 62.23 6.88 61.85 6.13 61.4C5.37 60.95 4.73 60.45 4.14 59.86C3.55 59.27 3.05 58.63 2.6 57.87C2.15 57.12 1.77 56.31 1.44 55.33C1.12 54.36 0.85 53.35 0.64 52.01C0.42 50.66 0.26 50.57 0.16 47.24C0.05 43.9 0 37.08 0 32C0 26.92 0.05 20.1 0.16 16.76C0.26 13.43 0.42 13.34 0.64 11.99C0.85 10.65 1.12 9.64 1.44 8.67C1.77 7.69 2.15 6.88 2.6 6.13C3.05 5.37 3.55 4.73 4.14 4.14C4.73 3.55 5.37 3.05 6.13 2.6C6.88 2.15 7.69 1.77 8.67 1.44C9.64 1.12 10.65 0.85 11.99 0.64C13.34 0.42 13.43 0.26 16.76 0.16C20.1 0.05 26.92 0 32 0C37.08 0 43.9 0.05 47.24 0.16C50.57 0.26 50.66 0.42 52.01 0.64C53.35 0.85 54.36 1.12 55.33 1.44C56.31 1.77 57.12 2.15 57.87 2.6C58.63 3.05 59.27 3.55 59.86 4.14C60.45 4.73 60.95 5.37 61.4 6.13C61.85 6.88 62.23 7.69 62.56 8.67C62.88 9.64 63.15 10.65 63.36 11.99C63.58 13.34 63.74 13.43 63.84 16.76C63.95 20.1 64 26.92 64 32C64 37.08 63.95 43.9 63.84 47.24C63.74 50.57 63.58 50.66 63.36 52.01C63.15 53.35 62.88 54.36 62.56 55.33C62.23 56.31 61.85 57.12 61.4 57.87C60.95 58.63 60.45 59.27 59.86 59.86Z" fill="#141416"/><path d="M17 27 H47 A4 4 0 0 1 51 31 V47 A4 4 0 0 1 47 51 H17 A4 4 0 0 1 13 47 V31 A4 4 0 0 1 17 27 Z" fill="#ececee"/><path d="M12.52 18.11 L47.06 9.50 L48.42 14.93 L13.87 23.55 Z" fill="#ececee" stroke="#ececee" stroke-width="2.4" stroke-linejoin="round"/><path d="M18.00 16.13 L21.88 15.16 L20.62 22.48 L16.74 23.45 Z M25.76 14.19 L29.65 13.22 L28.38 20.55 L24.50 21.51 Z M33.53 12.26 L37.41 11.29 L36.14 18.61 L32.26 19.58 Z M41.29 10.32 L45.17 9.35 L43.90 16.68 L40.02 17.64 Z" fill="#141416"/><path d="M29.70 34.90 L37.60 39.00 L29.70 43.10 Z" fill="#7c6cf2" stroke="#7c6cf2" stroke-width="2.4" stroke-linejoin="round"/></svg>'
-    const html = `<!doctype html><meta charset="utf-8"><title>Moviko</title><body style="margin:0;height:100vh;display:grid;place-items:center;background:#0a0a0b;color:#a1a1a8;font:14px system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-user-select:none;user-select:none"><div style="display:grid;justify-items:center;gap:18px">${logo}<div>${text}</div></div></body>`
+    const html = `<!doctype html><meta charset="utf-8"><title>Moviko</title><body style="margin:0;height:100vh;display:grid;place-items:center;background:#0a0a0a;color:#9a9a9a;font:14px system-ui,-apple-system,'Segoe UI',sans-serif;-webkit-user-select:none;user-select:none"><div style="display:grid;justify-items:center;gap:18px">${logo}<div>${text}</div></div></body>`
     return "data:text/html;charset=utf-8," + encodeURIComponent(html)
 }
 
@@ -576,7 +586,7 @@ function createWindow(page = "", waiting = false) {
         minWidth: 960,
         minHeight: 620,
         title: "Moviko",
-        backgroundColor: "#0a0a0b",
+        backgroundColor: "#0a0a0a",
         autoHideMenuBar: true,
         show: false,
         icon: windowIcon(),
@@ -638,6 +648,17 @@ function createWindow(page = "", waiting = false) {
         console.error("Moviko's page stopped:", details.reason)
         setTimeout(() => mainWindow?.webContents.reload(), 500)
     })
+    // A web player's view goes with the page that asked for it (a reload,
+    // the page parked), fills the window again when it's resized in full
+    // screen, and ends with the window.
+    wc.on("did-start-navigation", details => {
+        if (details.isMainFrame && !details.isSameDocument) closeWebPlayer()
+    })
+    mainWindow.on("resize", () => webPlayer?.full && placeWebPlayer())
+    mainWindow.on("leave-full-screen", () => {
+        if (webPlayer?.full) webPlayer.view.webContents.executeJavaScript("document.fullscreenElement && document.exitFullscreen()", true).catch(() => {})
+    })
+    mainWindow.on("close", closeWebPlayer)
     // Where it is and how big, for the next time it opens.
     const remember = () => {
         if (!mainWindow || mainWindow.isMinimized() || mainWindow.isFullScreen()) return
@@ -714,6 +735,195 @@ function keepInside(contents) {
         if (!/^(https?|about|data|blob):/i.test(details.url)) details.preventDefault()
     })
 }
+
+// Web players (Watch online's VidSrc, Vidfast…: the server's
+// providers/webplayers): a site's page that is nothing but its player, shown
+// over Moviko's page in a view of its own, where the page says
+// (web/src/components/WebPlayer.tsx). The page is a stranger's: it gets a
+// session of its own (nothing of Moviko's, no preload, no token), no popups,
+// no downloads, no permissions but full screen, and once it's been clicked it
+// stays on the site it was opened on (ads there take the whole page
+// elsewhere on a click).
+let webPlayer = null // { view, site, bounds, full, touched }
+let webPlayerSes = null
+
+function webPlayerSession() {
+    if (webPlayerSes) return webPlayerSes
+    webPlayerSes = session.fromPartition("persist:webplayer")
+    webPlayerSes.setPermissionRequestHandler((_wc, permission, cb) => cb(permission === "fullscreen"))
+    webPlayerSes.setPermissionCheckHandler((_wc, permission) => permission === "fullscreen")
+    webPlayerSes.on("will-download", e => e.preventDefault())
+    return webPlayerSes
+}
+
+// The site of a host: its last two names ("embed.vidrift.net" is
+// vidrift.net's), which is as far as "the same site" needs to go here.
+function siteOf(host) {
+    return String(host).toLowerCase().split(".").slice(-2).join(".")
+}
+
+function urlSite(url) {
+    try {
+        return siteOf(new URL(url).hostname)
+    } catch {
+        return ""
+    }
+}
+
+// Players that try window.open() on the first click and refuse to play
+// ("Remove sandboxing to enable playback") when it's denied: they get a
+// window that's never shown and loads nothing, closed a moment later.
+const POPUP_STUB_SITES = ["vidrift.net", "vidrift.in"]
+
+// Where the page wants the view: its rectangle in the page's own pixels,
+// which the window's zoom scales.
+function placeWebPlayer(bounds) {
+    if (!webPlayer || !mainWindow) return
+    if (bounds) webPlayer.bounds = bounds
+    const [w, h] = mainWindow.getContentSize()
+    if (webPlayer.full || !webPlayer.bounds) {
+        webPlayer.view.setBounds({ x: 0, y: 0, width: w, height: h })
+        return
+    }
+    const z = mainWindow.webContents.getZoomFactor() || 1
+    const b = webPlayer.bounds
+    const n = v => (Number.isFinite(Number(v)) ? Math.round(Number(v) * z) : 0)
+    const x = Math.max(0, Math.min(n(b.x), w))
+    const y = Math.max(0, Math.min(n(b.y), h))
+    webPlayer.view.setBounds({ x, y, width: Math.max(0, Math.min(n(b.width), w - x)), height: Math.max(0, Math.min(n(b.height), h - y)) })
+}
+
+function closeWebPlayer() {
+    const cur = webPlayer
+    if (!cur) return
+    webPlayer = null
+    try {
+        mainWindow?.contentView.removeChildView(cur.view)
+    } catch {
+        // the window is gone
+    }
+    try {
+        cur.view.webContents.close()
+    } catch {
+        // already closed
+    }
+    if (cur.full && cur.wasFull === false) mainWindow?.setFullScreen(false)
+}
+
+ipcMain.handle("moviko:webplayer-open", (e, url, bounds) => {
+    if (!mainWindow || e.sender !== mainWindow.webContents) return false
+    let u
+    try {
+        u = new URL(String(url))
+    } catch {
+        return false
+    }
+    if ((u.protocol !== "https:" && u.protocol !== "http:") || isInternal(u.href)) return false
+    closeWebPlayer()
+    const view = new WebContentsView({
+        webPreferences: { session: webPlayerSession(), sandbox: true, contextIsolation: true, nodeIntegration: false, spellcheck: false },
+    })
+    view.setBackgroundColor("#000000")
+    const wc = view.webContents
+    const me = { view, site: siteOf(u.hostname), bounds: null, full: false, touched: false }
+    webPlayer = me
+    wc.setWindowOpenHandler(() => {
+        if (!POPUP_STUB_SITES.includes(urlSite(wc.getURL()))) return { action: "deny" }
+        return { action: "allow", overrideBrowserWindowOptions: { show: false, width: 1, height: 1, skipTaskbar: true, focusable: false, webPreferences: { session: webPlayerSession(), sandbox: true } } }
+    })
+    wc.on("did-create-window", win => {
+        try {
+            win.webContents.setAudioMuted(true)
+            win.webContents.stop()
+            win.webContents.on("will-navigate", ev => ev.preventDefault())
+        } catch {
+            // closed already
+        }
+        setTimeout(() => {
+            if (!win.isDestroyed()) win.destroy()
+        }, 5000)
+    })
+    wc.on("input-event", (_e, input) => {
+        if (input.type === "mouseDown" || input.type === "keyDown" || input.type === "touchStart") me.touched = true
+    })
+    // A site may send its page to a mirror by itself as it loads; after a
+    // click, leaving the site is an ad's doing.
+    wc.on("will-navigate", (ev, to) => {
+        const site = urlSite(to)
+        if (!/^https?:/i.test(to) || (me.touched && site !== me.site)) ev.preventDefault()
+        else me.site = site || me.site
+    })
+    wc.on("will-frame-navigate", details => {
+        if (!/^(https?|about|data|blob):/i.test(details.url)) details.preventDefault()
+    })
+    // The player's own full screen button: the view takes the whole window,
+    // and the window the whole screen.
+    wc.on("enter-html-full-screen", () => {
+        if (webPlayer !== me || !mainWindow) return
+        if (!me.full) me.wasFull = mainWindow.isFullScreen()
+        me.full = true
+        if (!me.wasFull) mainWindow.setFullScreen(true)
+        placeWebPlayer()
+    })
+    wc.on("leave-html-full-screen", () => {
+        if (webPlayer !== me || !mainWindow) return
+        me.full = false
+        if (me.wasFull === false) mainWindow.setFullScreen(false)
+        placeWebPlayer()
+    })
+    // Escape (out of full screen) goes back to Moviko, as in its own player.
+    wc.on("before-input-event", (ev, input) => {
+        if (input.type !== "keyDown" || input.key !== "Escape" || me.full) return
+        ev.preventDefault()
+        mainWindow?.webContents.send("moviko:webplayer-escape")
+    })
+    wc.on("render-process-gone", () => {
+        if (webPlayer === me) closeWebPlayer()
+    })
+    mainWindow.contentView.addChildView(view)
+    placeWebPlayer(bounds)
+    wc.loadURL(u.href).catch(() => {})
+    return true
+})
+ipcMain.on("moviko:webplayer-bounds", (e, bounds) => {
+    if (mainWindow && e.sender === mainWindow.webContents) placeWebPlayer(bounds)
+})
+ipcMain.on("moviko:webplayer-close", e => {
+    if (mainWindow && e.sender === mainWindow.webContents) closeWebPlayer()
+})
+
+// How far the video in the web player is: its page's, or a frame's inside it
+// (players sit in frames of other sites, which only the app can look into).
+// The longest video counts: the others are ads and previews.
+const WEB_PLAYER_PROGRESS = `(() => {
+    let best = null
+    for (const v of document.querySelectorAll("video")) {
+        if (!Number.isFinite(v.duration) || v.duration <= 0) continue
+        if (!best || v.duration > best.duration) best = v
+    }
+    return best ? { position: best.currentTime, duration: best.duration, paused: best.paused, ended: best.ended } : null
+})()`
+
+ipcMain.handle("moviko:webplayer-progress", async e => {
+    const cur = webPlayer
+    if (!cur || !mainWindow || e.sender !== mainWindow.webContents) return null
+    let best = null
+    try {
+        for (const frame of cur.view.webContents.mainFrame.framesInSubtree) {
+            try {
+                const r = await frame.executeJavaScript(WEB_PLAYER_PROGRESS)
+                if (r && typeof r.duration === "number" && typeof r.position === "number" && (!best || r.duration > best.duration)) {
+                    best = { position: r.position, duration: r.duration, paused: !!r.paused, ended: !!r.ended }
+                }
+            } catch {
+                // a frame that's loading, or gone
+            }
+        }
+    } catch {
+        return null
+    }
+    return best
+})
 
 // Picture in picture: Moviko's player in a small window on top of the others
 // (its /mini page, the episode in its address), at the bottom right of the
@@ -1021,7 +1231,7 @@ function wentToBackground() {
         type: "info",
         title: "Moviko",
         message: "Moviko keeps running",
-        detail: `Streaming to your other devices, downloads and the auto downloader keep going while its window is closed. ${where}\n\nYou can change this in Settings › Desktop app & programs.`,
+        detail: `Streaming to your other devices, downloads and the auto downloader keep going while its window is closed. ${where}\n\nYou can change this in Settings › App & data.`,
         buttons: ["OK", "Quit Moviko"],
         defaultId: 0,
         cancelId: 0,
@@ -1033,7 +1243,7 @@ function wentToBackground() {
 // app's memory, cached images…) and loads it again when the computer is
 // unlocked. Not while a video or Settings are open, so nothing is lost.
 const PARK_AFTER = 5 * 60_000
-const PARKED_PAGE = "data:text/html,<body style='background:%230a0a0b'></body>"
+const PARKED_PAGE = "data:text/html,<body style='background:%230a0a0a'></body>"
 let lockTimer = null
 let parkedUrl = null
 
@@ -1057,6 +1267,39 @@ function unparkPage() {
     const url = parkedUrl
     parkedUrl = null
     if (mainWindow && isInternal(url)) mainWindow.loadURL(url).catch(() => {})
+}
+
+// After an update on Linux the desktop can keep showing Moviko's icon from
+// before (the app menu, the panel): it keeps its own copy of every icon.
+// Once per version, tell it they changed: KDE's signal for it (what its own
+// settings send), and the menu's database built again. Nothing is deleted;
+// a desktop without these tools just doesn't answer.
+function refreshDesktopIcons() {
+    if (process.platform !== "linux") return
+    const seen = path.join(app.getPath("userData"), "icons-version")
+    // The server program's version: the app's own number doesn't change.
+    const version = installedVersion() || app.getVersion()
+    try {
+        if (fs.readFileSync(seen, "utf8") === version) return
+    } catch {
+        // first start, or an unreadable file: refresh
+    }
+    const run = (cmd, args) => {
+        try {
+            spawn(cmd, args, { stdio: "ignore", detached: true }).on("error", () => {}).unref()
+        } catch {
+            // not installed
+        }
+    }
+    run("dbus-send", ["--session", "--type=signal", "/KIconLoader", "org.kde.KIconLoader.iconChanged", "int32:0"])
+    run("kbuildsycoca6", ["--noincremental"])
+    run("kbuildsycoca5", ["--noincremental"])
+    run("xdg-desktop-menu", ["forceupdate"])
+    try {
+        fs.writeFileSync(seen, version)
+    } catch {
+        // asked again at the next start
+    }
 }
 
 // Moviko couldn't start: why, the server's last lines, and Try again.
@@ -1169,6 +1412,7 @@ if (SMOKE) {
             nativeTheme.themeSource = "dark"
             Menu.setApplicationMenu(appMenu())
             updateDesktopShortcuts()
+            refreshDesktopIcons()
             return boot()
         })
         .catch(startupFailed)

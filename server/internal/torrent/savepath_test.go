@@ -79,3 +79,26 @@ func TestResultSeason(t *testing.T) {
 		}
 	}
 }
+
+// New titles go into the library folder chosen for downloads; a title with a
+// folder already, in any library folder, keeps it.
+func TestSavePathChosenFolder(t *testing.T) {
+	lib, second := filepath.Join(t.TempDir(), "Videos"), filepath.Join(t.TempDir(), "Big disk")
+	cfg := config.Settings{}
+	cfg.Library.Dir, cfg.Library.ExtraDirs, cfg.Library.DownloadDir = lib, []string{second}, second
+	cfg.Torrent.CreateSubfolder = true
+	show := severance()
+	if got, want := savePath(cfg, show, 2, nil), filepath.Join(second, "Severance (2022)", "Season 02"); got != want {
+		t.Errorf("new show: %q, want %q", got, want)
+	}
+	own := filepath.Join(lib, "Severance")
+	files := []*library.LocalFile{{Path: filepath.Join(own, "Season 1", "x.mkv"), Dir: filepath.Join(own, "Season 1"), Episode: 1001, Kind: "main"}}
+	if got, want := savePath(cfg, show, 2, files), filepath.Join(own, "Season 02"); got != want {
+		t.Errorf("its folder in another library folder: %q, want %q", got, want)
+	}
+	// A folder that isn't a library folder isn't used: the first one is.
+	cfg.Library.DownloadDir = filepath.Join(t.TempDir(), "Elsewhere")
+	if got, want := savePath(cfg, show, -1, nil), filepath.Join(lib, "Severance (2022)"); got != want {
+		t.Errorf("a folder outside the library: %q, want %q", got, want)
+	}
+}

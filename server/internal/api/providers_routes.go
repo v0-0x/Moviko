@@ -335,8 +335,9 @@ type providerPlayBody struct {
 // providerPlay is POST /api/providers/play. A direct link opens in mpv or
 // gives the in-app player its sources (the stream picked, then the other
 // direct links as fallbacks), a torrent goes to the torrent client (into the
-// library), a YouTube video or a web page comes back to be opened:
-// {action: "builtin" | "mpv" | "torrent" | "external", ...}.
+// library), a YouTube video or a web page comes back to be opened (a web
+// player's page, in Moviko's own window):
+// {action: "builtin" | "mpv" | "torrent" | "external" | "embed", ...}.
 func (s *Server) providerPlay(r *http.Request) (any, error) {
 	var body providerPlayBody
 	if err := decode(r, &body); err != nil {
@@ -362,6 +363,10 @@ func (s *Server) providerPlay(r *http.Request) (any, error) {
 		u, err := url.Parse(st.ExternalURL)
 		if err != nil || (u.Scheme != "https" && u.Scheme != "http") {
 			return nil, badRequest("this source has no link to open")
+		}
+		if st.Embed {
+			// A web player: the page shows in Moviko's own window.
+			return map[string]any{"action": "embed", "url": st.ExternalURL, "provider": st.Provider, "providerName": st.ProviderName}, nil
 		}
 		return map[string]any{"action": "external", "url": st.ExternalURL}, nil
 	}
@@ -441,7 +446,7 @@ func (s *Server) providerPlay(r *http.Request) (any, error) {
 // comes first.
 func (s *Server) pickStream(ctx context.Context, media *catalog.Media, episode int, body providerPlayBody) (stream.Stream, *stream.Result, error) {
 	if body.Refresh {
-		return s.app.Stream.BestFor(ctx, media, episode, stream.Pick{Provider: body.Provider, Refresh: true})
+		return s.app.Stream.BestFor(ctx, media, episode, stream.Pick{Provider: body.Provider, Refresh: true, Pages: body.Player != "mpv"})
 	}
 	if body.StreamID != "" {
 		st, res, err := s.app.Stream.Find(ctx, media, episode, body.StreamID)
@@ -459,7 +464,7 @@ func (s *Server) pickStream(ctx context.Context, media *catalog.Media, episode i
 		}
 		return stream.Wrap(st), nil, nil
 	}
-	return s.app.Stream.BestFor(ctx, media, episode, stream.Pick{Provider: body.Provider})
+	return s.app.Stream.BestFor(ctx, media, episode, stream.Pick{Provider: body.Provider, Pages: body.Player != "mpv"})
 }
 
 // playerSource is a direct link as the in-app player takes it: through the
@@ -782,7 +787,7 @@ func (s *Server) refreshStremioAddons(r *http.Request) (any, error) {
 }
 
 // stremioCatalog is GET /api/providers/stremio/catalog?url=: an addon
-// collection (the first of Settings › Providers by default), the installed
+// collection (the first of Settings › Streaming & torrents by default), the installed
 // addons marked: {url, catalogs, addons}. Devices on the LAN read the
 // collections of the settings only.
 func (s *Server) stremioCatalog(r *http.Request) (any, error) {
@@ -869,7 +874,7 @@ func (s *Server) nuvioRepo(r *http.Request) (any, error) {
 }
 
 // addNuvioRepo is POST /api/providers/nuvio/repos {url}: checks the
-// repository and keeps it in Settings › Providers.
+// repository and keeps it in Settings › Streaming & torrents.
 func (s *Server) addNuvioRepo(r *http.Request) (any, error) {
 	if !isTrusted(r) {
 		return nil, errLANManage

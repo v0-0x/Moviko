@@ -1,8 +1,8 @@
 {
   "name": "moviko",
   "productName": "Moviko",
-  "version": "2.0.0",
-  "movikoVersionBase": 161,
+  "version": "3.0.0",
+  "movikoVersionBase": 174,
   "description": "Moviko, a movie and TV show player and tracker: the desktop window (starts the local Moviko server)",
   "main": "main.js",
   "desktopName": "moviko.desktop",

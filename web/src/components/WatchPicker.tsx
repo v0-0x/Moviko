@@ -4,9 +4,10 @@ import { useNavigate } from "react-router-dom"
 import { Badge, Button, Dialog, Select } from "@/components/ui"
 import { formatRanges } from "@/lib/missing"
 import { useCollection } from "@/lib/queries"
+import { useClassic } from "@/lib/themes"
 import type { CollectionItem } from "@/lib/types"
 import { formatKey, mediaIsShow, totalEpisodes } from "@/lib/ids"
-import { cleanDescription, cover, formatLabel, title, year } from "@/lib/utils"
+import { cleanDescription, cn, cover, formatLabel, title, year } from "@/lib/utils"
 
 type From = "PLANNING" | "PAUSED" | "CURRENT" | "library"
 type Length = "any" | "movie" | "show" | "short" | "long"
@@ -28,6 +29,7 @@ const LENGTHS: { value: Length; label: string }[] = [
 // "What should I watch?": a movie or show picked at random from the list
 // (the watchlist, by default), another one a click away.
 export function WatchPicker({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+    const classic = useClassic()
     const { data: coll } = useCollection()
     const navigate = useNavigate()
     const [from, setFrom] = useState<From>("PLANNING")
@@ -90,12 +92,18 @@ export function WatchPicker({ open, onOpenChange }: { open: boolean; onOpenChang
                     <Select className="w-full" value={genre} onChange={change(setGenre)} options={[{ value: "", label: "Any genre" }, ...(coll?.genres ?? []).map(g => ({ value: g, label: g }))]} />
                 </div>
                 {!m ? (
-                    <p className="rounded-lg bg-white/[0.04] px-4 py-8 text-center text-sm text-muted">
+                    <p className={cn("px-4 py-8 text-center text-sm text-muted", classic && "rounded-lg bg-white/[0.04]")}>
                         {coll ? "Nothing on your list fits. Try another list, length or genre." : "Loading your list…"}
                     </p>
                 ) : (
                     <div key={m.id} className="flex gap-5 rise-in">
-                        <img src={cover(m, "poster")} alt="" className="aspect-[2/3] w-32 shrink-0 rounded-lg object-cover shadow-xl sm:w-40" />
+                        {classic ? (
+                            <img src={cover(m, "poster")} alt="" className="aspect-[2/3] w-32 shrink-0 rounded-lg object-cover shadow-xl sm:w-40" />
+                        ) : (
+                            <div className="w-32 shrink-0 self-start sm:w-40">
+                                <img src={cover(m, "poster")} alt="" className="aspect-[2/3] w-full rounded-lg object-cover" />
+                            </div>
+                        )}
                         <div className="flex min-w-0 flex-1 flex-col gap-2">
                             <h3 className="text-lg leading-snug font-semibold">{title(m)}</h3>
                             <p className="text-sm text-muted">

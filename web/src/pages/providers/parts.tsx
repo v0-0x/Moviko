@@ -2,6 +2,7 @@ import { Puzzle } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Badge, Dialog } from "@/components/ui"
 import { api } from "@/lib/api"
+import { useClassic } from "@/lib/themes"
 import { toast } from "@/lib/toast"
 import { cn } from "@/lib/utils"
 import type { LogLineT } from "../extensionTypes"
@@ -60,19 +61,18 @@ export function TypeBadges({ types }: { types: string[] }) {
 // refuses them: api/lan.go).
 export function LanNote() {
     return (
-        <p className="rounded-lg bg-white/[0.03] px-4 py-3 text-sm text-muted">
-            Providers and extensions are installed, updated, set up, turned on or off and removed on the computer Moviko runs on.
-        </p>
+        <p className="rounded-lg bg-white/[0.03] px-4 py-3 text-sm text-muted">View only. Set up providers and extensions on the computer Moviko runs on.</p>
     )
 }
 
 // A section of a tab: title, description and actions.
 export function TabSection({ title, description, actions, children }: { title: React.ReactNode; description?: React.ReactNode; actions?: React.ReactNode; children: React.ReactNode }) {
+    const classic = useClassic()
     return (
         <section className="flex flex-col gap-4">
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+                    <h2 className={classic ? "text-lg font-semibold tracking-tight" : "label text-muted"}>{title}</h2>
                     {description && <p className="mt-0.5 max-w-3xl text-[13px] text-muted">{description}</p>}
                 </div>
                 {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

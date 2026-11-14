@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Copy, HardDrive, Trash2, Undo2 } from "lucide-react"
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { Button, EmptyState, Select } from "@/components/ui"
+import { Button, ContextArea, DropdownItem, EmptyState, Select } from "@/components/ui"
 import { api } from "@/lib/api"
 import { formatKey, isShow, mediaRef } from "@/lib/ids"
 import { formatRanges } from "@/lib/missing"
@@ -50,7 +50,7 @@ export function Cleanup() {
         try {
             const res = await api.post<{ moved: number; failed: Record<string, string> }>("/api/library/trash", { paths })
             const failed = Object.entries(res.failed ?? {})
-            if (res.moved) toast.success(`${res.moved} ${res.moved === 1 ? "file" : "files"} moved to Moviko's trash. Put them back from it below, or empty it to free the space.`)
+            if (res.moved) toast.success(`${res.moved} ${res.moved === 1 ? "file" : "files"} moved to Moviko's trash`)
             if (failed.length) toast.error(`${failed.length} couldn't be moved: ${failed[0][1]}`)
         } catch (e: any) {
             toast.error(e.message)
@@ -104,7 +104,7 @@ function DiskUsage({ data }: { data: CleanupView }) {
                     <div className={cn("h-full rounded-full", tone)} style={{ width: `${Math.min(100, share * 100)}%` }} />
                 </div>
             )}
-            {data.trashBytes > 0 && <p className="text-xs text-subtle">Moviko's trash takes {formatBytes(data.trashBytes)} of it until it's emptied (below).</p>}
+            {data.trashBytes > 0 && <p className="text-xs text-subtle">Moviko's trash takes {formatBytes(data.trashBytes)} of it.</p>}
         </section>
     )
 }
@@ -217,7 +217,7 @@ function Duplicates({ groups, busy, readOnly, onTrash }: Props & { groups: Clean
                 <h3 className="flex items-center gap-2 text-[15px] font-semibold">
                     <Copy className="size-4 text-muted" /> There twice
                 </h3>
-                <p className="text-[13px] text-muted">The same movie or episode in more than one file. Pick the copies to put away.</p>
+                <p className="text-[13px] text-muted">Pick the copies to put away.</p>
             </div>
             <div className="card divide-y divide-line">
                 {groups.map(g => (
@@ -292,7 +292,7 @@ function TrashList({ items, bytes, readOnly, onChange }: { items: TrashItem[]; b
         }
     }
     const empty = async () => {
-        if (!confirm(`Delete the ${items.length} ${items.length === 1 ? "file" : "files"} in Moviko's trash for good? This frees ${formatBytes(bytes)} and can't be undone.`)) return
+        if (!confirm(`Delete the ${items.length} ${items.length === 1 ? "file" : "files"} for good? This frees ${formatBytes(bytes)} and can't be undone.`)) return
         setBusy("empty")
         try {
             const res = await api.post<{ freed: number }>("/api/library/trash/empty", {})
@@ -311,7 +311,7 @@ function TrashList({ items, bytes, readOnly, onChange }: { items: TrashItem[]; b
                     <h3 className="flex items-center gap-2 text-[15px] font-semibold">
                         <Trash2 className="size-4 text-muted" /> Moviko's trash
                     </h3>
-                    <p className="text-[13px] text-muted">Files put away here stay on their drive until it's emptied, and 30 days at most.</p>
+                    <p className="text-[13px] text-muted">Files stay here for 30 days, or until you empty it.</p>
                 </div>
                 {!readOnly && items.length > 0 && (
                     <Button size="sm" variant="danger" loading={busy === "empty"} onClick={empty}>
@@ -324,7 +324,17 @@ function TrashList({ items, bytes, readOnly, onChange }: { items: TrashItem[]; b
             ) : (
                 <div className="card divide-y divide-line">
                     {items.map(it => (
-                        <div key={it.id} className="flex items-center gap-4 px-4 py-2.5 text-sm">
+                        <ContextArea
+                            key={it.id}
+                            menu={
+                                !readOnly && (
+                                    <DropdownItem icon={<Undo2 />} disabled={!!busy} onSelect={() => restore([it.id])}>
+                                        Put back
+                                    </DropdownItem>
+                                )
+                            }
+                            className="flex items-center gap-4 px-4 py-2.5 text-sm"
+                        >
                             <span className="min-w-0 flex-1 truncate" title={it.path}>
                                 {it.name}
                             </span>
@@ -336,7 +346,7 @@ function TrashList({ items, bytes, readOnly, onChange }: { items: TrashItem[]; b
                                     Put back
                                 </Button>
                             )}
-                        </div>
+                        </ContextArea>
                     ))}
                 </div>
             )}

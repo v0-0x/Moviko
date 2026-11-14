@@ -2,6 +2,7 @@ import { Check, ChevronDown, EyeOff, Heart, Minus, NotebookPen, Plus, Star, Tras
 import { useEffect, useState } from "react"
 import { episodeIndex, formatKey, lastEpisode, latestAired, MOVIE_EPISODE, mediaIsShow, nextEpisode, totalEpisodes } from "@/lib/ids"
 import { useDeleteEntry, useEpisodeMarker, useUpdateEntry } from "@/lib/queries"
+import { useClassic } from "@/lib/themes"
 import type { EntryUpdate, FuzzyDate, ListEntry, Media } from "@/lib/types"
 import { cn, formatDate, fuzzyDate, LIST_STATUS, scoreToStars, starsToScore, title, today } from "@/lib/utils"
 import { Button, Dialog, Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger, Field, Input, Textarea, Tooltip } from "../ui"
@@ -80,15 +81,16 @@ export function ListStatusButton({ media, entry }: { media: Media; entry: Entry 
 // buttons mark the next episode watched, or the last one unwatched (the
 // server keeps the status in step: the last episode completes the show).
 export function ProgressEditor({ media, entry }: { media: Media; entry: Entry | null | undefined }) {
+    const classic = useClassic()
     const marker = useEpisodeMarker(media)
     const progress = entry?.progress ?? 0
     const total = totalEpisodes(media)
     const next = nextEpisode(media, progress)
     return (
-        <div className="flex h-11 items-center gap-1 rounded-lg bg-white/[0.07] px-1">
+        <div className={cn("flex h-11 items-center gap-1 px-1", classic && "rounded-lg bg-white/[0.07]")}>
             <Tooltip content={progress ? `Mark ${formatKey(progress)} as unwatched` : "Nothing watched yet"}>
                 <button
-                    className="grid size-9 place-items-center rounded-md text-muted transition-colors hover:bg-white/10 hover:text-fg disabled:opacity-40"
+                    className={cn("grid size-9 place-items-center rounded-md text-muted transition-colors hover:text-fg disabled:opacity-40", classic ? "hover:bg-white/10" : "hover:bg-white/[0.06]")}
                     disabled={!progress || marker.pending}
                     onClick={() => marker.mark(progress, false)}
                     aria-label="Mark the last episode unwatched"
@@ -105,7 +107,7 @@ export function ProgressEditor({ media, entry }: { media: Media; entry: Entry | 
             </div>
             <Tooltip content={next ? `Mark ${formatKey(next)} as watched` : "All caught up"}>
                 <button
-                    className="grid size-9 place-items-center rounded-md text-muted transition-colors hover:bg-white/10 hover:text-fg disabled:opacity-40"
+                    className={cn("grid size-9 place-items-center rounded-md text-muted transition-colors hover:text-fg disabled:opacity-40", classic ? "hover:bg-white/10" : "hover:bg-white/[0.06]")}
                     disabled={!next || marker.pending}
                     onClick={() => marker.mark(next, true)}
                     aria-label="Mark the next episode watched"
@@ -160,15 +162,16 @@ export function StarRating({ value, onChange, size = "md", disabled }: { value: 
 // The rating, the heart and the review of a movie or show, as on
 // Letterboxd.
 export function RatingBar({ media, entry }: { media: Media; entry: Entry | null | undefined }) {
+    const classic = useClassic()
     const update = useUpdateEntry(media.id)
     const [reviewing, setReviewing] = useState(false)
     const save = (body: EntryUpdate) => update.mutate(entry ? body : { ...firstStatus(media), ...body })
     const liked = !!entry?.liked
     const watched = fuzzyDate(entry?.completedAt)
     return (
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg bg-white/[0.04] px-4 py-2.5">
+        <div className={cn("flex flex-wrap items-center gap-x-5 gap-y-2 py-2.5", classic ? "rounded-lg bg-white/[0.04] px-4" : "border-y border-line")}>
             <div className="flex items-center gap-3">
-                <span className="text-xs font-medium text-subtle">{entry?.score ? "Rated" : "Rate"}</span>
+                <span className={classic ? "text-xs font-medium text-subtle" : "label text-[10.5px] text-subtle"}>{entry?.score ? "Rated" : "Rate"}</span>
                 <StarRating value={entry?.score ?? 0} onChange={score => save({ score })} disabled={update.isPending} />
             </div>
             <Tooltip content={liked ? "Unlike" : "Like"}>

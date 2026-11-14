@@ -98,7 +98,29 @@ func (s *Server) peerRoutes() {
 	m := s.mux
 	m.HandleFunc("GET /api/peer/whoami", h(func(r *http.Request) (any, error) { return s.app.Share.Whoami(), nil }))
 	m.HandleFunc("GET /api/peer/hello", h(func(r *http.Request) (any, error) { return s.app.Share.Hello(peerOf(r)), nil }))
-	m.HandleFunc("GET /api/peer/files", shared(h(func(r *http.Request) (any, error) { return s.app.Share.SharedFiles() })))
+	// The shared files, as encoded once for everyone (gzipped for those who
+	// take it: the Go client does by itself), with the version as its ETag.
+	m.HandleFunc("GET /api/peer/files", shared(func(w http.ResponseWriter, r *http.Request) {
+		ver, plain, gz, err := s.app.Share.SharedFilesJSON()
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+			return
+		}
+		etag := `"` + ver + `"`
+		w.Header().Set("ETag", etag)
+		w.Header().Set("Cache-Control", "no-cache")
+		if r.Header.Get("If-None-Match") == etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if gz != nil && strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			w.Header().Set("Content-Encoding", "gzip")
+			_, _ = w.Write(gz)
+			return
+		}
+		_, _ = w.Write(plain)
+	}))
 	// The watch history, for a Moviko it's paired with (it shares its library
 	// with it, or that one with it) on the same Letterboxd account: Continue
 	// watching goes on there where it stopped here.
@@ -151,6 +173,7 @@ func (s *Server) peerRoutes() {
 			fn(w, r)
 		})
 	}
+	s.peerTorrentStreamRoutes(torrents)
 	m.HandleFunc("GET /api/peer/torrents/status", torrents(h(func(r *http.Request) (any, error) { return s.app.Torrents.Status(r.Context()), nil })))
 	m.HandleFunc("GET /api/peer/torrents/list", torrents(h(s.torrentList)))
 	m.HandleFunc("POST /api/peer/torrents/action", torrents(h(s.torrentAction)))
@@ -390,7 +413,7 @@ func (s *Server) localTranscode(w http.ResponseWriter, r *http.Request) {
 	}
 	w, done := s.track(w, r, kind)
 	defer done()
-	s.app.Local.ServeTranscode(w, r, q.Get("path"), start, audio, q.Get("method"), stream.ParseCaps(q.Get("caps")))
+	s.app.Local.ServeTranscode(w, r, q.Get("path"), start, audio, q.Get("method"), stream.ParseCaps(q.Get("caps")), subParam(q.Get("sub")))
 }
 
 func (s *Server) localSeekPoint(r *http.Request) (any, error) {
@@ -398,7 +421,7 @@ func (s *Server) localSeekPoint(r *http.Request) (any, error) {
 	t, _ := strconv.ParseFloat(q.Get("t"), 64)
 	audio, _ := strconv.Atoi(q.Get("audio"))
 	method := q.Get("method")
-	start, use, err := s.app.Local.Seek(r.Context(), q.Get("path"), t, audio, method, stream.ParseCaps(q.Get("caps")), q.Get("hls") == "1")
+	start, use, err := s.app.Local.Seek(r.Context(), q.Get("path"), t, audio, method, stream.ParseCaps(q.Get("caps")), q.Get("hls") == "1", subParam(q.Get("sub")))
 	if err != nil {
 		return nil, err
 	}
@@ -407,6 +430,16 @@ func (s *Server) localSeekPoint(r *http.Request) (any, error) {
 		return map[string]any{"start": start, "method": use}, nil
 	}
 	return map[string]any{"start": start}, nil
+}
+
+// subParam is the ?sub= of a stream request: the subtitle track to draw
+// onto the video, or -1 when none (left out, or not a number).
+func subParam(v string) int {
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return -1
+	}
+	return n
 }
 
 func (s *Server) localThumb(w http.ResponseWriter, r *http.Request) {
@@ -459,5 +492,8 @@ func (s *Server) playShared(r *http.Request, body playLocalBody) (any, error) {
 		return nil, badRequest(strings.TrimSpace(f.HostName + ": " + err.Error()))
 	}
 	probe.Path = body.Path
+	if ok, name := s.app.Share.BurnsSubtitles(body.Path); !ok {
+		probe.NoBurn = "needs " + name + " updated"
+	}
 	return s.builtinPlay(body, probe, t), nil
 }

@@ -1,15 +1,16 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, ChevronDown, Pencil, Play, Plus, RotateCcw, Rss, Search, Trash2 } from "lucide-react"
+import { AlertTriangle, ChevronDown, FlaskConical, Info, MoreVertical, Pencil, Play, Plus, RotateCcw, Rss, Search, Trash2 } from "lucide-react"
 import { useMemo, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { toast } from "@/lib/toast"
 import { MediaPicker } from "@/components/MediaPicker"
-import { Badge, Button, Dialog, EmptyState, Field, IconButton, Input, Select, Switch } from "@/components/ui"
+import { Badge, Button, ContextArea, Dialog, Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger, EmptyState, Field, IconButton, Input, Select, Spinner, Switch } from "@/components/ui"
 import { api } from "@/lib/api"
 import { formatKey, mediaIsShow, mediaRef, seasonEpisodeCount, splitKey } from "@/lib/ids"
 import { fetchEntry, useAutoItems, useAutoRules, useCollection, useRuleWanted, useSaveSettings, useStatus } from "@/lib/queries"
+import { useClassic } from "@/lib/themes"
 import type { AutoItem, AutoRule, AutoRunReport, Media } from "@/lib/types"
-import { cn, entryUrl, poster, relativeTime, title } from "@/lib/utils"
+import { cn, entryUrl, formatBytes, poster, relativeTime, title } from "@/lib/utils"
 import { PathInput } from "./settings/parts"
 
 const RESOLUTIONS = [
@@ -63,6 +64,7 @@ function useShow(id: number, list: Media[]) {
 }
 
 export default function AutoDownloaderPage() {
+    const classic = useClassic()
     const { data: rules, isLoading } = useAutoRules()
     const { data: items } = useAutoItems()
     const { data: status } = useStatus()
@@ -100,24 +102,16 @@ export default function AutoDownloaderPage() {
 
     return (
         <div className="min-h-full px-6 pt-8 pb-24 md:px-8 xl:px-10">
-            <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-                <div>
-                    <h1 className="text-[1.75rem] font-semibold tracking-tight">Auto downloader</h1>
-                    <p className="mt-1 max-w-2xl text-muted">
-                        Keeps the shows you follow downloaded: new episodes (and the ones you haven't got yet) are found on your torrent sources and sent to your torrent client, saved where your
-                        library finds them.
-                    </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
+            <div className="mb-8 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+                <h1 className="text-[1.75rem] font-semibold tracking-tight">Auto downloader</h1>
+                <div className="flex items-center gap-2">
                     {settings && (
-                        <label className="flex items-center gap-3 rounded-xl border border-line bg-surface-1 px-4 py-2">
-                            <span className="text-sm font-medium">Check every {settings.torrent.autoDownloadMinutes} min</span>
+                        <label className="mr-1 flex items-center gap-2.5 text-sm text-muted">
+                            Every {settings.torrent.autoDownloadMinutes} min
                             <Switch checked={settings.torrent.autoDownloader} onChange={v => save.mutate({ ...settings, torrent: { ...settings.torrent, autoDownloader: v } })} />
                         </label>
                     )}
-                    <Button icon={<Play className="size-4" />} loading={running} onClick={run} disabled={!rules?.length}>
-                        Check now
-                    </Button>
+                    <IconButton label="Check now" icon={<Play className="size-4" />} loading={running} onClick={run} disabled={!rules?.length} />
                     <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setEditing(newRule(settings?.torrent.preferredResolution ?? "1080"))}>
                         New rule
                     </Button>
@@ -125,29 +119,22 @@ export default function AutoDownloaderPage() {
             </div>
 
             {noClient && (
-                <div className="mb-6 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-200">
-                    No torrent client is configured — <Link to="/settings?tab=torrents" className="underline">set one up</Link> first.
-                </div>
+                <p className={cn("mb-8 text-sm text-amber-200", classic ? "rounded-xl bg-amber-500/10 p-4" : "border-l border-amber-400 pl-3")}>
+                    No torrent client yet. <Link to="/settings?tab=torrents" className="underline">Set one up</Link> first.
+                </p>
             )}
             {settings && !settings.torrent.autoDownloader && (rules ?? []).some(r => r.enabled) && (
-                <div className="mb-6 rounded-xl border border-line bg-white/[0.02] p-4 text-sm text-muted">The auto downloader is off: your rules only run when you press Check now.</div>
+                <p className={cn("mb-8 text-sm text-muted", classic ? "rounded-xl bg-white/[0.04] p-4" : "border-l border-line-strong pl-3")}>It's off: rules only run on Check now.</p>
             )}
             {report && <RunSummary report={report} onClose={() => setReport(null)} />}
 
             {!isLoading && (rules ?? []).length === 0 && (
-                <EmptyState
-                    icon={<Rss className="size-6" />}
-                    title="No rules yet"
-                    action={
-                        <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setEditing(newRule(settings?.torrent.preferredResolution ?? "1080"))}>
-                            New rule
-                        </Button>
-                    }
-                >
-                    Add a rule for each show you want to keep downloaded, e.g. “1080p, NTb or FLUX first, no HDTV”.
+                <EmptyState icon={<Rss className="size-6" />} title="No rules yet">
+                    A rule keeps a show's episodes downloaded, e.g. “1080p, NTb or FLUX first, no HDTV”.
                 </EmptyState>
             )}
-            <div className="grid gap-3 xl:grid-cols-2">
+            {/* This look: rows on hairlines, not a box each. */}
+            <div className={cn("grid xl:grid-cols-2", classic ? "gap-2" : cn("grid-cols-1 gap-x-8", (rules ?? []).length > 0 && "border-t border-line"))}>
                 {(rules ?? []).map(r => (
                     <RuleCard key={r.id} rule={r} shows={shows} onEdit={() => setEditing(r)} />
                 ))}
@@ -160,10 +147,17 @@ export default function AutoDownloaderPage() {
 }
 
 function RunSummary({ report, onClose }: { report: AutoRunReport; onClose: () => void }) {
+    const classic = useClassic()
     const [open, setOpen] = useState(true)
     const bad = report.errors.length > 0
     return (
-        <div className={cn("mb-6 rounded-xl border px-4 py-3 text-sm", bad ? "border-amber-500/25 bg-amber-500/10 text-amber-100" : "border-line bg-white/[0.02] text-muted")}>
+        <div
+            className={cn(
+                "mb-8 text-sm",
+                bad ? "text-amber-100" : "text-muted",
+                classic ? cn("rounded-xl border px-4 py-3", bad ? "border-amber-500/25 bg-amber-500/10" : "border-line bg-white/[0.02]") : cn("border-l pl-3", bad ? "border-amber-400" : "border-line-strong"),
+            )}
+        >
             <div className="flex items-center gap-3">
                 {bad && <AlertTriangle className="size-4 shrink-0 text-amber-300" />}
                 <span className="flex-1">
@@ -221,47 +215,53 @@ function RuleCard({ rule, shows, onEdit }: { rule: AutoRule; shows: Media[]; onE
         }
     }
     const name = media ? title(media) : rule.title || mediaRef(rule.mediaId)
+    const classic = useClassic()
+    const navigate = useNavigate()
+    const [testing, setTesting] = useState(false)
+    // What it takes, on one line.
+    const facts = [
+        rule.resolution ? `${rule.resolution}p` : "Any resolution",
+        rule.releaseGroups.length > 0 && `Prefers ${rule.releaseGroups.join(", ")}`,
+        rule.packs && "Season packs",
+        rule.minSeeders > 1 && `≥ ${rule.minSeeders} seeders`,
+        (rule.minSizeMb || rule.maxSizeMb) && `${rule.minSizeMb || 0}–${rule.maxSizeMb ? `${rule.maxSizeMb} MB` : "any size"}`,
+        !!rule.delayMinutes && `Waits ${rule.delayMinutes} min`,
+        ...rule.mustContain.map(w => `+${w}`),
+        ...rule.mustNotContain.map(w => `−${w}`),
+        rule.startFrom > 0 && `From ${formatKey(rule.startFrom)}`,
+    ].filter(Boolean)
+    // The "⋯" button's items, and a right-click's on the row.
+    const menu = (
+        <>
+            <DropdownItem icon={<Pencil />} onSelect={onEdit}>
+                Edit
+            </DropdownItem>
+            <DropdownItem icon={<FlaskConical />} onSelect={() => setTesting(true)}>
+                Test
+            </DropdownItem>
+            <DropdownItem icon={<Info />} onSelect={() => navigate(entryUrl({ id: rule.mediaId }))}>
+                Its page
+            </DropdownItem>
+            <DropdownSeparator />
+            <DropdownItem danger icon={<Trash2 />} onSelect={del}>
+                Delete
+            </DropdownItem>
+        </>
+    )
     return (
-        <div className={cn("card flex gap-4 p-3 pr-4", !rule.enabled && "opacity-70")}>
-            <Link to={entryUrl({ id: rule.mediaId })} className="shrink-0">
-                {media ? <img {...poster(media, 64)} alt="" className="h-24 w-16 rounded-lg object-cover" /> : <div className="h-24 w-16 rounded-lg bg-white/[0.05]" />}
+        <>
+        <ContextArea menu={menu} className={cn("flex items-center gap-4 fade-in", classic ? "card p-3" : "border-b border-line py-3")}>
+            <Link to={entryUrl({ id: rule.mediaId })} className={cn("focus-ring shrink-0 rounded-lg transition-opacity", !rule.enabled && "opacity-60")}>
+                {media ? <img {...poster(media, 44)} alt="" className="h-16 w-11 rounded-lg object-cover" /> : <div className="h-16 w-11 rounded-lg bg-white/[0.05]" />}
             </Link>
-            <div className="min-w-0 flex-1">
-                <div className="flex items-start gap-2">
-                    <Link to={entryUrl({ id: rule.mediaId })} className="min-w-0 flex-1 truncate font-semibold hover:underline">
-                        {name}
-                    </Link>
-                    <Switch checked={rule.enabled} onChange={toggle} />
-                    <IconButton label="Edit" onClick={onEdit} className="size-8">
-                        <Pencil className="size-4" />
-                    </IconButton>
-                    <IconButton label="Delete" onClick={del} className="size-8 hover:text-rose-300">
-                        <Trash2 className="size-4" />
-                    </IconButton>
-                </div>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    <Badge>{rule.resolution ? `${rule.resolution}p` : "Any resolution"}</Badge>
-                    {rule.releaseGroups.map((g, i) => (
-                        <Badge key={g} tone="brand">
-                            {i === 0 ? "Prefers " : ""}
-                            {g}
-                        </Badge>
-                    ))}
-                    {rule.packs && <Badge tone="blue">Season packs</Badge>}
-                    {rule.minSeeders > 1 && <Badge>≥ {rule.minSeeders} seeders</Badge>}
-                    {rule.mustContain.map(w => (
-                        <Badge key={"+" + w} tone="green">
-                            +{w}
-                        </Badge>
-                    ))}
-                    {rule.mustNotContain.map(w => (
-                        <Badge key={"-" + w} tone="red">
-                            −{w}
-                        </Badge>
-                    ))}
-                    {rule.startFrom > 0 && <Badge>From {formatKey(rule.startFrom)}</Badge>}
-                </div>
-                <p className="mt-2 truncate text-xs text-subtle">
+            <div className={cn("min-w-0 flex-1 transition-opacity", !rule.enabled && "opacity-60")}>
+                <Link to={entryUrl({ id: rule.mediaId })} className="block truncate font-medium hover:underline">
+                    {name}
+                </Link>
+                <p className="mt-0.5 truncate text-sm text-muted" title={facts.join(" · ")}>
+                    {facts.join(" · ")}
+                </p>
+                <p className="mt-0.5 truncate text-xs text-subtle">
                     {!rule.enabled
                         ? "Paused"
                         : isLoading
@@ -269,16 +269,30 @@ function RuleCard({ rule, shows, onEdit }: { rule: AutoRule; shows: Media[]; onE
                           : wanted
                             ? wanted.episodes.length
                                 ? `Looking for ${keysText(wanted.episodes)}`
-                                : "Up to date: nothing aired that you don't have"
-                            : "Couldn't work out what's missing (is the show's data loaded?)"}
+                                : "Up to date"
+                            : "Couldn't work out what's missing"}
+                    {rule.destination && ` · Saves to ${rule.destination}`}
                 </p>
-                {rule.destination && <p className="mt-0.5 truncate text-xs text-subtle">Saves to {rule.destination}</p>}
             </div>
-        </div>
+            <div className="flex shrink-0 items-center gap-2">
+                <Switch checked={rule.enabled} onChange={toggle} label={`Rule for ${name} enabled`} />
+                <Dropdown>
+                    <DropdownTrigger asChild>
+                        <IconButton aria-label="More">
+                            <MoreVertical className="size-4" />
+                        </IconButton>
+                    </DropdownTrigger>
+                    <DropdownContent>{menu}</DropdownContent>
+                </Dropdown>
+            </div>
+        </ContextArea>
+            {testing && rule.id !== undefined && <TestDialog id={rule.id} name={name} onClose={() => setTesting(false)} />}
+        </>
     )
 }
 
 function History({ items, titles }: { items: AutoItem[]; titles: Map<number, string> }) {
+    const classic = useClassic()
     const qc = useQueryClient()
     const [all, setAll] = useState(false)
     const forget = async (it: AutoItem) => {
@@ -293,27 +307,38 @@ function History({ items, titles }: { items: AutoItem[]; titles: Map<number, str
     }
     const shown = all ? items : items.slice(0, 30)
     return (
-        <section className="mt-12">
-            <h2 className="mb-4 text-lg font-semibold tracking-tight">Grabbed</h2>
-            <div className="card divide-y divide-line">
+        <section className="mt-8">
+            <h2 className={cn("text-sm font-medium text-muted", classic ? "mb-3" : "mb-1")}>
+                {/* This look: a small capital label (in a span: a heading has its own face). */}
+                <span className={classic ? undefined : "label"}>Grabbed</span>
+            </h2>
+            <div className={classic ? "card divide-y divide-line" : "divide-y divide-line border-y border-line"}>
                 {shown.map(it => (
-                    <div key={it.key} className="flex items-center gap-4 px-4 py-3 text-sm">
+                    <ContextArea
+                        key={it.key}
+                        menu={
+                            <DropdownItem icon={<RotateCcw />} onSelect={() => forget(it)}>
+                                Forget (grab it again)
+                            </DropdownItem>
+                        }
+                        className={cn("flex items-center gap-4 py-2.5 text-sm", classic && "px-4")}
+                    >
                         <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                                <Link to={entryUrl({ id: it.mediaId })} className="truncate font-medium hover:underline">
+                            <p className="truncate">
+                                <Link to={entryUrl({ id: it.mediaId })} className="font-medium hover:underline">
                                     {titles.get(it.mediaId) ?? mediaRef(it.mediaId)}
                                 </Link>
-                                <Badge tone={it.pack ? "blue" : "brand"}>{it.pack ? `Season ${splitKey(it.episode)[0]} pack` : formatKey(it.episode)}</Badge>
-                            </div>
+                                <span className="text-muted"> · {it.pack ? `Season ${splitKey(it.episode)[0]} pack` : formatKey(it.episode)}</span>
+                            </p>
                             <p className="mt-0.5 truncate text-xs text-subtle" title={it.title}>
                                 {it.title}
                             </p>
                         </div>
-                        <span className="shrink-0 text-xs text-subtle">{relativeTime(it.createdAt)}</span>
+                        <span className="shrink-0 text-xs text-muted">{relativeTime(it.createdAt)}</span>
                         <IconButton label="Forget (grab it again)" onClick={() => forget(it)} className="size-8">
                             <RotateCcw className="size-4" />
                         </IconButton>
-                    </div>
+                    </ContextArea>
                 ))}
             </div>
             {items.length > 30 && !all && (
@@ -381,7 +406,7 @@ function RuleDialog({ rule, shows, canPickFolder, onClose }: { rule: AutoRule; s
             open
             onOpenChange={v => !v && onClose()}
             title={rule.id ? "Edit rule" : "New rule"}
-            description="Which show to keep downloaded, and which releases to take."
+            description="The show, and the releases to take."
             className="w-[min(94vw,640px)]"
             footer={
                 <>
@@ -410,16 +435,25 @@ function RuleDialog({ rule, shows, canPickFolder, onClose }: { rule: AutoRule; s
                     <Field label="Minimum seeders">
                         <Input type="number" min={1} value={r.minSeeders} onChange={e => setR({ ...r, minSeeders: Math.max(0, Number(e.target.value)) })} />
                     </Field>
-                    <Field label="Preferred release groups" help="In order, comma-separated. Taken over better-seeded releases of other groups.">
+                    <Field label="Size (MB)">
+                        <div className="flex gap-2">
+                            <Input type="number" min={0} placeholder="Min" aria-label="Minimum size (MB)" value={r.minSizeMb || ""} onChange={e => setR({ ...r, minSizeMb: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} />
+                            <Input type="number" min={0} placeholder="Max" aria-label="Maximum size (MB)" value={r.maxSizeMb || ""} onChange={e => setR({ ...r, maxSizeMb: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} />
+                        </div>
+                    </Field>
+                    <Field label="Wait before grabbing" help="Minutes, for a release from a preferred group.">
+                        <Input type="number" min={0} placeholder="0" value={r.delayMinutes || ""} onChange={e => setR({ ...r, delayMinutes: Math.max(0, Math.floor(Number(e.target.value) || 0)) })} />
+                    </Field>
+                    <Field label="Preferred release groups" help="Preferred first, comma separated.">
                         <WordsInput value={r.releaseGroups} onChange={v => setR({ ...r, releaseGroups: v })} placeholder="NTb, FLUX" />
                     </Field>
-                    <Field label="Must contain" help="Words every release name must have, e.g. WEB-DL.">
+                    <Field label="Must contain" help="Comma separated, e.g. WEB-DL.">
                         <WordsInput value={r.mustContain} onChange={v => setR({ ...r, mustContain: v })} />
                     </Field>
-                    <Field label="Must not contain" help="Releases with any of these are skipped, e.g. HDTV, x265.">
+                    <Field label="Must not contain" help="Comma separated, e.g. HDTV, x265.">
                         <WordsInput value={r.mustNotContain} onChange={v => setR({ ...r, mustNotContain: v })} />
                     </Field>
-                    <Field label="Start from" help="Episodes before it (and the ones you've watched) are never downloaded.">
+                    <Field label="Start from" help="Earlier and watched episodes are skipped.">
                         <div className="flex gap-2">
                             <Select
                                 className="flex-1"
@@ -441,12 +475,12 @@ function RuleDialog({ rule, shows, canPickFolder, onClose }: { rule: AutoRule; s
                 <label className="flex items-center justify-between gap-6">
                     <span>
                         <span className="block text-[13px] font-medium text-fg/90">Season packs</span>
-                        <span className="text-xs text-subtle">When several episodes of a season that has finished airing are missing, download the whole season at once.</span>
+                        <span className="text-xs text-subtle">The whole season at once, when several episodes of a finished season are missing.</span>
                     </span>
                     <Switch checked={r.packs} onChange={v => setR({ ...r, packs: v })} />
                 </label>
                 {canPickFolder && (
-                    <Field label="Save to" help="Empty: the show's folder in your library (Show (Year)/Season NN).">
+                    <Field label="Save to" help="Empty: the show's folder in your library.">
                         <PathInput value={r.destination} onChange={v => setR({ ...r, destination: v })} placeholder="Library folder" />
                     </Field>
                 )}
@@ -461,6 +495,65 @@ function RuleDialog({ rule, shows, canPickFolder, onClose }: { rule: AutoRule; s
                     setR(x => ({ ...x, mediaId: m.id, title: title(m), startFrom: 0 }))
                 }}
             />
+        </Dialog>
+    )
+}
+
+// What a rule's run would do now (POST /api/autodownloader/rules/{id}/test):
+// each release found, grabbed or why it's left.
+type Candidate = { episode: number; pack?: boolean; name: string; group: string; resolution: string; seeders: number; size: number; grab: boolean; reason?: string }
+
+function TestDialog({ id, name, onClose }: { id: number; name: string; onClose: () => void }) {
+    const { data, error, isFetching, refetch } = useQuery({
+        queryKey: ["auto-test", id],
+        queryFn: () => api.post<Candidate[]>(`/api/autodownloader/rules/${id}/test`),
+        gcTime: 0,
+        retry: false,
+    })
+    const grabs = (data ?? []).filter(c => c.grab).length
+    return (
+        <Dialog
+            open
+            onOpenChange={v => !v && onClose()}
+            title={`Test: ${name}`}
+            description={data && (grabs ? `Would grab ${grabs}` : "Nothing to grab")}
+            className="w-[min(94vw,620px)]"
+            footer={
+                <>
+                    <Button variant="ghost" loading={isFetching} onClick={() => refetch()}>
+                        Again
+                    </Button>
+                    <Button variant="primary" onClick={onClose}>
+                        Close
+                    </Button>
+                </>
+            }
+        >
+            {isFetching && !data ? (
+                <div className="grid place-items-center py-10">
+                    <Spinner />
+                </div>
+            ) : error ? (
+                <p className="text-sm text-rose-300">{(error as Error).message}</p>
+            ) : (data ?? []).length === 0 ? (
+                <p className="text-sm text-muted">No results</p>
+            ) : (
+                <ul className="-mx-2 flex flex-col">
+                    {data!.map((c, i) => (
+                        <li key={i} tabIndex={0} className={cn("focus-ring flex items-start gap-3 rounded-lg px-2 py-2", !c.grab && "opacity-70")}>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm [overflow-wrap:anywhere]">{c.name}</p>
+                                <p className="mt-0.5 text-xs text-muted">
+                                    {[c.pack ? "Season pack" : c.episode > 0 && formatKey(c.episode), c.group, c.resolution, `${c.seeders} seeders`, c.size > 0 && formatBytes(c.size)].filter(Boolean).join(" · ")}
+                                </p>
+                            </div>
+                            <Badge tone={c.grab ? "green" : "gray"} className="mt-0.5 shrink-0">
+                                {c.grab ? "Grab" : c.reason}
+                            </Badge>
+                        </li>
+                    ))}
+                </ul>
+            )}
         </Dialog>
     )
 }

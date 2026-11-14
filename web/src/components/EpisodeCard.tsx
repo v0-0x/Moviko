@@ -1,7 +1,7 @@
-import { Check, CheckCheck, Clock, HardDrive, Info, Minus, Play } from "lucide-react"
+import { Check, CheckCheck, Clock, HardDrive, Info, Minus, MoreHorizontal, Play } from "lucide-react"
 import { useClassic } from "@/lib/themes"
 import { backdrop, cn, formatDuration } from "@/lib/utils"
-import { Tooltip } from "./ui"
+import { Dropdown, DropdownContent, DropdownTrigger, Tooltip, useContextMenu } from "./ui"
 
 type Props = {
     image?: string
@@ -19,18 +19,30 @@ type Props = {
     large?: boolean
     onClick?: () => void
     actions?: React.ReactNode
+    // The episode's facts (length, air date, file size…), on one muted line
+    // under "S01E05 · title"; without them the subtitle is that line.
+    facts?: React.ReactNode[]
+    epLabel?: string | false // the label before the title (with facts); false for none
+    // Menu items for a "…" button by the title: always there, as a TV and a
+    // phone can't hover.
+    menu?: React.ReactNode
     onRemove?: () => void // "Continue watching": removes the card's item
     onInfo?: () => void // "Continue watching": opens the movie's or show's page
     className?: string
 }
 
-export function EpisodeCard({ image, label, title, subtitle, runtime, watched, hasFile, progress, resumeAt, aired = true, blur, large, onClick, actions, onRemove, onInfo, className }: Props) {
+export function EpisodeCard({ image, label, title, subtitle, runtime, watched, hasFile, progress, resumeAt, aired = true, blur, large, onClick, actions, facts, epLabel, menu, onRemove, onInfo, className }: Props) {
     const classic = useClassic()
+    const before = facts && epLabel !== false ? (epLabel ?? label ?? "") : ""
+    const shown = (facts ?? []).filter(f => f !== undefined && f !== null && f !== false && f !== "")
+    // A right-click anywhere on it opens the menu its "⋯" does.
+    const context = useContextMenu(menu)
     return (
         <div
             role="button"
             tabIndex={0}
             data-tv-card
+            onContextMenu={context.onContextMenu}
             onClick={e => {
                 // Menus open in portals outside the card, but React still
                 // bubbles their clicks up to here: "Play in mpv" from the
@@ -44,9 +56,9 @@ export function EpisodeCard({ image, label, title, subtitle, runtime, watched, h
                 e.preventDefault()
                 onClick?.()
             }}
-            className={cn("group/ep focus-ring flex cursor-pointer flex-col gap-2.5 outline-none", classic ? "rounded-lg" : "rounded-[10px]", !aired && "cursor-default opacity-50", className)}
+            className={cn("group/ep focus-ring relative flex cursor-pointer flex-col gap-2.5 rounded-[10px] outline-none", !aired && "cursor-default opacity-50", className)}
         >
-            <div className={cn("relative aspect-video overflow-hidden bg-surface-2", classic ? "rounded-lg" : "rounded-[10px] shadow-[0_6px_18px_-12px_rgb(0_0_0/0.8)]")}>
+            <div className={cn("relative aspect-video overflow-hidden bg-surface-2", classic ? "rounded-[10px] shadow-[0_6px_18px_-12px_rgb(0_0_0/0.8)]" : "on-dark rounded-sm")}>
                 {image ? (
                     <img
                         {...backdrop(image, large ? 400 : 300)}
@@ -54,7 +66,9 @@ export function EpisodeCard({ image, label, title, subtitle, runtime, watched, h
                         loading="lazy"
                         decoding="async"
                         className={cn(
-                            "size-full object-cover transition-[filter,opacity] duration-300 group-hover/ep:brightness-[0.8]",
+                            // The classic look dims the picture under its play button; this one leaves it as it is.
+                            "size-full object-cover transition-[filter,opacity] duration-300",
+                            classic && "group-hover/ep:brightness-[0.8]",
                             blur && !watched && "scale-110 blur-xl",
                             watched && "opacity-75 group-hover/ep:opacity-100",
                         )}
@@ -64,43 +78,25 @@ export function EpisodeCard({ image, label, title, subtitle, runtime, watched, h
                 )}
                 <div
                     data-tv-ring
-                    className={cn(
-                        "pointer-events-none absolute inset-0 ring-1 transition-[box-shadow] duration-300 ring-inset",
-                        classic ? "rounded-lg ring-white/[0.07] group-hover/ep:ring-white/20" : "rounded-[10px] ring-white/[0.07] group-hover/ep:ring-white/[0.22]",
-                    )}
+                    className="pointer-events-none absolute inset-0 rounded-[10px] ring-1 ring-white/[0.07] transition-[box-shadow] duration-300 ring-inset group-hover/ep:ring-white/[0.22]"
                 />
                 {aired && (
-                    <div className="absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-200 group-hover/ep:opacity-100">
-                        <span className={cn("grid place-items-center rounded-full bg-white/95 text-neutral-950 shadow-lg shadow-black/40", large ? "size-14" : "size-11")}>
-                            <Play className={cn("ml-0.5 fill-current", large ? "size-5" : "size-4")} />
+                    // This look: a small play mark in the bottom left corner, off the artwork's middle.
+                    <div className={cn("absolute opacity-0 transition-opacity duration-200 group-hover/ep:opacity-100", classic ? "inset-0 grid place-items-center" : "bottom-3.5 left-3.5")}>
+                        <span className={cn("grid place-items-center rounded-full", classic ? "bg-white/95 text-neutral-950 shadow-lg shadow-black/40" : "bg-white text-black", classic ? (large ? "size-14" : "size-11") : large ? "size-8" : "size-7")}>
+                            <Play className={cn("fill-current", classic ? cn("ml-0.5", large ? "size-5" : "size-4") : "size-3.5")} />
                         </span>
                     </div>
                 )}
-                <div className="absolute top-2 left-2 flex gap-1">
-                    {watched && (
-                        <Tooltip content="Watched">
-                            <span className="grid size-5 place-items-center rounded-full bg-emerald-500 text-white" aria-label="Watched">
-                                <Check className="size-3 stroke-[3]" />
-                            </span>
-                        </Tooltip>
-                    )}
-                    {hasFile && (
-                        <Tooltip content="Downloaded">
-                            <span className="grid size-5 place-items-center rounded-full bg-black/70 text-white" aria-label="Downloaded">
-                                <HardDrive className="size-3" />
-                            </span>
-                        </Tooltip>
-                    )}
-                </div>
                 {actions && (
-                    <div className="absolute top-2 right-2 opacity-0 transition-opacity group-hover/ep:opacity-100 focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+                    <div className={cn("absolute opacity-0 transition-opacity group-hover/ep:opacity-100 focus-within:opacity-100", classic ? "top-2 right-2" : "top-3.5 right-3.5", !menu && "[@media(pointer:coarse)]:opacity-100")} onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
                         {actions}
                     </div>
                 )}
                 {(onRemove || onInfo) && (
                     <div
                         // On hover, and always on touch screens, which can't hover.
-                        className="absolute top-2 right-2 flex gap-1 opacity-0 transition-opacity group-hover/ep:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100"
+                        className={cn("absolute flex gap-1 opacity-0 transition-opacity group-hover/ep:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100", classic ? "top-2 right-2" : "top-3.5 right-3.5")}
                         onClick={e => e.stopPropagation()}
                         onKeyDown={e => e.stopPropagation()}
                     >
@@ -124,24 +120,57 @@ export function EpisodeCard({ image, label, title, subtitle, runtime, watched, h
                         )}
                     </div>
                 )}
-                {resumeAt !== undefined && resumeAt > 0 && (
-                    <span className="absolute right-2 bottom-2.5 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white tabular-nums">
+                {!facts && resumeAt !== undefined && resumeAt > 0 && (
+                    <span className={cn("absolute flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white tabular-nums", classic ? "right-2 bottom-2.5" : "right-3.5 bottom-3.5")}>
                         <Clock className="size-3" /> {formatDuration(resumeAt)}
                     </span>
                 )}
                 {!!progress && progress > 0 && (
                     <div className="absolute inset-x-0 bottom-0 h-[3px] bg-black/50">
-                        <div className={cn("h-full bg-brand", !classic && "rounded-r-full")} style={{ width: `${Math.min(100, progress * 100)}%` }} />
+                        <div className="h-full rounded-r-full bg-brand" style={{ width: `${Math.min(100, progress * 100)}%` }} />
                     </div>
                 )}
             </div>
-            <div className="flex items-start justify-between gap-3 px-0.5">
-                <div className="min-w-0">
-                    {title && <p className={cn("truncate font-medium", large ? "text-[15px]" : "text-[13.5px]")}>{title}</p>}
-                    {(subtitle ?? label) && <p className={cn("mt-0.5 truncate text-muted", large ? "text-[13.5px]" : "text-xs")}>{subtitle ?? label}</p>}
+            <div className="flex items-start gap-1 px-0.5">
+                <div className="min-w-0 flex-1">
+                    {(title || before || watched) && (
+                        <p className={cn("flex items-center gap-1.5 font-medium", large ? "text-[15px]" : "text-[13.5px]")}>
+                            {watched && <Check aria-label="Watched" className="size-3.5 shrink-0 stroke-[3] text-emerald-400" />}
+                            {before && <span className="shrink-0 text-muted tabular-nums">{before}</span>}
+                            {title && <span className="truncate">{title}</span>}
+                        </p>
+                    )}
+                    {facts ? (
+                        <p className="mt-0.5 truncate text-xs text-muted tabular-nums">
+                            {shown.map((f, i) => (
+                                <span key={i}>
+                                    {i > 0 && " · "}
+                                    {f}
+                                </span>
+                            ))}
+                        </p>
+                    ) : (
+                        <p className={cn("mt-0.5 flex items-center gap-2 text-muted", large ? "text-[13.5px]" : "text-xs")}>
+                            <span className="min-w-0 flex-1 truncate">{subtitle ?? label}</span>
+                            {hasFile && <HardDrive aria-label="Downloaded" className="size-3 shrink-0 text-subtle" />}
+                            {!!runtime && <span className="shrink-0 text-xs text-subtle tabular-nums">{runtime}m</span>}
+                        </p>
+                    )}
                 </div>
-                {!!runtime && <span className="shrink-0 pt-0.5 text-xs text-subtle tabular-nums">{runtime}m</span>}
+                {menu && (
+                    <div className="-mt-1 -mr-1.5 shrink-0" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+                        <Dropdown>
+                            <DropdownTrigger asChild>
+                                <button aria-label={`More for ${label || title || "this episode"}`} className="focus-ring grid size-8 place-items-center rounded-lg text-muted transition-colors hover:bg-white/[0.06] hover:text-fg data-[state=open]:bg-white/[0.06] data-[state=open]:text-fg">
+                                    <MoreHorizontal className="size-4" />
+                                </button>
+                            </DropdownTrigger>
+                            <DropdownContent>{menu}</DropdownContent>
+                        </Dropdown>
+                    </div>
+                )}
             </div>
+            {context.node}
         </div>
     )
 }

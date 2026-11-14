@@ -5,22 +5,23 @@ import {
     ChevronLeft,
     ChevronRight,
     Dices,
-    Download,
     FolderOpen,
-    FolderSearch,
     FolderSync,
     HardDrive,
+    Info,
     KeyRound,
-    LibraryBig,
     ListFilter,
+    Minus,
     MoreVertical,
+    Play,
     Plug,
     Puzzle,
     RefreshCw,
+    RotateCcw,
     Settings2,
     X,
 } from "lucide-react"
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { DevicePrompts } from "@/components/DevicePrompts"
 import { EpisodeCard } from "@/components/EpisodeCard"
@@ -31,7 +32,7 @@ import { useLibraryCardMenu } from "@/components/library/LibraryCardMenu"
 import { PluginSlot } from "@/components/plugins/PluginSlot"
 import { ProgramsNotice } from "@/components/ProgramsNotice"
 import { SleepingHosts } from "@/components/SleepingHosts"
-import { Button, ChipRow, Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownSeparator, DropdownTrigger, EmptyState, IconButton, SectionHeader, Skeleton } from "@/components/ui"
+import { artButton, Button, Chip, ChipRow, Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownSeparator, DropdownTrigger, EmptyState, IconButton, SectionHeader, Skeleton } from "@/components/ui"
 import { UpdateBanner } from "@/components/UpdateBanner"
 import { WatchPicker } from "@/components/WatchPicker"
 import { api } from "@/lib/api"
@@ -40,7 +41,9 @@ import { episodeIndex, formatKey, mediaIsShow, totalEpisodes } from "@/lib/ids"
 import { usePlay } from "@/lib/play"
 import { resultSummary, useCollection, useDiscover, useLetterboxd, useScan, useStatus } from "@/lib/queries"
 import { scanStore, useStore } from "@/lib/store"
+import { useClassic } from "@/lib/themes"
 import { toast } from "@/lib/toast"
+import { tv } from "@/lib/tv"
 import type { CollectionItem, CollectionView, ContinueItem, Media } from "@/lib/types"
 import { banner, cn, cover, formatDuration, HOME_SECTIONS, img as imgUrl, title, year } from "@/lib/utils"
 
@@ -164,6 +167,12 @@ export default function HomePage() {
             <UpdateBanner />
             <SleepingHosts />
             <DevicePrompts />
+            {!!data?.incomplete && (
+                <p className="mx-6 mt-4 flex items-center gap-2 rounded-lg border border-line bg-white/[0.03] px-3 py-2 text-[13px] text-muted md:mx-8 xl:mx-10">
+                    <RefreshCw className="size-3.5 shrink-0 animate-spin" />
+                    {data.incomplete} {data.incomplete === 1 ? "title in your library is" : "titles in your library are"} still being looked up on TMDB.
+                </p>
+            )}
             <Hero
                 item={hero}
                 trending={hero ? null : trending}
@@ -173,35 +182,22 @@ export default function HomePage() {
                 loading={isLoading}
                 toolbar={
                     <div className="glass flex items-center gap-0.5 rounded-lg p-1 [&_button]:text-white/80 [&_button:hover]:bg-white/10 [&_button:hover]:text-white [&_button[data-state=open]]:bg-white/10">
-                        {/* On a phone, the buttons' icons only: they fit across. */}
-                        <Button size="sm" variant="ghost" icon={<HardDrive className="size-4" />} onClick={() => navigate("/local")} aria-label="Local library">
-                            <span className="max-sm:hidden">Local library</span>
-                        </Button>
-                        <IconButton label="Library tools" size="sm" onClick={() => navigate("/library")}>
-                            <LibraryBig className="size-4" />
-                        </IconButton>
-                        <IconButton label={`Unmatched files (${data?.unmatchedCount ?? 0})`} size="sm" className="relative" onClick={() => navigate("/library?tab=unmatched")}>
-                            <FolderSearch className="size-4" />
-                            {!!data?.unmatchedCount && <span className="absolute top-1 right-1 size-2 rounded-full bg-amber-400" />}
-                        </IconButton>
-                        <IconButton label="Downloads" size="sm" onClick={() => navigate("/downloads")}>
-                            <Download className="size-4" />
-                        </IconButton>
+                        {/* What the sidebar has (the library, its tools, downloads) isn't repeated here. */}
                         <IconButton label="What should I watch?" size="sm" onClick={() => setPicking(true)}>
                             <Dices className="size-4" />
                         </IconButton>
-                        <Button size="sm" variant="ghost" loading={scanning || scan.isPending} icon={<FolderSync className="size-4" />} onClick={() => scan.mutate(false)} aria-label="Refresh">
-                            <span className="max-sm:hidden">Refresh</span>
-                        </Button>
+                        <IconButton label="Refresh the library" size="sm" onClick={() => scan.mutate(false)} disabled={scanning || scan.isPending}>
+                            <FolderSync className={cn("size-4", (scanning || scan.isPending) && "animate-pulse")} />
+                        </IconButton>
                         {paired.length > 0 && (
-                            <Button size="sm" variant="ghost" loading={syncing} icon={<ArrowLeftRight className="size-4" />} onClick={syncDevices} title={`Continue watching from ${paired.join(", ")}`} aria-label="Sync">
-                                <span className="max-sm:hidden">Sync</span>
-                            </Button>
+                            <IconButton label={`Sync with ${paired.join(", ")}`} size="sm" onClick={syncDevices} disabled={syncing}>
+                                <ArrowLeftRight className={cn("size-4", syncing && "animate-pulse")} />
+                            </IconButton>
                         )}
                         <Dropdown>
                             <DropdownTrigger asChild>
-                                <IconButton label="Display" size="sm">
-                                    <Settings2 className="size-4" />
+                                <IconButton label="Show, sort and more" size="sm">
+                                    <MoreVertical className="size-4" />
                                 </IconButton>
                             </DropdownTrigger>
                             <DropdownContent>
@@ -232,15 +228,7 @@ export default function HomePage() {
                                 <DropdownItem icon={<Settings2 />} onSelect={() => navigate("/settings?tab=ui")}>
                                     Choose sections…
                                 </DropdownItem>
-                            </DropdownContent>
-                        </Dropdown>
-                        <Dropdown>
-                            <DropdownTrigger asChild>
-                                <IconButton label="More" size="sm">
-                                    <MoreVertical className="size-4" />
-                                </IconButton>
-                            </DropdownTrigger>
-                            <DropdownContent>
+                                <DropdownSeparator />
                                 <DropdownItem icon={<RefreshCw />} onSelect={() => scan.mutate(true)}>
                                     Full rescan (re-match everything)
                                 </DropdownItem>
@@ -404,12 +392,16 @@ function Hero({
     loading: boolean
     toolbar: React.ReactNode
 }) {
+    const classic = useClassic()
+    const play = useContinuePlay()
+    const started = !!item && item.resumeAt > 0
+    const left = !item ? 0 : item.duration > 0 ? Math.max(1, Math.round((item.duration - item.resumeAt) / 60)) : item.runtime
     // The sharp backdrop, like the entry page: episode stills can be small.
     const img = item ? (item.media.bannerImage ? banner(item.media) : imgUrl(item.image) || cover(item.media)) : trending ? banner(trending) : ""
     const show = item && mediaIsShow(item.media)
     return (
-        <div className="relative h-[clamp(300px,44vh,480px)] w-full overflow-hidden">
-            {img ? <img key={img} src={img} alt="" className="absolute inset-0 size-full object-cover fade-in" /> : <div className="absolute inset-0 bg-surface-1" />}
+        <div className="relative h-[clamp(340px,50vh,540px)] w-full overflow-hidden max-sm:h-[440px]">
+            {img ? <img key={img} src={img} alt="" className="absolute inset-0 size-full object-cover fade-in [mask-image:linear-gradient(to_bottom,#000_80%,transparent)]" /> : <div className="absolute inset-0 bg-surface-1" />}
             <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/60 to-bg/5" />
             <div className="absolute inset-0 bg-gradient-to-r from-bg/80 via-bg/25 to-transparent" />
             <div className="absolute top-4 right-4 z-20">{toolbar}</div>
@@ -419,16 +411,41 @@ function Hero({
                 ) : item ? (
                     // Clear of the arrows at its right on a phone.
                     <div key={item.media.id} className="max-w-3xl rise-in max-sm:pr-20">
-                        <p className="text-sm font-medium text-white/65">Continue watching{show ? ` · ${formatKey(item.episode)}` : ""}</p>
+                        <p className={cn(classic ? "text-sm font-medium" : "label", "text-white/65 max-sm:hidden")}>Continue watching</p>
                         {/* On a TV the cards below are what's picked (the banner follows them). */}
-                        <Link to={`/entry?id=${item.media.id}`} data-tv-skip-nav className="mt-1.5 block text-4xl leading-[1.1] font-semibold tracking-tight text-white transition-colors hover:text-white/85 md:text-[2.75rem]">
+                        <Link to={`/entry?id=${item.media.id}`} data-tv-skip-nav className="mt-1.5 line-clamp-2 text-4xl leading-[1.1] font-semibold tracking-tight text-white transition-colors hover:text-white/85 md:text-[2.75rem]">
                             {title(item.media)}
                         </Link>
-                        {show && item.title && <p className="mt-2 text-[15px] text-white/65">{item.title}</p>}
+                        {/* What's next: which episode, how much is left, and play. */}
+                        <p className="mt-2 line-clamp-1 text-[15px] text-white/80">
+                            {show ? formatKey(item.episode) : year(item.media) || "Movie"}
+                            {show && item.title && <span> · {item.title}</span>}
+                            {left > 0 && (
+                                <span className="text-white/50">
+                                    {" "}
+                                    · {left} min{started ? " left" : ""}
+                                </span>
+                            )}
+                        </p>
+                        {started && item.duration > 0 && (
+                            <div className="mt-3 h-1 w-64 max-w-full overflow-hidden rounded-full bg-white/20" role="progressbar" aria-label="Watched" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((item.resumeAt / item.duration) * 100)}>
+                                <div className="h-full rounded-full bg-brand" style={{ width: `${Math.min(100, (item.resumeAt / item.duration) * 100)}%` }} />
+                            </div>
+                        )}
+                        {!tv && (
+                            <div className="mt-4 flex flex-wrap gap-2">
+                                <Button variant="white" icon={<Play className="size-4 fill-current" />} onClick={() => play(item)}>
+                                    {started ? "Resume" : show ? `Play ${formatKey(item.episode)}` : "Play"}
+                                </Button>
+                                <Link to={`/entry?id=${item.media.id}`} className={classic ? "focus-ring inline-flex h-9 items-center rounded-full bg-white/10 px-4 font-display text-sm font-medium text-white backdrop-blur transition-colors hover:bg-white/20" : artButton}>
+                                    Details
+                                </Link>
+                            </div>
+                        )}
                     </div>
                 ) : trending ? (
                     <div key={trending.id} className="max-w-3xl rise-in">
-                        <p className="text-sm font-medium text-white/65">Trending this week</p>
+                        <p className={cn(classic ? "text-sm font-medium" : "label", "text-white/65")}>Trending this week</p>
                         <Link to={`/entry?id=${trending.id}`} className="mt-1.5 block text-4xl leading-[1.1] font-semibold tracking-tight text-white transition-colors hover:text-white/85 md:text-[2.75rem]">
                             {title(trending)}
                             {year(trending) > 0 && <span className="ml-3 text-[0.55em] font-normal text-white/50">{year(trending)}</span>}
@@ -436,7 +453,7 @@ function Hero({
                     </div>
                 ) : (
                     <div className="rise-in">
-                        <p className="text-sm font-medium text-white/65">Welcome to</p>
+                        <p className={cn(classic ? "text-sm font-medium" : "label", "text-white/65")}>Welcome to</p>
                         <h1 className="mt-1 text-4xl font-semibold tracking-tight">Moviko</h1>
                     </div>
                 )}
@@ -467,11 +484,67 @@ function Hero({
     )
 }
 
+// Plays what a Continue watching item says: its file, else a stream.
+function useContinuePlay() {
+    const { playLocal, watch } = usePlay()
+    return (it: ContinueItem) => {
+        // From where the card says: the position shown, not one saved since
+        // (the same episode watched further, or finished, on another device
+        // after this page was loaded).
+        if (it.hasFile && it.filePath) return playLocal(it.filePath, it.media.id, it.episode, it.resumeAt > 0 ? { start: it.resumeAt } : {})
+        return watch(it.media.id, it.episode, null)
+    }
+}
+
 function ContinueRow({ items, onFocus }: { items: ContinueItem[]; onFocus: (i: number) => void }) {
-    const { watch } = usePlay()
+    const play = useContinuePlay()
+    const { playLocal } = usePlay()
     const navigate = useNavigate()
     const qc = useQueryClient()
     const ref = useRef<HTMLDivElement>(null)
+    // Arrows on a computer, when there's more that way (a TV moves with its
+    // remote; a touch screen swipes).
+    const [edges, setEdges] = useState({ left: false, right: false })
+    const check = () => {
+        const el = ref.current
+        if (!el) return
+        const left = el.scrollLeft > 2
+        const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 2
+        setEdges(e => (e.left === left && e.right === right ? e : { left, right }))
+    }
+    useEffect(check)
+    useEffect(() => {
+        const el = ref.current
+        if (!el) return
+        const ro = new ResizeObserver(check)
+        ro.observe(el)
+        el.addEventListener("scroll", check, { passive: true })
+        return () => {
+            ro.disconnect()
+            el.removeEventListener("scroll", check)
+        }
+    }, [])
+    // A card's width at a time (as many as fit), to a card's edge.
+    const scroll = (dir: -1 | 1) => {
+        const el = ref.current
+        if (!el) return
+        const card = el.firstElementChild as HTMLElement | null
+        const step = card ? card.offsetWidth + 20 : 420
+        el.scrollBy({ left: dir * Math.max(step, Math.floor(el.clientWidth / step) * step), behavior: "smooth" })
+    }
+    const arrow = (dir: -1 | 1) => (
+        <button
+            onClick={() => scroll(dir)}
+            data-tv-skip-nav
+            aria-label={dir < 0 ? "Back" : "More"}
+            className={cn(
+                "absolute top-[calc((min(82vw,400px)*9/16)/2)] z-10 grid size-10 -translate-y-1/2 place-items-center rounded-full border border-white/10 bg-black/60 text-white/85 shadow-lg backdrop-blur transition-colors hover:bg-black/80 hover:text-white fade-in",
+                dir < 0 ? "left-1" : "right-1",
+            )}
+        >
+            {dir < 0 ? <ChevronLeft className="size-5" /> : <ChevronRight className="size-5" />}
+        </button>
+    )
     // The server hides it until it offers another episode or it's watched
     // again. This row and the hero both show the collection's list, so it is
     // edited right away (a refetch in flight would undo that).
@@ -498,7 +571,10 @@ function ContinueRow({ items, onFocus }: { items: ContinueItem[]; onFocus: (i: n
         })
     }
     return (
-        <div ref={ref} className="no-scrollbar -mx-2 flex snap-x scroll-px-2 gap-5 overflow-x-auto px-2 pb-2">
+        <div className="relative">
+            {!tv && edges.left && arrow(-1)}
+            {!tv && edges.right && arrow(1)}
+        <div ref={ref} className="no-scrollbar -mx-2 -mt-1.5 flex snap-x scroll-px-2 gap-5 overflow-x-auto px-2 pt-1.5 pb-2">
             {items.map((it, i) => {
                 const show = mediaIsShow(it.media)
                 const total = totalEpisodes(it.media) || it.total
@@ -530,13 +606,34 @@ function ContinueRow({ items, onFocus }: { items: ContinueItem[]; onFocus: (i: n
                             hasFile={it.hasFile}
                             progress={it.duration > 0 ? it.resumeAt / it.duration : 0}
                             resumeAt={it.resumeAt}
-                            onClick={() => watch(it.media.id, it.episode, it.hasFile ? it.filePath : null)}
+                            onClick={() => play(it)}
                             onRemove={() => remove(it, i)}
                             onInfo={() => navigate(`/entry?id=${it.media.id}`)}
+                            // On a right-click, and under its "⋯".
+                            menu={
+                                <>
+                                    <DropdownItem icon={<Play />} onSelect={() => play(it)}>
+                                        {it.resumeAt > 0 ? "Resume" : "Play"}
+                                    </DropdownItem>
+                                    {it.hasFile && it.filePath && it.resumeAt > 0 && (
+                                        <DropdownItem icon={<RotateCcw />} onSelect={() => playLocal(it.filePath!, it.media.id, it.episode, { start: 0 })}>
+                                            Play from the beginning
+                                        </DropdownItem>
+                                    )}
+                                    <DropdownItem icon={<Info />} onSelect={() => navigate(`/entry?id=${it.media.id}`)}>
+                                        {show ? "Show page" : "Movie page"}
+                                    </DropdownItem>
+                                    <DropdownSeparator />
+                                    <DropdownItem icon={<Minus />} onSelect={() => remove(it, i)}>
+                                        Remove from Continue watching
+                                    </DropdownItem>
+                                </>
+                            }
                         />
                     </div>
                 )
             })}
+        </div>
         </div>
     )
 }
@@ -544,20 +641,13 @@ function ContinueRow({ items, onFocus }: { items: ContinueItem[]; onFocus: (i: n
 function GenreBar({ genres, value, onChange }: { genres: string[]; value: string | null; onChange: (g: string | null) => void }) {
     return (
         <ChipRow label="More genres">
-            <button
-                onClick={() => onChange(null)}
-                className={cn("h-8 shrink-0 rounded-full px-3.5 text-[13px] font-medium transition-colors", !value ? "bg-white text-neutral-950" : "bg-white/[0.05] text-muted hover:bg-white/[0.09] hover:text-fg")}
-            >
+            <Chip on={!value} onClick={() => onChange(null)}>
                 All
-            </button>
+            </Chip>
             {genres.map(g => (
-                <button
-                    key={g}
-                    onClick={() => onChange(value === g ? null : g)}
-                    className={cn("h-8 shrink-0 rounded-full px-3.5 text-[13px] font-medium transition-colors", value === g ? "bg-white text-neutral-950" : "bg-white/[0.05] text-muted hover:bg-white/[0.09] hover:text-fg")}
-                >
+                <Chip key={g} on={value === g} onClick={() => onChange(value === g ? null : g)}>
                     {g}
-                </button>
+                </Chip>
             ))}
         </ChipRow>
     )
@@ -569,7 +659,7 @@ function Welcome({ tmdb, letterboxd, hasDir, onLetterboxd }: { tmdb: boolean; le
             done: tmdb,
             icon: <KeyRound className="size-5" />,
             title: "Add a TMDB key",
-            text: "Free from themoviedb.org: posters, seasons, episodes and where to watch for every movie and show.",
+            text: "Free from themoviedb.org: posters, seasons and episodes.",
             action: (
                 <Link to="/settings?tab=metadata">
                     <Button size="sm" variant="primary">
@@ -582,7 +672,7 @@ function Welcome({ tmdb, letterboxd, hasDir, onLetterboxd }: { tmdb: boolean; le
             done: hasDir,
             icon: <FolderOpen className="size-5" />,
             title: "Choose your library folder",
-            text: "Moviko scans it, matches every movie and episode, and grabs artwork and descriptions.",
+            text: "Moviko scans it and matches your movies and episodes.",
             action: (
                 <Link to="/settings?tab=library">
                     <Button size="sm">Open settings</Button>
@@ -593,7 +683,7 @@ function Welcome({ tmdb, letterboxd, hasDir, onLetterboxd }: { tmdb: boolean; le
             done: letterboxd,
             icon: <Plug className="size-5" />,
             title: "Connect Letterboxd",
-            text: "Optional: bring your diary, ratings and watchlist, and send back what you watch here.",
+            text: "Bring your diary, ratings and watchlist. Optional.",
             action: (
                 <Button size="sm" onClick={onLetterboxd}>
                     Connect
@@ -604,7 +694,7 @@ function Welcome({ tmdb, letterboxd, hasDir, onLetterboxd }: { tmdb: boolean; le
             done: false,
             icon: <Puzzle className="size-5" />,
             title: "Add streaming providers",
-            text: "Turn on the Internet Archive or the luffy and FreeFlix sites, or add Stremio addons, Nuvio repositories and extensions.",
+            text: "Turn on the built-in ones, or add Stremio addons and extensions.",
             action: (
                 <Link to="/extensions">
                     <Button size="sm">Providers & extensions</Button>
@@ -616,7 +706,7 @@ function Welcome({ tmdb, letterboxd, hasDir, onLetterboxd }: { tmdb: boolean; le
         <div className="card overflow-hidden rise-in">
             <div className="p-7">
                 <h2 className="text-xl font-semibold tracking-tight">Let’s set things up</h2>
-                <p className="mt-1 text-sm text-muted">A few steps and your movies and shows are ready.</p>
+                <p className="mt-1 text-sm text-muted">Four quick steps.</p>
                 <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     {steps.map((s, i) => (
                         <div key={i} className={cn("flex flex-col gap-3 rounded-lg bg-white/[0.03] p-5", s.done && "opacity-60")}>

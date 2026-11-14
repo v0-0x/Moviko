@@ -67,6 +67,9 @@ export function connectEvents(qc: QueryClient) {
                 // The calendar has the shows on the list.
                 qc.invalidateQueries({ queryKey: ["schedule"] })
                 break
+            case "playlists-updated":
+                qc.invalidateQueries({ queryKey: ["playlists"] })
+                break
             case "diary-updated":
                 // A viewing logged (a movie watched to the end), imported,
                 // rated, sent to Letterboxd or deleted: the diaries, and the

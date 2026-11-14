@@ -400,7 +400,7 @@ func TestRemoteHLSConverts(t *testing.T) {
 			t.Fatalf("%s: seek point: %v", tc.name, err)
 		}
 		w := httptest.NewRecorder()
-		l.ServeTranscode(w, httptest.NewRequest("GET", "/api/local/transcode", nil), path, start, 0, "", tc.caps)
+		l.ServeTranscode(w, httptest.NewRequest("GET", "/api/local/transcode", nil), path, start, 0, "", tc.caps, -1)
 		if w.Code != http.StatusOK || w.Body.Len() < 1000 {
 			t.Fatalf("%s: transcode %d, %d bytes", tc.name, w.Code, w.Body.Len())
 		}

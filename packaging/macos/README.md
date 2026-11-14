@@ -25,7 +25,7 @@ Or, in Terminal, once: `xattr -dr com.apple.quarantine /Applications/Moviko.app`
 
 Movie and show details (posters, seasons, episodes, cast) come from
 [TMDB](https://www.themoviedb.org): the first time, Moviko asks for your free
-TMDB API key (**Settings › Metadata**). Letterboxd tracking needs only your
+TMDB API key (**Settings › Accounts**). Letterboxd tracking needs only your
 Letterboxd username.
 
 ## Programs Moviko uses
@@ -37,13 +37,13 @@ Letterboxd username.
 | mpv | The external player (optional: Moviko has its own) |
 | qBittorrent or Transmission | Torrents (optional) |
 
-**Settings › Desktop app & programs › Install missing programs** downloads ready-made
+**Settings › App & data › Install missing programs** downloads ready-made
 ffmpeg, ffprobe and yt-dlp for your Mac (Apple silicon or Intel) into Moviko's
 own folder, `~/Library/Application Support/Moviko/bin`, in a Terminal window:
 no Homebrew, no password. ffmpeg comes from
 [Martin Riedl's builds](https://ffmpeg.martin-riedl.de) (and
-[evermeet.cx](https://evermeet.cx/ffmpeg/) on Intel), yt-dlp from its GitHub
-project. The script is
+[ffmpeg-static](https://github.com/eugeneware/ffmpeg-static) on GitHub when
+that site fails), yt-dlp from its GitHub project. The script is
 [`server/internal/macsetup/install-tools.command`](../../server/internal/macsetup/install-tools.command).
 
 mpv is optional. On an Apple silicon Mac with [Homebrew](https://brew.sh) the
@@ -68,7 +68,7 @@ Torrents**.
 | The window's own data (browser cache, local storage) | `~/Library/Application Support/Moviko/electron` |
 | Programs the setup downloaded | `~/Library/Application Support/Moviko/bin` |
 | Updates being downloaded | `~/Library/Caches/moviko/update` |
-| The local library, until you pick yours in **Settings › Local library** | `~/Movies` |
+| The local library, until you pick yours in **Settings › Library** | `~/Movies` |
 
 ## Updates
 
@@ -104,7 +104,7 @@ the zip as an update unpacks it, and that it starts and its server answers)
 and keeps the disk image and the zip as downloadable workflow artifacts, so a
 branch can be tried before it's merged. Only pushes to the default branch (or
 a run from the **Actions** tab with **publish** ticked) publish the release
-`macos-v<version>`. The version is `2.0.<commits since 2.0.0's>`
+`macos-v<version>`. The version is `3.0.<commits since 3.0.0's>`
 (`1.0.<number of commits>` before), like the Windows release's. Each published
 build is a beta (a pre-release) unless its commit's message says `[stable]` or
 it's run by hand as stable (see packaging/windows/README.md). The newest 10

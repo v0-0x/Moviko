@@ -69,7 +69,7 @@ func TestRemoteStreamConverts(t *testing.T) {
 		t.Fatalf("seek point %v, %v", start, err)
 	}
 	w := httptest.NewRecorder()
-	l.ServeTranscode(w, httptest.NewRequest("GET", "/api/local/transcode", nil), path, start, 0, "remux", DefaultCaps)
+	l.ServeTranscode(w, httptest.NewRequest("GET", "/api/local/transcode", nil), path, start, 0, "remux", DefaultCaps, -1)
 	if w.Code != http.StatusOK || !bytes.Contains(w.Body.Bytes()[:min(64, w.Body.Len())], []byte("ftyp")) {
 		t.Fatalf("transcode: %d, %d bytes", w.Code, w.Body.Len())
 	}
@@ -199,7 +199,7 @@ func TestRelayRefusesPlaylists(t *testing.T) {
 	if a := strings.Join(relayInputArgs("http://127.0.0.1:1/r/x", "ffmpeg"), " "); a != "-protocol_whitelist http,tcp" {
 		t.Errorf("relay input options %q", a)
 	}
-	var pl plan
+	pl := plan{burn: -1}
 	if a := strings.Join(pl.args(config.Settings{}, &Probe{}, "http://127.0.0.1:1/r/x", 0), " "); !strings.Contains(a, "-protocol_whitelist http,tcp -rw_timeout") {
 		t.Errorf("ffmpeg's options for a relay input: %s", a)
 	}

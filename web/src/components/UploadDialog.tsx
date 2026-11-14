@@ -2,11 +2,12 @@ import { useQuery } from "@tanstack/react-query"
 import { CheckCircle2, FilePlus2, FolderPlus, Server, TriangleAlert, Upload, X } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { ApiError, api } from "@/lib/api"
-import { formatBytes } from "@/lib/utils"
+import { useClassic } from "@/lib/themes"
+import { cn, formatBytes } from "@/lib/utils"
 import { Button, Dialog, Progress, Select } from "./ui"
 
 // Files and folders from this computer into a server's library: one that
-// takes this device's downloads (Settings › Other devices: Let it download
+// takes this device's downloads (Settings › Devices & network: Let it download
 // here), or, on mediaserver's own pages, that server. The files go a piece
 // at a time (server: internal/upload), each after the last: one cut short
 // carries on where it stopped the next time it's sent.
@@ -40,17 +41,32 @@ function query(target: Target, folder: number, extra: Record<string, string | nu
     return q.toString()
 }
 
-export function useUploadTargets(enabled = true) {
+// base: the API the files go through: this side's (/api), or on
+// mediaserver's dashboard its movies side's (/api/movies).
+export function useUploadTargets(enabled = true, base = "/api") {
     return useQuery({
-        queryKey: ["upload", "targets"],
-        queryFn: () => api.get<Target[]>("/api/upload/targets"),
+        queryKey: ["upload", "targets", base],
+        queryFn: () => api.get<Target[]>(`${base}/upload/targets`),
         enabled,
         staleTime: 15_000,
     })
 }
 
-export function UploadDialog({ open, onOpenChange, target: wanted }: { open: boolean; onOpenChange: (v: boolean) => void; target?: string }) {
-    const targets = useUploadTargets(open)
+export function UploadDialog({
+    open,
+    onOpenChange,
+    target: wanted,
+    base = "/api",
+    description,
+}: {
+    open: boolean
+    onOpenChange: (v: boolean) => void
+    target?: string
+    base?: string
+    description?: string
+}) {
+    const classic = useClassic()
+    const targets = useUploadTargets(open, base)
     const list = targets.data ?? []
     const [targetId, setTargetId] = useState<string>("")
     const target = list.find(t => (t.here ? "here" : t.id) === targetId) ?? list[0]
@@ -60,8 +76,8 @@ export function UploadDialog({ open, onOpenChange, target: wanted }: { open: boo
         setTargetId(prev => (prev && list.some(t => (t.here ? "here" : t.id) === prev) ? prev : pick ? pick.id : list[0].here ? "here" : list[0].id))
     }, [list, wanted])
     const folders = useQuery({
-        queryKey: ["upload", "folders", target?.here ? "" : target?.id],
-        queryFn: () => api.get<Folders>(`/api/upload?${target!.here ? "" : `target=${encodeURIComponent(target!.id)}`}`),
+        queryKey: ["upload", "folders", base, target?.here ? "" : target?.id],
+        queryFn: () => api.get<Folders>(`${base}/upload?${target!.here ? "" : `target=${encodeURIComponent(target!.id)}`}`),
         enabled: open && !!target,
     })
     const [folder, setFolder] = useState(0)
@@ -98,7 +114,7 @@ export function UploadDialog({ open, onOpenChange, target: wanted }: { open: boo
     const sendOne = async (t: Target, f: number, chunk: number, it: Item) => {
         update(it.key, { state: "sending", error: undefined })
         const size = it.file.size
-        const where = async () => (await api.get<Answer>(`/api/upload?${query(t, f, { path: it.path, total: size })}`)).have
+        const where = async () => (await api.get<Answer>(`${base}/upload?${query(t, f, { path: it.path, total: size })}`)).have
         const wait = (ms: number) => new Promise(r => setTimeout(r, ms))
         let at = await where()
         let tries = 0
@@ -116,7 +132,7 @@ export function UploadDialog({ open, onOpenChange, target: wanted }: { open: boo
             let res: Response
             sending = true
             try {
-                res = await fetch(`/api/upload?${query(t, f, { path: it.path, offset: at, total: size })}`, {
+                res = await fetch(`${base}/upload?${query(t, f, { path: it.path, offset: at, total: size })}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/octet-stream" },
                     body: it.file.slice(at, end),
@@ -179,7 +195,7 @@ export function UploadDialog({ open, onOpenChange, target: wanted }: { open: boo
 
     const close = (v: boolean) => {
         if (!v && busy) {
-            if (!window.confirm("Stop sending the files? What's sent stays; sending them again carries on from there.")) return
+            if (!window.confirm("Stop sending? Files already sent stay on the server.")) return
             stop.current = true
         }
         if (!v && !busy) setItems(xs => xs.filter(x => x.state !== "done" && x.state !== "there"))
@@ -194,7 +210,7 @@ export function UploadDialog({ open, onOpenChange, target: wanted }: { open: boo
             open={open}
             onOpenChange={close}
             title="Upload to a server"
-            description="Movies, shows and their subtitles from this computer, into the server's library. Folders keep their names and what's in them."
+            description={description ?? "Send movies, shows and their subtitles to the server's library."}
             className="w-[min(94vw,640px)]"
             footer={
                 <>
@@ -215,8 +231,8 @@ export function UploadDialog({ open, onOpenChange, target: wanted }: { open: boo
         >
             {targets.isLoading ? null : !list.length ? (
                 <p className="text-sm leading-relaxed text-muted">
-                    No server takes files from this device yet. On the server (or the computer to send them to), in <b>Settings › Other devices</b>, turn on <b>Let it download here</b> for this
-                    device.
+                    No server takes files from this device yet. On the server, in <b>Settings › Devices & network</b> (on mediaserver, <b>Devices</b>), turn on <b>Let it download here</b>
+                    for this device.
                 </p>
             ) : (
                 <div className="flex flex-col gap-4">
@@ -237,7 +253,7 @@ export function UploadDialog({ open, onOpenChange, target: wanted }: { open: boo
                             ) : folderOptions.length ? (
                                 <Select value={String(folder)} onChange={v => setFolder(Number(v))} disabled={busy} options={folderOptions} />
                             ) : folders.data ? (
-                                <span className="text-[12.5px] font-normal text-amber-300">It has no library folder yet (its Settings › Local library).</span>
+                                <span className="text-[12.5px] font-normal text-amber-300">Set its library folder in its Settings › Library.</span>
                             ) : (
                                 <span className="text-[12.5px] font-normal text-muted">…</span>
                             )}
@@ -286,9 +302,9 @@ export function UploadDialog({ open, onOpenChange, target: wanted }: { open: boo
                                 <span className="tabular-nums">{total ? Math.floor((sent / total) * 100) : 0}%</span>
                             </div>
                             <Progress value={total ? sent / total : 0} />
-                            <ul className="flex max-h-[40vh] flex-col gap-1 overflow-y-auto pr-1">
+                            <ul className={cn("flex max-h-[40vh] flex-col overflow-y-auto pr-1", classic ? "gap-1" : "divide-y divide-line")}>
                                 {items.map(it => (
-                                    <li key={it.key} className="flex items-center gap-2.5 rounded-lg bg-white/[0.03] px-2.5 py-2 text-[13px]">
+                                    <li key={it.key} className={cn("flex items-center gap-2.5 py-2 text-[13px]", classic && "rounded-lg bg-white/[0.03] px-2.5")}>
                                         {it.state === "done" || it.state === "there" ? (
                                             <CheckCircle2 className="size-4 shrink-0 text-emerald-300" />
                                         ) : it.state === "failed" ? (

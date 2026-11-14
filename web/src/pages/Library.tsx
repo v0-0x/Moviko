@@ -1,18 +1,19 @@
 import { useQueryClient } from "@tanstack/react-query"
-import { CircleCheck, EyeOff, FileVideo, FolderSync, Link2, Link2Off, Lock, Magnet, RefreshCw, Search, Undo2, Wand2 } from "lucide-react"
+import { CircleCheck, EyeOff, FileVideo, FolderSync, Info, Link2, Link2Off, Lock, Magnet, RefreshCw, Search, Undo2, Wand2 } from "lucide-react"
 import { useMemo, useRef, useState } from "react"
-import { Link, useSearchParams } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { toast } from "@/lib/toast"
 import { Cleanup } from "@/components/library/Cleanup"
 import { LibraryFolders } from "@/components/library/LibraryFolders"
 import { MediaPicker } from "@/components/MediaPicker"
-import { Badge, Button, EmptyState, IconButton, Input, Select, Tabs } from "@/components/ui"
+import { Badge, Button, ContextArea, DropdownItem, DropdownSeparator, EmptyState, IconButton, Input, Select, Tabs } from "@/components/ui"
 import { cardRow, VirtualList } from "@/components/VirtualList"
 import { api } from "@/lib/api"
 import { episodeKey, formatKey, isShow, mediaIsShow, mediaRef, splitKey } from "@/lib/ids"
 import { useCollection, useLibraryFiles, useScan, useUnmatched } from "@/lib/queries"
 import { scanStore, useStore } from "@/lib/store"
-import { formatRanges, missingEpisodes } from "@/lib/missing"
+import { useClassic } from "@/lib/themes"
+import { formatRanges, type Missing, missingEpisodes } from "@/lib/missing"
 import type { CollectionItem, CollectionView, LocalFile } from "@/lib/types"
 import { cn, formatBytes, poster, title } from "@/lib/utils"
 
@@ -29,31 +30,25 @@ export default function LibraryPage() {
     const scanning = useStore(scanStore, s => s.running)
     return (
         <div className="min-h-full px-6 pt-8 pb-24 md:px-8 xl:px-10">
-            <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-                <div>
-                    <h1 className="text-[1.75rem] font-semibold tracking-tight">Library tools</h1>
-                    <p className="mt-1 text-muted">Fix matches, season and episode numbers and ignored files, and make room.</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    <Button icon={<FolderSync className="size-4" />} loading={scanning} onClick={() => scan.mutate(false)}>
-                        Scan for new files
-                    </Button>
-                    <Button icon={<RefreshCw className="size-4" />} onClick={() => scan.mutate(true)} disabled={scanning}>
-                        Re-match everything
-                    </Button>
+            <div className="mb-8 flex items-center justify-between gap-4">
+                <h1 className="text-[1.75rem] font-semibold tracking-tight">Library tools</h1>
+                <div className="flex shrink-0 gap-1">
+                    <IconButton label="Scan for new files" icon={<FolderSync className="size-4" />} loading={scanning} onClick={() => scan.mutate(false)} />
+                    <IconButton label="Re-match everything" icon={<RefreshCw className="size-4" />} onClick={() => scan.mutate(true)} disabled={scanning} />
                 </div>
             </div>
             <Tabs
-                className="mb-8"
+                variant="underline"
+                className="mb-6"
                 value={tab}
                 onChange={t => setParams({ tab: t }, { replace: true })}
                 tabs={[
                     { value: "folders", label: "Folders & matches" },
-                    { value: "unmatched", label: "Unmatched", count: coll?.unmatchedCount ?? 0 },
-                    { value: "missing", label: "Missing episodes", count: withMissing(coll).length },
+                    { value: "unmatched", label: counted("Unmatched", coll?.unmatchedCount ?? 0) },
+                    { value: "missing", label: counted("Missing episodes", withMissing(coll).length) },
                     { value: "cleanup", label: "Clean up" },
                     { value: "files", label: "All files" },
-                    { value: "ignored", label: "Ignored", count: coll?.ignoredCount ?? 0 },
+                    { value: "ignored", label: counted("Ignored", coll?.ignoredCount ?? 0) },
                 ]}
             />
             {tab === "folders" && <LibraryFolders />}
@@ -63,6 +58,16 @@ export default function LibraryPage() {
             {tab === "files" && <AllFiles />}
             {tab === "ignored" && <Ignored />}
         </div>
+    )
+}
+
+// A tab's name with its count as a plain muted number (as on a title's page).
+function counted(label: string, count: number) {
+    return (
+        <>
+            {label}
+            <span className="font-normal text-subtle tabular-nums">{count}</span>
+        </>
     )
 }
 
@@ -108,7 +113,7 @@ function Unmatched() {
     if (!data?.length)
         return (
             <EmptyState icon={<Link2 className="size-6" />} title="Everything is matched">
-                All video files in your library are linked to a movie or show.
+                Every video file has its movie or show.
             </EmptyState>
         )
     return (
@@ -121,7 +126,21 @@ function Unmatched() {
                     if (r.kind === "file") {
                         const f = r.f
                         return (
-                            <div className={cn(r.last && "pb-5")}>
+                            // A right-click on a file: the folder's buttons, for this one.
+                            <ContextArea
+                                className={cn(r.last && "pb-5")}
+                                menu={
+                                    <>
+                                        <DropdownItem icon={<Wand2 />} onSelect={() => setPicking({ paths: [f.path], title: f.parsed.title || f.name })}>
+                                            Match…
+                                        </DropdownItem>
+                                        <DropdownSeparator />
+                                        <DropdownItem icon={<EyeOff />} onSelect={() => ignore([f.path])}>
+                                            Ignore
+                                        </DropdownItem>
+                                    </>
+                                }
+                            >
                                 <label className={cn(cardRow(false, r.last), "flex cursor-pointer items-center gap-4 px-5 py-2.5 text-sm hover:bg-white/[0.02]")}>
                                     <input
                                         type="checkbox"
@@ -142,14 +161,28 @@ function Unmatched() {
                                     {f.parsed.releaseGroup && <Badge tone="brand">{f.parsed.releaseGroup}</Badge>}
                                     <span className="w-20 text-right text-xs text-subtle">{formatBytes(f.size)}</span>
                                 </label>
-                            </div>
+                            </ContextArea>
                         )
                     }
                     const g = r.g
                     const paths = g.files.map(f => f.path)
                     const chosen = paths.filter(p => selected.has(p))
                     return (
-                        <div className={cn(cardRow(true, false), "flex flex-wrap items-center justify-between gap-3 bg-white/[0.02] px-5 py-4")}>
+                        <ContextArea
+                            // A right-click on the folder: what its buttons do.
+                            menu={
+                                <>
+                                    <DropdownItem icon={<Wand2 />} onSelect={() => setPicking({ paths: chosen.length ? chosen : paths, title: g.title })}>
+                                        Match {chosen.length ? `${chosen.length} selected` : "all"}
+                                    </DropdownItem>
+                                    <DropdownSeparator />
+                                    <DropdownItem icon={<EyeOff />} onSelect={() => ignore(chosen.length ? chosen : paths)}>
+                                        Ignore
+                                    </DropdownItem>
+                                </>
+                            }
+                            className={cn(cardRow(true, false), "flex flex-wrap items-center justify-between gap-3 bg-white/[0.02] px-5 py-4")}
+                        >
                             <div className="min-w-0">
                                 <p className="truncate text-lg font-semibold">{g.title}</p>
                                 <p className="truncate text-xs text-subtle">{g.dir}</p>
@@ -162,7 +195,7 @@ function Unmatched() {
                                     Ignore
                                 </Button>
                             </div>
-                        </div>
+                        </ContextArea>
                     )
                 }}
             />
@@ -171,7 +204,7 @@ function Unmatched() {
                 onOpenChange={v => !v && setPicking(null)}
                 initialQuery={picking?.title ?? ""}
                 heading="Match files"
-                description={picking ? `${picking.paths.length} file(s) will be linked to the movie or show you choose.` : undefined}
+                description={picking ? `Pick the movie or show for ${picking.paths.length} file(s).` : undefined}
                 onPick={m => picking && match(m.id, picking.paths)}
             />
         </div>
@@ -253,7 +286,7 @@ function AllFiles() {
                             )}
                         </div>
                         {f.locked && (
-                            <span title="Locked: re-scans won't change this file">
+                            <span title="Locked. Scans won't change it">
                                 <Lock className="size-3.5 text-subtle" />
                             </span>
                         )}
@@ -307,7 +340,7 @@ function Ignored() {
     const restore = async (paths: string[]) => {
         try {
             await api.post("/api/library/ignore", { paths, ignored: false })
-            toast.success("Restored — run a scan to match them")
+            toast.success("Restored. Run a scan to match them")
             qc.invalidateQueries({ queryKey: ["library"] })
             qc.invalidateQueries({ queryKey: ["collection"] })
         } catch (e: any) {
@@ -318,7 +351,7 @@ function Ignored() {
     if (!files.length)
         return (
             <EmptyState icon={<EyeOff className="size-6" />} title="No ignored files">
-                Files you ignore won’t be matched or shown anywhere.
+                Ignored files aren’t matched or shown.
             </EmptyState>
         )
     return (
@@ -333,7 +366,14 @@ function Ignored() {
                 getKey={f => f.path}
                 estimateSize={47}
                 renderItem={(f, i) => (
-                    <div className={cn(cardRow(i === 0, i === files.length - 1), "flex items-center gap-4 px-4 py-2.5 text-sm")}>
+                    <ContextArea
+                        menu={
+                            <DropdownItem icon={<Undo2 />} onSelect={() => restore([f.path])}>
+                                Restore
+                            </DropdownItem>
+                        }
+                        className={cn(cardRow(i === 0, i === files.length - 1), "flex items-center gap-4 px-4 py-2.5 text-sm")}
+                    >
                         <FileVideo className="size-4 text-subtle" />
                         <span className="min-w-0 flex-1 truncate" title={f.path}>
                             {f.name}
@@ -341,7 +381,7 @@ function Ignored() {
                         <Button size="xs" variant="ghost" onClick={() => restore([f.path])}>
                             Restore
                         </Button>
-                    </div>
+                    </ContextArea>
                 )}
             />
         </div>
@@ -369,44 +409,61 @@ function withMissing(coll?: CollectionView) {
 }
 
 function MissingEpisodes() {
+    const classic = useClassic()
     const { data: coll, isLoading } = useCollection()
     if (isLoading) return <div className="card h-40 shimmer" />
     const rows = withMissing(coll)
     if (!rows.length)
         return (
             <EmptyState icon={<CircleCheck className="size-6" />} title="Nothing missing">
-                The shows in your library have every episode between their first and their last, and the ones aired since.
+                No gaps, and no newer episodes to get.
             </EmptyState>
         )
     return (
-        <div className="flex flex-col gap-4">
-            <p className="text-sm text-muted">Episodes between the first and the last one in your library that aren't there, and those aired since (for the shows you're watching).</p>
-            <div className="card divide-y divide-line">
-                {rows.map(({ item, missing }) => {
-                    const first = missing.gaps[0] ?? missing.newer[0]
-                    return (
-                        <div key={item.media.id} className="flex items-center gap-4 px-4 py-3">
-                            <img {...poster(item.media, 44)} alt="" className="h-16 w-11 shrink-0 rounded-md object-cover" />
-                            <div className="min-w-0 flex-1">
-                                <Link to={`/entry?id=${item.media.id}`} className="block truncate font-medium hover:underline">
-                                    {title(item.media)}
-                                </Link>
-                                {missing.gaps.length > 0 && (
-                                    <p className="mt-0.5 text-sm text-amber-200/85">
-                                        Missing {missing.gaps.length === 1 ? "episode" : `${missing.gaps.length} episodes`}: {formatRanges(missing.gaps)}
-                                    </p>
-                                )}
-                                {missing.newer.length > 0 && <p className="mt-0.5 text-sm text-muted">Aired since your last one: {formatRanges(missing.newer)}</p>}
-                            </div>
-                            <Link to={`/entry?id=${item.media.id}&tab=torrents&episode=${first}`}>
-                                <Button size="sm" icon={<Magnet className="size-4" />}>
-                                    Find torrents
-                                </Button>
-                            </Link>
-                        </div>
-                    )
-                })}
-            </div>
+        // This look: rows on hairlines, not a box each.
+        <div className={cn("flex flex-col", classic ? "gap-2" : "border-t border-line")}>
+            {rows.map(({ item, missing }) => (
+                <MissingRow key={item.media.id} item={item} missing={missing} />
+            ))}
         </div>
+    )
+}
+
+// A show with episodes missing: find torrents for the first.
+function MissingRow({ item, missing }: { item: CollectionItem; missing: Missing }) {
+    const classic = useClassic()
+    const first = missing.gaps[0] ?? missing.newer[0]
+    const navigate = useNavigate()
+    // A right-click on the row: what its button does.
+    const menu = (
+        <>
+            <DropdownItem icon={<Magnet />} onSelect={() => navigate(`/entry?id=${item.media.id}&tab=torrents&episode=${first}`)}>
+                Find torrents
+            </DropdownItem>
+            <DropdownItem icon={<Info />} onSelect={() => navigate(`/entry?id=${item.media.id}`)}>
+                Its page
+            </DropdownItem>
+        </>
+    )
+    return (
+        <ContextArea menu={menu} className={cn("flex items-center gap-4 fade-in", classic ? "card p-3" : "border-b border-line py-3")}>
+            <img {...poster(item.media, 44)} alt="" className="h-16 w-11 shrink-0 rounded-lg object-cover" />
+            <div className="min-w-0 flex-1">
+                <Link to={`/entry?id=${item.media.id}`} className="block truncate font-medium hover:underline">
+                    {title(item.media)}
+                </Link>
+                {missing.gaps.length > 0 && (
+                    <p className="mt-0.5 text-sm text-amber-200/85">
+                        Missing {missing.gaps.length === 1 ? "episode" : `${missing.gaps.length} episodes`}: {formatRanges(missing.gaps)}
+                    </p>
+                )}
+                {missing.newer.length > 0 && <p className="mt-0.5 text-sm text-muted">Aired since your last one: {formatRanges(missing.newer)}</p>}
+            </div>
+            <Link to={`/entry?id=${item.media.id}&tab=torrents&episode=${first}`} className="shrink-0">
+                <IconButton label="Find torrents">
+                    <Magnet className="size-4" />
+                </IconButton>
+            </Link>
+        </ContextArea>
     )
 }

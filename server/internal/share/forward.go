@@ -295,3 +295,36 @@ func (s *Service) Note(ctx context.Context, path, text string) error {
 	defer resp.Body.Close()
 	return answerError(resp)
 }
+
+// BurnsSubtitles reports whether the host of a shared file draws image
+// subtitles onto the video (?sub=, since Moviko 3.0.0), and its name for a
+// message. A version that can't be read counts as able (a build from
+// source), and so does mediaserver, whose version isn't Moviko's.
+func (s *Service) BurnsSubtitles(path string) (bool, string) {
+	p, _, err := s.hostOf(path)
+	if err != nil {
+		return true, ""
+	}
+	s.mu.Lock()
+	v, platform, name := p.version, p.platform, p.name
+	s.mu.Unlock()
+	if platform == PlatformServer {
+		return true, name
+	}
+	if c, ok := compareVersions(v, "3.0.0"); ok && c < 0 {
+		return false, name
+	}
+	return true, name
+}
+
+// ForwardPath forwards a GET to a Moviko this one uses (its ID) at path
+// (with its query), and passes its answer on as it is (a torrent it
+// streams for this one).
+func (s *Service) ForwardPath(w http.ResponseWriter, r *http.Request, host, path string) {
+	p := s.host(host)
+	if p == nil {
+		http.Error(w, errNotShared.Error(), http.StatusNotFound)
+		return
+	}
+	s.forward(w, r, p, http.MethodGet, path, nil)
+}

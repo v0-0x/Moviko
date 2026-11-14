@@ -30,3 +30,30 @@ export const STREAM_SITES: StreamSiteInfo[] = [
 export const DEFAULT_DECRYPT_URL = "https://enc-dec.app/api"
 
 export const SITE_OFF: StreamSite = { enabled: false, url: "" }
+
+// The web players of the Streambert app, built in (server:
+// providers/webplayers), in the order they're asked. A stream of theirs is
+// the site's player page, shown in the app's own window
+// (components/WebPlayer.tsx); their provider ids are "web:" and the key.
+export type WebPlayerInfo = {
+    key: string
+    name: string
+    help: string
+    // Its own address (a mirror can replace it).
+    url: string
+    // What it finds titles by, when not the TMDB id.
+    by?: string
+    movieOnly?: boolean
+}
+
+export const WEB_PLAYERS: WebPlayerInfo[] = [
+    { key: "vidsrc", name: "VidSrc", help: "Several servers behind one player.", url: "https://vsembed.su" },
+    { key: "vidfast", name: "Vidfast", help: "Asks for subtitles in your language.", url: "https://vidfast.vc" },
+    { key: "vidlove", name: "Vidlove", help: "Several servers behind one player.", url: "https://player.vidlove.cc" },
+    { key: "aether", name: "Aether", help: "Several audio languages.", url: "https://aether.ist" },
+    { key: "vidrift", name: "Vidrift", help: "Several audio languages; asks for subtitles in your language.", url: "https://embed.vidrift.net" },
+    { key: "vidnest", name: "Vidnest", help: "Movies and shows.", url: "https://vidnest.fun" },
+    { key: "devideosrc", name: "DeVideoSrc", help: "German.", url: "https://devideosrc.co", by: "IMDb id" },
+    { key: "frembed", name: "Frembed", help: "French.", url: "https://frembed.uno" },
+    { key: "kinohub", name: "KinoHub", help: "Russian. Its Kinopoisk ids come from Wikidata.", url: "https://on.kinohub.vip", by: "Kinopoisk id", movieOnly: true },
+]

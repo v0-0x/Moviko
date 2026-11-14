@@ -351,7 +351,7 @@ function Installed({ lan }: { lan: boolean }) {
 
 // ---------------------------------------------------------------------------
 
-// The addons of the collections of Settings › Providers: search them, see
+// The addons of the collections of Settings › Streaming & torrents: search them, see
 // what each serves, install or uninstall one, open its configuration page.
 function Browse({ lan, install, busy }: { lan: boolean; install: (url: string, opts?: { name?: string }) => Promise<StremioAddon | undefined>; busy: string }) {
     const { data: status } = useStatus()
@@ -404,7 +404,7 @@ function Browse({ lan, install, busy }: { lan: boolean; install: (url: string, o
     return (
         <TabSection
             title="Browse"
-            description="Addon collections (Settings › Providers lists them). Addons that only offer catalogs or metadata are of no use to Moviko."
+            description="Addon collections (Settings › Streaming & torrents lists them). Addons that only offer catalogs or metadata are of no use to Moviko."
             actions={
                 <Button size="sm" icon={<RefreshCw className={cn("size-4", (isFetching || reloading) && "animate-spin")} />} disabled={reloading} onClick={reload}>
                     Reload

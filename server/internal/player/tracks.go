@@ -135,27 +135,6 @@ func isSigns(title string) bool {
 	return strings.Contains(t, "sign") || strings.Contains(t, "song") || strings.Contains(t, "forced")
 }
 
-// PrefsFromSelection builds a TrackPrefs from the currently selected tracks.
-func PrefsFromSelection(mediaID int, tracks []Track, aid, sid int, subOff bool) TrackPrefs {
-	p := TrackPrefs{MediaID: mediaID, SubOff: subOff}
-	ai, si := 0, 0
-	for _, t := range tracks {
-		switch t.Type {
-		case "audio":
-			ai++
-			if t.ID == aid {
-				p.AudioLang, p.AudioTitle, p.AudioIndex = t.Lang, t.Title, ai
-			}
-		case "sub":
-			si++
-			if t.ID == sid && !subOff {
-				p.SubLang, p.SubTitle, p.SubIndex = t.Lang, t.Title, si
-			}
-		}
-	}
-	return p
-}
-
 // trackSel is an aid/sid value reported by mpv: a track id, or off.
 type trackSel struct {
 	id  int

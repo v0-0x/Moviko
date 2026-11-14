@@ -38,6 +38,7 @@ func (s *Server) routes() {
 	s.noteRoutes()
 	s.cleanupRoutes()
 	s.backupRoutes()
+	s.playlistRoutes()
 
 	// --- core
 	m.HandleFunc("GET /api/status", h(s.status))
@@ -609,10 +610,6 @@ func (g *loginGuard) passed(ip string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	delete(g.tries, ip)
-}
-
-func startDetached(name string, args ...string) error {
-	return util.Detach(name, args...)
 }
 
 func (s *Server) listDirs(r *http.Request) (any, error) {

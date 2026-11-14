@@ -202,7 +202,7 @@ func (a *App) hasNextEpisode(s *player.Session) bool {
 // ---------------------------------------------------------------------------
 // Discord rich presence
 
-// presence is what's shown on Discord (Settings › Discord).
+// presence is what's shown on Discord (Settings › Playback).
 type presence struct {
 	mu      sync.Mutex
 	last    time.Time

@@ -148,7 +148,16 @@ export type DesktopBridge = {
     // An episode handed back by the small window, for the big one to play.
     takePendingPlay?: () => Promise<unknown>
     onPlay?: (fn: (req: unknown) => void) => void
+    // A web player's page in a view of its own, over the page at bounds
+    // (components/WebPlayer.tsx). Missing in desktop apps before 3.0.
+    openWebPlayer?: (url: string, bounds: WebPlayerBounds) => Promise<boolean>
+    moveWebPlayer?: (bounds: WebPlayerBounds) => void
+    closeWebPlayer?: () => void
+    webPlayerProgress?: () => Promise<{ position: number; duration: number; paused: boolean; ended: boolean } | null>
+    onWebPlayerEscape?: (fn: () => void) => () => void
 }
+
+export type WebPlayerBounds = { x: number; y: number; width: number; height: number }
 
 export type DesktopPrefs = { keepRunning: boolean; freeWhenLocked: boolean; startAtLogin?: boolean }
 

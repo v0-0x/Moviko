@@ -70,7 +70,7 @@ func (s *Service) answerOf(a providers.Answer) Answer {
 
 // Test asks one provider for req right away (whatever was found a moment
 // ago), records how it went in the providers' health and returns its
-// answer: the Test button of Settings › Providers.
+// answer: the Test button of Settings › Streaming & torrents.
 func (s *Service) Test(ctx context.Context, p providers.Provider, req providers.Request) Answer {
 	out := Answer{Provider: p.ID(), Name: p.Name(), Streams: []Stream{}}
 	providers.AggregateEach(ctx, []providers.Provider{p}, req, s.options().Timeout, func(a providers.Answer) {

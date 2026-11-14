@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui"
 import { api } from "@/lib/api"
 import { useStatus } from "@/lib/queries"
+import { useClassic } from "@/lib/themes"
 import { toast } from "@/lib/toast"
 import type { DevicePrompt } from "@/lib/types"
 
@@ -23,6 +24,7 @@ function readHidden(): string[] {
 // this computer's library with; and a paired one on another version than
 // this one, to update.
 export function DevicePrompts() {
+    const classic = useClassic()
     const { data: status } = useStatus()
     const qc = useQueryClient()
     const [busy, setBusy] = useState("")
@@ -38,7 +40,7 @@ export function DevicePrompts() {
         setBusy(p.id)
         try {
             await api.post(`/api/sharing/peers/${encodeURIComponent(p.id)}`, share ? { allowed: true } : { declined: true })
-            if (share) toast.success(`Sharing this library with ${p.name}. Downloads can go with it, in Settings › Other devices.`)
+            if (share) toast.success(`Sharing this library with ${p.name}. More in Settings › Devices & network.`)
             await qc.invalidateQueries({ queryKey: ["status"] })
             qc.invalidateQueries({ queryKey: ["sharing"] })
         } catch (e: any) {
@@ -64,7 +66,7 @@ export function DevicePrompts() {
                 const isNew = p.kind === "new"
                 return (
                     <div key={`${p.kind}:${p.id}`} className="card flex flex-wrap items-center gap-x-4 gap-y-3 px-5 py-4 rise-in">
-                        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white/[0.06] text-fg/80 [&>svg]:size-[18px]">
+                        <span className={classic ? "grid size-9 shrink-0 place-items-center rounded-lg bg-white/[0.06] text-fg/80 [&>svg]:size-[18px]" : "shrink-0 text-muted [&>svg]:size-5 [&>svg]:stroke-[1.5]"}>
                             {isNew ? tvApp ? <Tv /> : <MonitorSmartphone /> : <ArrowUpCircle />}
                         </span>
                         <div className="min-w-0 flex-1">
@@ -75,8 +77,8 @@ export function DevicePrompts() {
                                 {isNew
                                     ? `Moviko${tvApp ? "'s TV app" : ""} on ${p.name} is on this network. Once shared, it can play this computer's movies and shows.`
                                     : p.kind === "older"
-                                      ? `Moviko ${p.version} there, ${status.version} here: update it on ${p.name} (from its Home page) so everything works together.`
-                                      : `Moviko ${p.version} there, ${status.version} here: update this one (Settings › Updates & about) so everything works together.`}
+                                      ? `Moviko ${p.version} there, ${status.version} here. Update it on ${p.name}, from its Home page.`
+                                      : `Moviko ${p.version} there, ${status.version} here. Update this one in Settings › Updates & about.`}
                             </p>
                         </div>
                         {isNew ? (

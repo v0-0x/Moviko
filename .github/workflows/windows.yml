@@ -3,8 +3,8 @@
 # GitHub Release "Moviko <version> for Windows", tagged windows-v<version> on
 # the commit it built.
 #
-# The version is 2.0.<commits since 2.0.0's> (the first two numbers come
-# from desktop/package.json, where movikoVersionBase is 2.0.0's number of
+# The version is 3.0.<commits since 3.0.0's> (the first two numbers come
+# from desktop/package.json, where movikoVersionBase is 3.0.0's number of
 # commits; 1.0.<number of commits> before it): each commit has its own,
 # later commits higher ones.
 # Installed copies of Moviko look for the release with the highest version and
@@ -130,7 +130,7 @@ jobs:
           if (-not ($base -match '^(\d+)\.(\d+)\.')) { throw "desktop/package.json has no version like 1.0.0 (it says '$base')" }
           $count = git rev-list --count HEAD
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          # The commits since the one movikoVersionBase counts (2.0.0's).
+          # The commits since the one movikoVersionBase counts (3.0.0's).
           $from = if ($pkg.movikoVersionBase) { [int]$pkg.movikoVersionBase } else { 0 }
           $patch = [int]"$count".Trim() - $from
           if ($patch -lt 0) { throw "This commit is before movikoVersionBase ($from) in desktop/package.json" }
@@ -302,7 +302,7 @@ jobs:
 
           The files aren't code-signed, so Windows SmartScreen may warn "Windows protected your PC" the first time: click **More info**, then **Run anyway**.
 
-          Moviko finds newer releases by itself: the installed app updates from its Home page (**Update**); for the portable build, download the newest zip.
+          Moviko finds newer releases by itself and updates from its Home page (**Update**): the installed app runs the new installer, the portable build puts the new zip in place once it has closed.
 
           Movie and show details come from TMDB: the first time, Moviko asks for your free TMDB API key. Letterboxd tracking only needs your Letterboxd username.
 

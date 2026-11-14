@@ -3,6 +3,7 @@ package config
 
 import (
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -32,7 +33,7 @@ const (
 // -X <module>/internal/config.Commit=…": packaging/arch/PKGBUILD and the
 // Windows release workflow do, from the commit they build.
 var (
-	// AppVersion is 2.0.<commits since 2.0.0's> in those builds (1.0.<number
+	// AppVersion is 3.0.<commits since 3.0.0's> in those builds (1.0.<number
 	// of commits> before it; see update.VersionOf).
 	AppVersion = "1.0.0"
 	// Commit is the git commit Moviko was built from; see BuildCommit.
@@ -108,11 +109,15 @@ type LibrarySettings struct {
 	// Off: this computer has no library of its own; it plays the ones other
 	// computers share with it. The folders below are kept for when it's
 	// turned back on.
-	Off              bool     `json:"off"`
-	Dir              string   `json:"dir"`
-	ExtraDirs        []string `json:"extraDirs"`
-	AutoRefresh      bool     `json:"autoRefresh"`
-	RefreshOnStartup bool     `json:"refreshOnStartup"`
+	Off       bool     `json:"off"`
+	Dir       string   `json:"dir"`
+	ExtraDirs []string `json:"extraDirs"`
+	// DownloadDir: the library folder new downloads (streams, torrents) go
+	// into, when the movie or show has no folder yet; empty = Dir. One of
+	// the folders above (see DownloadDir()).
+	DownloadDir      string `json:"downloadDir"`
+	AutoRefresh      bool   `json:"autoRefresh"`
+	RefreshOnStartup bool   `json:"refreshOnStartup"`
 	// Minimum similarity (0-1) required to auto-match a title.
 	MatchThreshold float64 `json:"matchThreshold"`
 	// Glob patterns (matched against file/dir names) that the scanner skips.
@@ -255,15 +260,15 @@ type UISettings struct {
 	ColorTheme      string `json:"colorTheme"`
 	Seasonal        string `json:"seasonal"`
 	SeasonalEffects bool   `json:"seasonalEffects"`
-	// Moviko's look from before 2.0 (its components, sidebar and holiday
-	// themes), with the same color themes.
+	// Moviko's look from before the current one (before 3.0), instead of
+	// it.
 	ClassicLook bool `json:"classicLook"`
 }
 
 // ColorThemes and Holidays are the values UISettings takes (their colors are
 // in web/src/lib/themes.ts).
 var (
-	ColorThemes = []string{"kumobox", "midnight", "forest", "sakura", "ember", "ocean", "dusk", "black"}
+	ColorThemes = []string{"kumobox", "graphite", "midnight", "forest", "sakura", "ember", "ocean", "dusk", "black", "white", "paper", "phosphor", "amber", "ice", "rose"}
 	Holidays    = []string{"newyear", "valentine", "sakura", "summer", "halloween", "christmas"}
 )
 
@@ -432,6 +437,7 @@ func (c Settings) clone() Settings {
 	c.Providers.StremioCatalogs = slices.Clone(c.Providers.StremioCatalogs)
 	c.Providers.NuvioRepos = slices.Clone(c.Providers.NuvioRepos)
 	c.Providers.MediaServers = slices.Clone(c.Providers.MediaServers)
+	c.Providers.WebPlayers = maps.Clone(c.Providers.WebPlayers)
 	c.TorrentSources.Torznab = slices.Clone(c.TorrentSources.Torznab)
 	return c
 }
@@ -596,6 +602,24 @@ func (s Settings) LibraryDirs() []string {
 		out = append(out, d)
 	}
 	return out
+}
+
+// DownloadDir is the folder new downloads go into (see
+// LibrarySettings.DownloadDir): the one chosen when it's one of the library
+// folders, else the first library folder; "" when there's none.
+func (s Settings) DownloadDir() string {
+	dirs := s.LibraryDirs()
+	if d := filepath.Clean(expandHome(s.Library.DownloadDir)); d != "." && d != "" && slices.Contains(dirs, d) {
+		return d
+	}
+	if len(dirs) > 0 {
+		return dirs[0]
+	}
+	if s.Library.Dir != "" {
+		// The library is off: its first folder still takes downloads.
+		return filepath.Clean(expandHome(s.Library.Dir))
+	}
+	return ""
 }
 
 func expandHome(p string) string {

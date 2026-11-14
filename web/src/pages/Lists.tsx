@@ -1,8 +1,8 @@
-import { Heart, ListChecks, Search } from "lucide-react"
+import { ArrowDownUp, Check, Heart, ListChecks, Search } from "lucide-react"
 import { useMemo, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { MediaCard, MediaCardSkeleton, MediaGrid } from "@/components/MediaCard"
-import { EmptyState, ErrorState, Input, Select, Tabs, Tooltip } from "@/components/ui"
+import { Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownTrigger, EmptyState, ErrorState, IconButton, Input, Tabs, Tooltip } from "@/components/ui"
 import { usePersisted } from "@/lib/hooks"
 import { episodeIndex } from "@/lib/ids"
 import { useRawList, useStatus } from "@/lib/queries"
@@ -11,6 +11,15 @@ import { cn, LIST_STATUS, releaseDateOf, title } from "@/lib/utils"
 
 const ORDER = ["CURRENT", "PLANNING", "COMPLETED", "REPEATING", "PAUSED", "DROPPED"]
 type Kind = "" | "MOVIE" | "TV"
+
+const SORTS = [
+    { value: "updated", label: "Last updated" },
+    { value: "title", label: "Title" },
+    { value: "rating", label: "Your rating" },
+    { value: "tmdb", label: "TMDB rating" },
+    { value: "release", label: "Release date" },
+    { value: "progress", label: "Progress" },
+]
 
 export default function ListsPage() {
     const { data: status } = useStatus()
@@ -79,14 +88,8 @@ export default function ListsPage() {
 
     return (
         <div className="min-h-full px-6 pt-8 pb-24 md:px-8 xl:px-10">
-            <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-                <div>
-                    <h1 className="text-[1.75rem] font-semibold tracking-tight">My list</h1>
-                    <p className="mt-1 text-muted">
-                        Every {kind === "MOVIE" ? "movie" : kind === "TV" ? "show" : "movie and show"} you're watching, want to watch or have watched
-                        {status?.letterboxd ? ", kept in step with Letterboxd" : ""}.
-                    </p>
-                </div>
+            <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+                <h1 className="text-[1.75rem] font-semibold tracking-tight">My list</h1>
                 <Tabs
                     value={kind}
                     onChange={setKind}
@@ -97,40 +100,38 @@ export default function ListsPage() {
                     ]}
                 />
             </div>
+            {/* One row: which list, the liked ones, a title filter, and the order in a menu. */}
             <div className="mb-8 flex flex-wrap items-center gap-3">
                 <Tabs
                     value={statusTab}
                     onChange={setStatus}
                     tabs={ORDER.filter(s => counts[s] || s === statusTab || s === "PLANNING" || s === "COMPLETED").map(s => ({ value: s, label: LIST_STATUS[s], count: counts[s] ?? 0 }))}
                 />
-                <div className="ml-auto flex flex-wrap items-center gap-3">
+                <div className="flex min-w-0 flex-1 items-center gap-2 sm:ml-auto sm:flex-none">
                     <Tooltip content={liked ? "Show everything" : "Only what you liked"}>
-                        <button
-                            onClick={() => setLiked(l => !l)}
-                            aria-label="Only what you liked"
-                            aria-pressed={liked}
-                            className={cn("grid size-9 place-items-center rounded-lg border border-line transition-colors", liked ? "bg-[#ff8000]/15 text-[#ff8000]" : "text-muted hover:text-fg")}
-                        >
+                        <IconButton onClick={() => setLiked(l => !l)} aria-label="Only what you liked" aria-pressed={liked} variant="subtle" className={cn("rounded-xl", liked && "text-[#ff8000] hover:text-[#ff8000]")}>
                             <Heart className={cn("size-4", liked && "fill-current")} />
-                        </button>
+                        </IconButton>
                     </Tooltip>
                     {/* Input's className only sizes the inner <input> (its own wrapper is w-full): size it from outside. */}
-                    <div className="w-56 shrink-0">
-                        <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Filter…" icon={<Search className="size-4" />} />
+                    <div className="min-w-0 flex-1 sm:w-56 sm:flex-none">
+                        <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Filter…" aria-label="Filter by title" icon={<Search className="size-4" />} className="rounded-xl" />
                     </div>
-                    <Select
-                        className="w-44 shrink-0"
-                        value={sort}
-                        onChange={setSort}
-                        options={[
-                            { value: "updated", label: "Last updated" },
-                            { value: "title", label: "Title" },
-                            { value: "rating", label: "Your rating" },
-                            { value: "tmdb", label: "TMDB rating" },
-                            { value: "release", label: "Release date" },
-                            { value: "progress", label: "Progress" },
-                        ]}
-                    />
+                    <Dropdown>
+                        <DropdownTrigger asChild>
+                            <IconButton label={`Sort: ${SORTS.find(o => o.value === sort)?.label ?? "Last updated"}`} variant="subtle" className="rounded-xl">
+                                <ArrowDownUp className="size-4" />
+                            </IconButton>
+                        </DropdownTrigger>
+                        <DropdownContent>
+                            <DropdownLabel>Sort by</DropdownLabel>
+                            {SORTS.map(o => (
+                                <DropdownItem key={o.value} icon={sort === o.value ? <Check /> : <span className="block size-4" />} onSelect={() => setSort(o.value)}>
+                                    {o.label}
+                                </DropdownItem>
+                            ))}
+                        </DropdownContent>
+                    </Dropdown>
                 </div>
             </div>
             {isLoading ? (

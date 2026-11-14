@@ -48,7 +48,7 @@ type Client interface {
 	Remove(ctx context.Context, hashes []string, deleteFiles bool) error
 }
 
-var ErrNoClient = errors.New("no torrent client configured (Settings › Torrents)")
+var ErrNoClient = errors.New("no torrent client configured (Settings › Streaming & torrents)")
 
 // AuthError means the client is running but refuses Moviko's credentials.
 // Starting the client again won't help; the settings need fixing.
@@ -98,7 +98,7 @@ func NewQbittorrent(cfg config.TorrentClientConfig) *Qbittorrent {
 
 func (q *Qbittorrent) Name() string { return "qbittorrent" }
 
-const qbitAuthHint = ` Enter your qBittorrent Web UI username and password in Settings › Torrents, or turn on "Bypass authentication for clients on localhost" in qBittorrent (Tools › Options › Web UI).`
+const qbitAuthHint = ` Enter your qBittorrent Web UI username and password in Settings › Streaming & torrents, or turn on "Bypass authentication for clients on localhost" in qBittorrent (Tools › Options › Web UI).`
 
 func (q *Qbittorrent) login(ctx context.Context) error {
 	q.mu.Lock()
@@ -126,7 +126,7 @@ func (q *Qbittorrent) login(ctx context.Context) error {
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	switch {
 	case resp.StatusCode == http.StatusForbidden:
-		q.authErr = &AuthError{"qBittorrent has temporarily blocked Moviko after too many failed logins. Fix the password in Settings › Torrents, then restart qBittorrent (File › Exit and open it again) to lift the block."}
+		q.authErr = &AuthError{"qBittorrent has temporarily blocked Moviko after too many failed logins. Fix the password in Settings › Streaming & torrents, then restart qBittorrent (File › Exit and open it again) to lift the block."}
 		q.retryAt = time.Now().Add(5 * time.Minute)
 		return q.authErr
 	case !strings.Contains(string(body), "Ok") && resp.StatusCode != http.StatusNoContent:
@@ -156,7 +156,7 @@ func (e *unreachableError) Unwrap() error { return e.err }
 
 // badAddress reports a host setting that doesn't make a valid URL.
 func badAddress(client string, c config.TorrentClientConfig, err error) error {
-	return fmt.Errorf("the %s address %q is invalid — check the host in Settings › Torrents (%w)", client, baseURL(c), err)
+	return fmt.Errorf("the %s address %q is invalid — check the host in Settings › Streaming & torrents (%w)", client, baseURL(c), err)
 }
 
 // apiError is an error status answered by the qBittorrent Web API.
@@ -382,7 +382,7 @@ func (t *Transmission) rpc(ctx context.Context, method string, args any, out any
 			continue
 		}
 		if resp.StatusCode == http.StatusUnauthorized {
-			return &AuthError{"Transmission rejected the username or password — check Settings › Torrents."}
+			return &AuthError{"Transmission rejected the username or password — check Settings › Streaming & torrents."}
 		}
 		if resp.StatusCode >= 400 {
 			return fmt.Errorf("Transmission: %s", resp.Status)

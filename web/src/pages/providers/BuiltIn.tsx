@@ -1,15 +1,15 @@
-import { Clapperboard, Landmark, Settings2 } from "lucide-react"
+import { Clapperboard, Landmark, MonitorPlay, Settings2 } from "lucide-react"
 import { Link } from "react-router-dom"
 import { Badge, Button, Switch } from "@/components/ui"
 import { useProviders, useSaveSettings, useStatus } from "@/lib/queries"
-import { SITE_OFF, STREAM_SITES } from "@/lib/streamSites"
+import { SITE_OFF, STREAM_SITES, WEB_PLAYERS } from "@/lib/streamSites"
 import type { ProviderInfo } from "@/lib/types"
 import { ExtIcon, TabSection, TypeBadges } from "./parts"
 
 const kindName: Record<ProviderInfo["kind"], string> = { mediaserver: "Media server", builtin: "Built in", stremio: "Stremio addon", nuvio: "Nuvio provider", extension: "Extension" }
 
-// The Internet Archive, the sites of the luffy and FreeFlix apps, and every
-// provider in the order they're asked.
+// The Internet Archive, the sites of the luffy and FreeFlix apps,
+// Streambert's web players, and every provider in the order they're asked.
 export function BuiltInTab() {
     const { data: status } = useStatus()
     const settings = status?.settings
@@ -17,6 +17,7 @@ export function BuiltInTab() {
     const { data: providers } = useProviders()
     const archive = settings?.providers?.archive ?? false
     const sites = settings?.providers?.sites
+    const players = settings?.providers?.webPlayers ?? {}
     // Devices on the network can't turn providers on or off.
     const lan = status?.client === "lan"
     return (
@@ -44,7 +45,7 @@ export function BuiltInTab() {
 
             <TabSection
                 title="From luffy and FreeFlix"
-                description="The sites the luffy and FreeFlix command-line apps stream from, built in. They're unofficial sites, off until you turn them on; each finds movies and episodes by their TMDB id."
+                description="Unofficial sites, off until you turn them on. They find movies and episodes by their TMDB id."
                 actions={
                     <Link to="/settings?tab=providers">
                         <Button size="sm" icon={<Settings2 className="size-4" />}>
@@ -83,8 +84,48 @@ export function BuiltInTab() {
             </TabSection>
 
             <TabSection
+                title="Web players, from Streambert"
+                description="Unofficial sites, off until you turn them on. Each opens the site's own player in Moviko's window instead of handing out a video link, so it's listed whether or not the site has the title."
+                actions={
+                    <Link to="/settings?tab=providers">
+                        <Button size="sm" icon={<Settings2 className="size-4" />}>
+                            Mirrors
+                        </Button>
+                    </Link>
+                }
+            >
+                <div className="grid gap-3 lg:grid-cols-2">
+                    {WEB_PLAYERS.map(site => {
+                        const cur = players[site.key] ?? SITE_OFF
+                        return (
+                            <div key={site.key} className="card flex items-start gap-4 p-4">
+                                <span className="grid size-12 shrink-0 place-items-center rounded-lg bg-white/[0.06] text-fg/80">
+                                    <MonitorPlay className="size-6" />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                    <p className="font-semibold">{site.name}</p>
+                                    <p className="mt-0.5 text-sm text-muted">{site.help}</p>
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                        <Badge>Movies</Badge>
+                                        {!site.movieOnly && <Badge>Shows</Badge>}
+                                        <Badge tone="blue">Web player</Badge>
+                                        {site.by && <Badge>By {site.by}</Badge>}
+                                    </div>
+                                </div>
+                                <Switch
+                                    checked={cur.enabled}
+                                    disabled={!settings || lan || save.isPending}
+                                    onChange={v => settings && save.mutate({ ...settings, providers: { ...settings.providers, webPlayers: { ...players, [site.key]: { ...cur, enabled: v } } } })}
+                                />
+                            </div>
+                        )
+                    })}
+                </div>
+            </TabSection>
+
+            <TabSection
                 title="All providers"
-                description="Every source of streams, in the order they're asked (Stremio addons in your order). Streams are listed best first: direct links, then torrents; your preferred quality first."
+                description="In the order they're asked. Streams are listed best first: direct links, then torrents."
                 actions={
                     <Link to="/settings?tab=providers">
                         <Button size="sm" icon={<Settings2 className="size-4" />}>

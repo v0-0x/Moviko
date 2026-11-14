@@ -5,7 +5,7 @@
 #
 # The app (android/) runs Moviko's server, built here for Android with the NDK
 # (32-bit ARM, which most Fire TV sticks run, and 64-bit), and shows its web
-# UI. The version is 2.0.<commits since 2.0.0's>, like the other releases'
+# UI. The version is 3.0.<commits since 3.0.0's>, like the other releases'
 # (its version code is the number of commits, always higher):
 # installed copies look for the android-v release with the highest version
 # and update from their Home page (server/internal/update).
@@ -94,7 +94,7 @@ jobs:
             exit 1
           fi
           count=$(git rev-list --count HEAD)
-          # The commits since the one movikoVersionBase counts (2.0.0's); the
+          # The commits since the one movikoVersionBase counts (3.0.0's); the
           # app's code stays the count, always higher than the last one.
           from=$(node -p 'require("./desktop/package.json").movikoVersionBase || 0')
           patch=$(( count - from ))

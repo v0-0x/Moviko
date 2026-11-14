@@ -1,10 +1,11 @@
 import { type QueryClient, useQueryClient } from "@tanstack/react-query"
-import { BookmarkCheck, BookmarkPlus, BookmarkX, Eye } from "lucide-react"
+import { BookmarkCheck, BookmarkPlus, BookmarkX, ExternalLink, Eye } from "lucide-react"
 import { toast } from "@/lib/toast"
 import { api } from "@/lib/api"
-import { MOVIE_EPISODE, mediaIsShow } from "@/lib/ids"
+import { MOVIE_EPISODE, mediaIsShow, tmdbIdOf } from "@/lib/ids"
 import { invalidateList } from "@/lib/queries"
 import type { Media } from "@/lib/types"
+import { tv } from "@/lib/tv"
 import { LIST_STATUS, title } from "@/lib/utils"
 import { DropdownItem, DropdownLabel, DropdownSeparator } from "./ui"
 
@@ -22,8 +23,8 @@ function cacheEntry(qc: QueryClient, mediaId: number, entry: Entry) {
 }
 
 // The right-click (or "⋯") menu of movie and show cards (Discover, Search,
-// Home): puts one on your watchlist, marks a movie watched, or takes it off
-// the list again.
+// Home): puts one on your watchlist, marks a movie watched, takes it off
+// the list again, or opens it on TMDB.
 export function ListCardMenu({ media }: { media: Media }) {
     const qc = useQueryClient()
     const entry = media.mediaListEntry
@@ -87,6 +88,15 @@ export function ListCardMenu({ media }: { media: Media }) {
                     <DropdownSeparator />
                     <DropdownItem icon={<BookmarkX />} onSelect={takeOff}>
                         Remove from your list
+                    </DropdownItem>
+                </>
+            )}
+            {/* A TV has no browser to open it in. */}
+            {!tv && (
+                <>
+                    <DropdownSeparator />
+                    <DropdownItem icon={<ExternalLink />} onSelect={() => window.open(media.siteUrl || `https://www.themoviedb.org/${show ? "tv" : "movie"}/${tmdbIdOf(media.id)}`, "_blank", "noopener")}>
+                        View on TMDB
                     </DropdownItem>
                 </>
             )}

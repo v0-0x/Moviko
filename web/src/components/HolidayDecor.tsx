@@ -9,10 +9,11 @@ import { cn } from "@/lib/utils"
 // - HolidayGarland: what hangs at the panel's top edge, over the pages, so
 //   every page shows it the same (Christmas lights, summer lanterns,
 //   Halloween's cobweb in the corner). Nothing can be clicked on either.
+// inset: the Classic look's panel, rounded and inset in the window (App).
 
-export function HolidayBackdrop({ holiday, phone }: { holiday: Holiday | null; phone?: boolean }) {
+export function HolidayBackdrop({ holiday, inset }: { holiday: Holiday | null; inset?: boolean }) {
     return (
-        <div aria-hidden className={cn("pointer-events-none absolute overflow-hidden bg-bg", phone ? "inset-0" : "inset-y-2 right-2 left-0 rounded-[14px]")}>
+        <div aria-hidden className={cn("page-backdrop pointer-events-none absolute overflow-hidden bg-bg", inset ? "inset-y-2 right-2 left-0 rounded-[14px]" : "inset-0")}>
             {holiday && (
                 <>
                     {/* The holiday's light, from the top. */}
@@ -28,7 +29,7 @@ export function HolidayBackdrop({ holiday, phone }: { holiday: Holiday | null; p
 // hooks, a bulb at the bottom of each dip and one on each hook. animate:
 // twinkling and swaying (not with the holiday's animation off, nor behind a
 // video).
-export function HolidayGarland({ holiday, animate }: { holiday: Holiday | null; animate: boolean }) {
+export function HolidayGarland({ holiday, animate, inset }: { holiday: Holiday | null; animate: boolean; inset?: boolean }) {
     const ref = useRef<HTMLDivElement>(null)
     const [width, setWidth] = useState(0)
     const kind = holiday?.id === "christmas" ? "lights" : holiday?.id === "summer" ? "lanterns" : null
@@ -40,10 +41,10 @@ export function HolidayGarland({ holiday, animate }: { holiday: Holiday | null; 
         setWidth(el.clientWidth)
         return () => ro.disconnect()
     }, [kind])
-    if (holiday?.id === "halloween") return <Cobweb />
+    if (holiday?.id === "halloween") return <Cobweb inset={inset} />
     if (!kind) return null
     return (
-        <div ref={ref} aria-hidden className="pointer-events-none absolute top-2 right-2 left-0 z-[5] h-16 overflow-hidden rounded-t-[14px]">
+        <div ref={ref} aria-hidden className={cn("pointer-events-none absolute z-[5] h-16 overflow-hidden", inset ? "top-2 right-2 left-0 rounded-t-[14px]" : "inset-x-0 top-0")}>
             {width > 0 && (kind === "lights" ? <Lights width={width} animate={animate} /> : <Lanterns width={width} animate={animate} />)}
         </div>
     )
@@ -51,9 +52,9 @@ export function HolidayGarland({ holiday, animate }: { holiday: Holiday | null; 
 
 // A cobweb in the panel's top left corner, its spider down a thread in the
 // pages' margin.
-function Cobweb() {
+function Cobweb({ inset }: { inset?: boolean }) {
     return (
-        <div aria-hidden className="pointer-events-none absolute top-2 left-0 z-[5] size-[170px] overflow-hidden rounded-tl-[14px]">
+        <div aria-hidden className={cn("pointer-events-none absolute left-0 z-[5] size-[170px] overflow-hidden", inset ? "top-2 rounded-tl-[14px]" : "top-0")}>
             <svg width="170" height="170">
                 <path d={cobweb(120)} fill="none" stroke="#e9d5ff" strokeOpacity="0.2" strokeWidth="0.9" />
                 <line x1="12" y1="12" x2="12" y2="136" stroke="#e9d5ff" strokeOpacity="0.24" strokeWidth="0.8" />
@@ -100,9 +101,9 @@ function Lights({ width, animate }: { width: number; animate: boolean }) {
             <path d={wire} fill="none" stroke="#1f2a1f" strokeWidth="1.6" />
             {bulbs.map((b, i) => (
                 <g key={i} transform={`translate(${b.x} ${b.y})`}>
-                    <circle r="11" cy="7" fill={`url(#bulb-${b.c.slice(1)})`} className={animate ? "kumobox-twinkle" : undefined} style={{ animationDelay: `${b.d}s` }} />
+                    <circle r="11" cy="7" fill={`url(#bulb-${b.c.slice(1)})`} className={animate ? "moviko-twinkle" : undefined} style={{ animationDelay: `${b.d}s` }} />
                     <rect x="-1.8" y="-1" width="3.6" height="3.4" rx="0.8" fill="#3f3f46" />
-                    <ellipse cy="6.8" rx="2.9" ry="4.4" fill={b.c} className={animate ? "kumobox-twinkle-bulb" : undefined} style={{ animationDelay: `${b.d}s` }} />
+                    <ellipse cy="6.8" rx="2.9" ry="4.4" fill={b.c} className={animate ? "moviko-twinkle-bulb" : undefined} style={{ animationDelay: `${b.d}s` }} />
                     <ellipse cx="-1" cy="5.2" rx="0.7" ry="1.5" fill="#fff" opacity="0.55" />
                 </g>
             ))}
@@ -144,7 +145,7 @@ function Lanterns({ width, animate }: { width: number; animate: boolean }) {
             {lanterns.map((l, i) => (
                 // Swaying from its hook.
                 <g key={i} transform={`translate(${l.x} ${l.y}) scale(0.78)`}>
-                    <g className={animate ? "kumobox-sway" : undefined} style={{ animationDelay: `${-l.d}s` }}>
+                    <g className={animate ? "moviko-sway" : undefined} style={{ animationDelay: `${-l.d}s` }}>
                         <circle cy="24" r="26" fill="url(#lantern-glow)" />
                         <line y1="0" y2="6" stroke="#52525b" strokeWidth="1.2" />
                         <rect x="-6" y="5" width="12" height="4" rx="1" fill="#27272a" />

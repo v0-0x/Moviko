@@ -6,7 +6,8 @@ import type { ListEntry, Media } from "@/lib/types"
 import { airsIn, cn, cover, entryUrl, formatLabel, poster, starText, title, year } from "@/lib/utils"
 import { useClassic } from "@/lib/themes"
 import { tv } from "@/lib/tv"
-import { Dropdown, DropdownContent, DropdownTrigger, IconButton } from "./ui"
+import { ListCardMenu } from "./ListCardMenu"
+import { Dropdown, DropdownContent, DropdownTrigger, IconButton, useContextMenu } from "./ui"
 
 type Props = {
     media: Media
@@ -39,18 +40,20 @@ export function MediaCard({ media, listEntry, localCount, downloaded, className,
     const score = media.averageScore ?? media.meanScore
     // The user's rating, Letterboxd-style, for movies and finished shows.
     const stars = listEntry && (!show || listEntry.status === "COMPLETED") ? starText(listEntry.score) : ""
-    // Before 2.0: flatter, squarer, a lighter hairline on hover, no lift.
+    // The Classic look (before 3.0): rounder, a shadow under the cover,
+    // which lifts under the pointer; its labels see-through.
     const classic = useClassic()
-    const label = classic ? "rounded bg-black/70" : "rounded-md bg-black/65 backdrop-blur-sm"
+    const label = classic ? "rounded-md bg-black/65 backdrop-blur-sm" : "rounded-sm bg-black/75"
 
     const card = (
-        <Link to={entryUrl(media)} data-tv-card className={cn("group/card focus-ring relative flex flex-col gap-2.5 outline-none", classic ? "rounded-lg" : "rounded-[10px]", !menu && className)}>
-            {/* Lifted a little under the pointer (not on a TV: it's slow at it). */}
+        <Link to={entryUrl(media)} data-tv-card className="group/card focus-ring relative flex flex-col gap-2.5 rounded-[10px] outline-none">
+            {/* The Classic look's: lifted a little under the pointer (not on a TV: it's slow at it). */}
             <div
                 className={cn(
                     "relative aspect-[2/3] overflow-hidden bg-surface-2",
-                    classic ? "rounded-lg" : "rounded-[10px] shadow-[0_6px_18px_-12px_rgb(0_0_0/0.8)] transition-[transform,box-shadow] duration-300 ease-out",
-                    !tv && !classic && "group-hover/card:-translate-y-0.5 group-hover/card:shadow-[0_12px_28px_-14px_rgb(0_0_0/0.9)]",
+                    // What's on a cover is white on dark in a light theme too (on-dark).
+                    classic ? "rounded-[10px] shadow-[0_6px_18px_-12px_rgb(0_0_0/0.8)] transition-[transform,box-shadow] duration-300 ease-out" : "on-dark rounded-sm",
+                    !tv && classic && "group-hover/card:-translate-y-0.5 group-hover/card:shadow-[0_12px_28px_-14px_rgb(0_0_0/0.9)]",
                 )}
             >
                 {cover(media) && (
@@ -66,15 +69,13 @@ export function MediaCard({ media, listEntry, localCount, downloaded, className,
                 {/* A hairline, so dark covers don't melt into the page. */}
                 <div
                     data-tv-ring
-                    className={cn(
-                        "pointer-events-none absolute inset-0 ring-1 transition-[box-shadow] duration-300 ring-inset",
-                        classic ? "rounded-lg ring-white/[0.07] group-hover/card:ring-white/20" : "rounded-[10px] ring-white/[0.07] group-hover/card:ring-white/[0.22]",
-                    )}
+                    className="pointer-events-none absolute inset-0 rounded-[10px] ring-1 ring-white/[0.07] transition-[box-shadow] duration-300 ring-inset group-hover/card:ring-white/[0.22]"
                 />
 
-                <div className="absolute top-2 left-2 flex flex-col items-start gap-1">
+                {/* A little further in, in this look. */}
+                <div className={cn("absolute flex flex-col items-start gap-1", classic ? "top-2 left-2" : "top-3.5 left-3.5")}>
                     {behind > 0 && (
-                        <span className={cn("bg-brand px-1.5 py-0.5 text-[11px] font-semibold text-white", classic ? "rounded" : "rounded-md")}>{behind} new</span>
+                        <span className={cn("bg-brand px-1.5 py-0.5 text-white", classic ? "rounded-md text-[11px] font-semibold" : "label rounded-sm text-[10px] font-semibold")}>{behind} new</span>
                     )}
                     {!!localCount && localCount > 0 && (
                         <span className={cn("flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium text-white tabular-nums", label)}>
@@ -86,9 +87,10 @@ export function MediaCard({ media, listEntry, localCount, downloaded, className,
                 {score ? (
                     <span
                         className={cn(
-                            "absolute top-2 right-2 flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium text-white tabular-nums opacity-0 transition-opacity group-hover/card:opacity-100 group-focus-within/card:opacity-100 [@media(pointer:coarse)]:opacity-100",
+                            "absolute flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium text-white tabular-nums opacity-0 transition-opacity group-hover/card:opacity-100 group-focus-within/card:opacity-100 [@media(pointer:coarse)]:opacity-100",
+                            classic ? "top-2 right-2" : "top-3.5 right-3.5",
                             label,
-                            menu && "right-10", // next to the menu button
+                            classic ? "right-10" : "right-11", // next to the menu button
                         )}
                     >
                         <Star className="size-3 fill-amber-300 text-amber-300" />
@@ -96,14 +98,14 @@ export function MediaCard({ media, listEntry, localCount, downloaded, className,
                     </span>
                 ) : null}
                 {nextAir && (
-                    <span className={cn("absolute bottom-2.5 left-2 px-1.5 py-0.5 text-[11px] font-medium text-white", label)}>
+                    <span className={cn("absolute px-1.5 py-0.5 text-[11px] font-medium text-white", classic ? "bottom-2.5 left-2" : "bottom-3.5 left-3.5", label)}>
                         {formatKey(nextAir.episode)} {airsIn(nextAir.airingAt)}
                     </span>
                 )}
 
                 {showProgress && show && listEntry && total > 0 && watched > 0 && watched < total && (
                     <div className="absolute inset-x-0 bottom-0 h-[3px] bg-black/50">
-                        <div className={cn("h-full bg-brand", !classic && "rounded-r-full")} style={{ width: `${Math.min(100, (watched / total) * 100)}%` }} />
+                        <div className="h-full rounded-r-full bg-brand" style={{ width: `${Math.min(100, (watched / total) * 100)}%` }} />
                     </div>
                 )}
             </div>
@@ -125,12 +127,11 @@ export function MediaCard({ media, listEntry, localCount, downloaded, className,
             </div>
         </Link>
     )
-    return menu ? (
-        <CardMenu menu={menu} className={className}>
+    // Without one of its own: the list menu every movie and show card gets.
+    return (
+        <CardMenu menu={menu ?? <ListCardMenu media={media.mediaListEntry || !listEntry ? media : { ...media, mediaListEntry: { id: 0, repeat: 0, ...listEntry } }} />} className={className}>
             {card}
         </CardMenu>
-    ) : (
-        card
     )
 }
 
@@ -139,50 +140,20 @@ export function MediaCard({ media, listEntry, localCount, downloaded, className,
 // pointer. Both are next to the card's link, not in it, so using them never
 // opens the movie or show.
 function CardMenu({ menu, className, children }: { menu: React.ReactNode; className?: string; children: React.ReactNode }) {
-    const [at, setAt] = useState<{ x: number; y: number } | null>(null) // in the card
-    const focused = useRef<Element | null>(null)
+    const context = useContextMenu(menu)
     const classic = useClassic()
     return (
-        <div
-            className={cn("group/card relative", className)}
-            onContextMenu={e => {
-                e.preventDefault()
-                // React also brings right-clicks in the open menu (a portal) here.
-                if (!e.currentTarget.contains(e.target as Node)) return
-                const r = e.currentTarget.getBoundingClientRect()
-                const x = e.clientX - r.left
-                const y = e.clientY - r.top
-                focused.current = document.activeElement
-                // Opened with the menu key there may be no pointer in the card.
-                setAt(x >= 0 && y >= 0 && x <= r.width && y <= r.height ? { x, y } : { x: r.width / 2, y: r.height / 3 })
-            }}
-        >
+        <div className={cn("group/card relative", className)} onContextMenu={context.onContextMenu}>
             {children}
-            <Dropdown open={!!at} onOpenChange={v => !v && setAt(null)} modal={false}>
-                <DropdownTrigger asChild>
-                    <span aria-hidden className="pointer-events-none absolute" style={{ left: at?.x, top: at?.y }} />
-                </DropdownTrigger>
-                <DropdownContent
-                    align="start"
-                    sideOffset={2}
-                    // Focus goes back where it was (the card, after the menu
-                    // key), unless something else took it (a dialog, a click).
-                    onCloseAutoFocus={e => {
-                        e.preventDefault()
-                        if (document.activeElement === document.body && focused.current instanceof HTMLElement) focused.current.focus()
-                    }}
-                >
-                    {menu}
-                </DropdownContent>
-            </Dropdown>
+            {context.node}
             <Dropdown>
                 <DropdownTrigger asChild>
                     <IconButton
                         label="More options"
                         size="xs"
                         className={cn(
-                            "absolute top-1.5 right-1.5 text-white opacity-0 group-hover/card:opacity-100 hover:bg-black/85 hover:text-white focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100",
-                            classic ? "rounded-md bg-black/70" : "rounded-lg bg-black/65 backdrop-blur-sm",
+                            "absolute text-white opacity-0 group-hover/card:opacity-100 hover:bg-black/85 hover:text-white focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100",
+                            classic ? "top-1.5 right-1.5 rounded-lg bg-black/65 backdrop-blur-sm" : "on-dark top-3 right-3 rounded-sm bg-black/75",
                         )}
                     >
                         <Ellipsis className="size-4" />
@@ -247,10 +218,9 @@ export function MediaGrid({ children, className, size = "md", start }: { childre
 }
 
 export function MediaCardSkeleton() {
-    const classic = useClassic()
     return (
         <div className="flex flex-col gap-2.5">
-            <div className={cn("shimmer aspect-[2/3]", classic ? "rounded-lg" : "rounded-[10px]")} />
+            <div className="shimmer aspect-[2/3] rounded-[10px]" />
             <div className="shimmer h-3.5 w-3/4 rounded" />
         </div>
     )
@@ -268,7 +238,7 @@ export function Carousel({ children, className, itemClassName }: { children: Rea
     const scroll = (dir: number) => ref.current?.scrollBy({ left: dir * ref.current.clientWidth * 0.85, behavior: "smooth" })
     return (
         <div className={cn("group/carousel relative", className)}>
-            <div ref={ref} onScroll={update} className="no-scrollbar -mx-2 flex snap-x scroll-px-2 gap-4 overflow-x-auto scroll-smooth px-2 pt-1 pb-3">
+            <div ref={ref} onScroll={update} className="no-scrollbar -mx-2 flex snap-x scroll-px-2 gap-4 overflow-x-auto scroll-smooth px-2 pt-1.5 -mt-0.5 pb-3">
                 {children.slice(0, shown).map((c, i) => (
                     // The card's own key: a row that changes order (sorting,
                     // filters) keeps each card's state with its card.

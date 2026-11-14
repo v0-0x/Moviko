@@ -4,12 +4,14 @@ import { useState } from "react"
 import { Button } from "@/components/ui"
 import { api } from "@/lib/api"
 import { useStatus } from "@/lib/queries"
+import { useClassic } from "@/lib/themes"
 import { toast } from "@/lib/toast"
 
 // Home: a computer that shares its library with this device doesn't answer
 // (asleep, or off), so its movies and shows aren't here; one that can be woken up from
 // here (Wake-on-LAN) gets a button for it.
 export function SleepingHosts() {
+    const classic = useClassic()
     const { data: status } = useStatus()
     const qc = useQueryClient()
     const [busy, setBusy] = useState("")
@@ -19,7 +21,7 @@ export function SleepingHosts() {
         setBusy(id)
         try {
             await api.post(`/api/sharing/libraries/${encodeURIComponent(id)}/wake`)
-            toast.info(`Waking ${name}… its library comes back when it answers.`)
+            toast.info(`Waking ${name}…`)
             qc.invalidateQueries({ queryKey: ["status"] })
         } catch (e: any) {
             toast.error(e.message)
@@ -31,17 +33,17 @@ export function SleepingHosts() {
         <div className="flex flex-col gap-3 px-6 pt-6 md:px-8 xl:px-10">
             {hosts.map(h => (
                 <div key={h.id} className="card flex flex-wrap items-center gap-x-4 gap-y-3 px-5 py-4 rise-in">
-                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white/[0.06] text-fg/80 [&>svg]:size-[18px]">
+                    <span className={classic ? "grid size-9 shrink-0 place-items-center rounded-lg bg-white/[0.06] text-fg/80 [&>svg]:size-[18px]" : "shrink-0 text-muted [&>svg]:size-5 [&>svg]:stroke-[1.5]"}>
                         <Moon />
                     </span>
                     <div className="min-w-0 flex-1">
                         <p className="font-medium">{h.waking ? `Waking ${h.name}…` : `${h.name} is asleep or off`}</p>
                         <p className="mt-0.5 text-sm text-muted">
                             {h.waking
-                                ? "Its library shows up here as soon as it answers."
+                                ? "Its library shows up when it answers."
                                 : h.canWake
-                                  ? "Its library isn't here until it's on. It can be woken up from here."
-                                  : `Its library isn't here until it's on. To wake it from here, update Moviko on ${h.name} and turn on Wake-on-LAN in its settings (BIOS).`}
+                                  ? "Wake it to see its library."
+                                  : `To wake it from here, update Moviko on ${h.name} and turn on Wake-on-LAN in its BIOS.`}
                         </p>
                     </div>
                     {h.canWake && (

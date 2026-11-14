@@ -27,6 +27,45 @@ type Service struct {
 	Remote func() []*LocalFile
 
 	hiddenMu sync.Mutex
+	// Ctx: the app's, for what's asked of TMDB in the background (warm);
+	// nil: nothing is (a test).
+	Ctx context.Context
+	// warming: the titles being asked of TMDB in the background (warm).
+	warmMu  sync.Mutex
+	warming map[int]bool
+}
+
+// warm asks TMDB about titles in the background, for the next Collection:
+// those it didn't say in time.
+func (s *Service) warm(ids []int) {
+	if s.Ctx == nil {
+		return
+	}
+	s.warmMu.Lock()
+	if s.warming == nil {
+		s.warming = map[int]bool{}
+	}
+	var todo []int
+	for _, id := range ids {
+		if !s.warming[id] {
+			s.warming[id] = true
+			todo = append(todo, id)
+		}
+	}
+	s.warmMu.Unlock()
+	if len(todo) == 0 {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(s.Ctx, 2*time.Minute)
+		defer cancel()
+		_, _ = s.Platform.MediaBatch(ctx, todo)
+		s.warmMu.Lock()
+		for _, id := range todo {
+			delete(s.warming, id)
+		}
+		s.warmMu.Unlock()
+	}()
 }
 
 // EpisodeView is an episode of the title page (a movie has one), or a
@@ -549,13 +588,23 @@ func (s *Service) Collection(ctx context.Context, refresh bool) (*CollectionView
 		}
 	}
 	if len(missing) > 0 {
-		medias, _ := s.Platform.MediaBatch(ctx, missing)
+		// From what's kept here, and TMDB for a moment: what it doesn't
+		// say in time is left out for now (Incomplete) and asked for in the
+		// background, for the next time.
+		bctx, cancel := context.WithTimeout(ctx, 4*time.Second)
+		medias, _ := s.Platform.MediaBatch(bctx, missing)
+		cancel()
+		var later []int
 		for _, id := range missing {
 			if m, ok := medias[id]; ok {
 				view.LocalOnly = append(view.LocalOnly, makeItem(nil, m))
 			} else {
 				view.Incomplete++
+				later = append(later, id)
 			}
+		}
+		if len(later) > 0 {
+			s.warm(later)
 		}
 		sort.Slice(view.LocalOnly, func(i, j int) bool {
 			return view.LocalOnly[i].Media.PreferredTitle() < view.LocalOnly[j].Media.PreferredTitle()

@@ -20,7 +20,7 @@ type FuzzyDate struct {
 }
 
 // Title holds a media's names. English is the title in the metadata
-// language (Settings › Metadata, English by default), Native the original
+// language (Settings › Accounts, English by default), Native the original
 // title, Romaji the original title when it's written in Latin letters (used
 // to match file and release names). UserPreferred is what the app shows.
 type Title struct {

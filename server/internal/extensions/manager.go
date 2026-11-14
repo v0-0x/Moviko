@@ -219,6 +219,9 @@ type Manager struct {
 	// fetcher makes the requests of the extensions, each with its own
 	// cookies (Isolated), and downloads Nuvio repositories.
 	fetcher *Fetcher
+	// The plugin manifests being fetched for the marketplace (markUnsupported).
+	scopesMu       sync.Mutex
+	scopesFetching map[string]bool
 
 	mu     sync.RWMutex
 	exts   map[string]*Loaded
@@ -715,6 +718,9 @@ type MarketEntry struct {
 	InstalledVersion string `json:"installedVersion,omitempty"`
 	HasUpdate        bool   `json:"hasUpdate"`
 	Supported        bool   `json:"supported"`
+	// Unsupported: a plugin's permission scopes Moviko doesn't have (its
+	// manifest asks for them): what it does with them won't work here.
+	Unsupported []string `json:"unsupported,omitempty"`
 }
 
 // Marketplace downloads the marketplace index (cached for an hour).
@@ -756,7 +762,113 @@ func (m *Manager) Marketplace(ctx context.Context, url string, refresh bool) ([]
 		}
 	}
 	m.mu.RUnlock()
+	m.markUnsupported(ctx, entries)
 	return entries, nil
+}
+
+// knownScopes are the plugin permission scopes Moviko has (plugin.go): a
+// plugin asking for others (Seanime's playback, system, os…) does things
+// that won't work here.
+var knownScopes = map[string]bool{"anilist": true, "anilist-token": true, "database": true, "storage": true}
+
+// fetchManifest downloads a plugin's manifest (tests serve their own).
+var fetchManifest = util.GetBytes
+
+// markUnsupported fills Unsupported for the marketplace's plugins, from
+// their manifests as kept (a day). Those not kept yet are fetched in the
+// background, a few at a time, once: the list doesn't wait on them, and
+// the page is told (extensions-updated) when they're in.
+func (m *Manager) markUnsupported(_ context.Context, entries []MarketEntry) {
+	var missing []string
+	for i := range entries {
+		e := &entries[i]
+		if e.Type != TypePlugin || e.ManifestURI == "" {
+			continue
+		}
+		var scopes []string
+		if m.db.GetCache("marketplace-scopes:"+e.ManifestURI, &scopes) {
+			e.Unsupported = unsupportedScopes(scopes)
+			continue
+		}
+		missing = append(missing, e.ManifestURI)
+	}
+	if len(missing) == 0 {
+		return
+	}
+	m.scopesMu.Lock()
+	if m.scopesFetching == nil {
+		m.scopesFetching = map[string]bool{}
+	}
+	var todo []string
+	for _, u := range missing {
+		if !m.scopesFetching[u] {
+			m.scopesFetching[u] = true
+			todo = append(todo, u)
+		}
+	}
+	m.scopesMu.Unlock()
+	if len(todo) == 0 {
+		return
+	}
+	go m.fetchScopes(todo)
+}
+
+// fetchScopes fetches plugin manifests (markUnsupported) and keeps their
+// scopes, then tells the page.
+func (m *Manager) fetchScopes(urls []string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, 4)
+	got := 0
+	var gotMu sync.Mutex
+	for _, u := range urls {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				m.scopesMu.Lock()
+				delete(m.scopesFetching, u)
+				m.scopesMu.Unlock()
+			}()
+			select {
+			case slots <- struct{}{}:
+				defer func() { <-slots }()
+			case <-ctx.Done():
+				return
+			}
+			raw, err := fetchManifest(ctx, u, nil)
+			if err != nil {
+				return
+			}
+			var man Manifest
+			if json.Unmarshal(raw, &man) != nil || man.Plugin == nil {
+				return
+			}
+			scopes := man.Plugin.Permissions.Scopes
+			if scopes == nil {
+				scopes = []string{}
+			}
+			m.db.SetCache("marketplace-scopes:"+u, scopes, 24*time.Hour)
+			gotMu.Lock()
+			got++
+			gotMu.Unlock()
+		}()
+	}
+	wg.Wait()
+	if got > 0 && m.hub != nil {
+		m.hub.Publish(events.ExtensionsUpdate, nil)
+	}
+}
+
+func unsupportedScopes(scopes []string) []string {
+	var out []string
+	for _, s := range scopes {
+		if !knownScopes[s] {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // ---------------------------------------------------------------------------

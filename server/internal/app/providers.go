@@ -19,6 +19,7 @@ import (
 	"github.com/v0-0x/kumobox-movies/server/internal/providers/freeflix"
 	"github.com/v0-0x/kumobox-movies/server/internal/providers/mediaserver"
 	"github.com/v0-0x/kumobox-movies/server/internal/providers/stremio"
+	"github.com/v0-0x/kumobox-movies/server/internal/providers/webplayers"
 	"github.com/v0-0x/kumobox-movies/server/internal/stream"
 )
 
@@ -26,8 +27,9 @@ import (
 //
 // Movies and episodes are streamed from, in this order: the user's own
 // Jellyfin, Emby and Plex servers, the built-in Internet Archive provider
-// and the built-in streaming sites of the luffy and FreeFlix apps
-// (Settings › Providers), the Stremio addons the user installed (in their
+// and the built-in streaming sites of the luffy and FreeFlix apps and
+// Streambert's web players (Settings › Streaming & torrents), the Stremio addons the
+// user installed (in their
 // order), the Nuvio providers and the online streaming extensions. The
 // stream service asks the enabled ones; the Providers page lists them all.
 
@@ -138,7 +140,8 @@ func (a *App) wireProviders() error {
 	stream.Credentials = func(u *url.URL) map[string]string { return mediaserver.Credentials(a.mediaServers(), u) }
 	a.Settings.OnChange(func(old, cur config.Settings) {
 		// The sites' addresses too: their streams are found again.
-		if !reflect.DeepEqual(old.Providers.MediaServers, cur.Providers.MediaServers) || old.Providers.Sites != cur.Providers.Sites {
+		if !reflect.DeepEqual(old.Providers.MediaServers, cur.Providers.MediaServers) || old.Providers.Sites != cur.Providers.Sites ||
+			!reflect.DeepEqual(old.Providers.WebPlayers, cur.Providers.WebPlayers) || old.Playback.PreferredSubLang != cur.Playback.PreferredSubLang {
 			a.Stream.Invalidate()
 			a.Hub.Publish(providersUpdated, nil)
 		}
@@ -156,7 +159,7 @@ func (a *App) wireProviders() error {
 	return nil
 }
 
-// mediaServers are the media servers of Settings › Providers.
+// mediaServers are the media servers of Settings › Streaming & torrents.
 func (a *App) mediaServers() []mediaserver.Config {
 	var out []mediaserver.Config
 	for _, s := range a.Settings.Get().Providers.MediaServers {
@@ -183,14 +186,22 @@ type streamSite struct {
 }
 
 // streamSites are the built-in streaming sites, in the order they're
-// asked: luffy's, then FreeFlix's.
+// asked: luffy's, then FreeFlix's, then Streambert's web players (pages to
+// open rather than video links: last).
 func (a *App) streamSites() []streamSite {
-	cfg := a.Settings.Get().Providers.Sites
+	settings := a.Settings.Get()
+	cfg := settings.Providers.Sites
 	out := []streamSite{{cinejoy.New(cfg.Cinejoy.URL), cfg.Cinejoy.Enabled}}
 	for _, site := range freeflix.Sites {
 		c, _ := cfg.Site(site.ID)
 		p := freeflix.New(site, c.URL)
 		p.DecryptURL = cfg.DecryptURL
+		out = append(out, streamSite{p, c.Enabled})
+	}
+	for _, site := range webplayers.Sites {
+		c := settings.Providers.WebPlayers[site.Key]
+		p := webplayers.New(site, c.URL)
+		p.SubLang = settings.Playback.PreferredSubLang
 		out = append(out, streamSite{p, c.Enabled})
 	}
 	return out

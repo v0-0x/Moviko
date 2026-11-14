@@ -41,6 +41,10 @@ type Server struct {
 	logins loginGuard
 	// One rebind at a time (Start).
 	rebindMu sync.Mutex
+	// torrentOwners: the torrents streamed for other Movikos (session ID to
+	// that Moviko's ID): each is read by the one that asked for it.
+	torrentMu     sync.Mutex
+	torrentOwners map[string]string
 	// The players' notes (POST /api/playback/note).
 	notes noteGuard
 	// ForceWebUI is set when no desktop shell can exist (headless mode).
@@ -437,11 +441,11 @@ func kindOf(r *http.Request) clientKind {
 func isTrusted(r *http.Request) bool { return kindOf(r) != clientLAN }
 
 const webUIDisabledPage = `<!doctype html><html><head><meta charset="utf-8"><title>Moviko</title>
-<style>body{margin:0;height:100vh;display:grid;place-items:center;background:#0a0a0b;color:#ececee;font-family:system-ui,sans-serif}
-.c{max-width:440px;padding:32px;border:1px solid #23232e;border-radius:16px;background:#12121a;text-align:center}
-h1{font-size:20px;margin:0 0 8px}p{color:#9a9ab0;line-height:1.5}</style></head>
+<style>body{margin:0;height:100vh;display:grid;place-items:center;background:#0a0a0a;color:#ededed;font-family:system-ui,sans-serif}
+.c{max-width:440px;padding:32px;border:1px solid #333;border-radius:2px;text-align:center}
+h1{font-size:20px;margin:0 0 8px}p{color:#9a9a9a;line-height:1.5}</style></head>
 <body><div class="c"><h1>The Moviko Web UI is turned off</h1>
-<p>Open the Moviko desktop app and enable <b>Settings › Network & web UI</b> to use Moviko from a browser.</p></div></body></html>`
+<p>Open the Moviko desktop app and enable it in <b>Settings › Devices & network</b> to use Moviko from a browser.</p></div></body></html>`
 
 // ---------------------------------------------------------------------------
 // JSON helpers
@@ -480,7 +484,7 @@ func h(fn func(r *http.Request) (any, error)) http.HandlerFunc {
 				status = http.StatusNotFound
 			case errors.Is(err, catalog.ErrNoAPIKey), errors.Is(err, catalog.ErrUnauthorized):
 				// No TMDB key, or TMDB refused it: nothing to retry until
-				// it's fixed in Settings › Metadata. (Not 401, which means
+				// it's fixed in Settings › Accounts. (Not 401, which means
 				// this server's own password.)
 				status = http.StatusPreconditionFailed
 			}

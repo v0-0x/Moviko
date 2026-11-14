@@ -135,7 +135,7 @@ type Activity struct {
 
 // AppAsset names the image used without a poster, and as the small badge
 // ("Moviko"): an art asset uploaded under that name to the Discord
-// application (Settings › Discord), if it has one; Discord shows nothing
+// application (Settings › Playback), if it has one; Discord shows nothing
 // otherwise.
 const AppAsset = "kumobox"
 

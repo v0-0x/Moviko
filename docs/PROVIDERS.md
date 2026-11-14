@@ -4,7 +4,7 @@ Moviko finds something to watch for a movie or an episode by asking
 **providers**. Each one answers with streams: direct links (played in the
 app or in mpv), torrents (streamed through the torrent client), YouTube
 videos or web pages to open. All enabled providers are asked at once, each
-within `providers.timeoutSeconds` (Settings › Providers), and the streams
+within `providers.timeoutSeconds` (Settings › Streaming & torrents), and the streams
 are listed best first: direct links before torrents, the preferred quality
 (`providers.preferredQuality`) first, then higher qualities, then the most
 seeded. With a default provider (`onlineStream.defaultProvider`, empty for
@@ -13,10 +13,11 @@ with the direct links. What the providers answered is kept five minutes.
 
 | Kind | Provider id | What | Ids it needs |
 |---|---|---|---|
-| Media servers | `jellyfin:<host:port>`, `emby:…`, `plex:…` | the user's own Jellyfin, Emby and Plex servers (Settings › Providers), asked first | TMDB id (IMDb id as a fallback) |
+| Media servers | `jellyfin:<host:port>`, `emby:…`, `plex:…` | the user's own Jellyfin, Emby and Plex servers (Settings › Streaming & torrents), asked first | TMDB id (IMDb id as a fallback) |
 | Internet Archive (built in) | `archive` | public-domain and freely licensed films hosted by archive.org | title + year |
 | luffy's site (built in, off by default) | `cinejoy` | Cinejoy, the source of the [luffy](https://github.com/DemonKingSwarn/luffy) command-line app: HLS (or MP4) from its servers | TMDB id |
 | FreeFlix's sites (built in, off by default) | `vidlink`, `hexa`, `xpass`, `mapple`, `videasy` | the movie and show resolvers of the [FreeFlix](https://github.com/freedy237/freeflix-cli) command-line app ("GoldenMS") | TMDB id (Videasy: title too) |
+| Streambert's web players (built in, off by default) | `web:vidsrc`, `web:vidfast`, `web:vidlove`, `web:aether`, `web:vidrift`, `web:vidnest`, `web:devideosrc`, `web:frembed`, `web:kinohub` | the players the [Streambert](https://github.com/truelockmc/streambert) app streams from: each stream is the site's player page, shown in Moviko's own window | TMDB id (DeVideoSrc: IMDb id; KinoHub: Kinopoisk id, from Wikidata) |
 | Stremio addons | `stremio:<addon id>` | any addon serving `stream` (or `subtitles`) for `movie`/`series` | IMDb id (or `tmdb:` for addons that only take it) |
 | Nuvio providers | `nuvio:<id>` | JavaScript scrapers from Nuvio provider repositories, run in Moviko's extension sandbox | TMDB id |
 | Extensions | `ext:<extension id>` | Moviko/Seanime-style `onlinestream-provider` extensions: searched by title (+ year), the best match kept (wrong match? pick it by hand in Watch online), episodes numbered from the show's first one | title |
@@ -26,14 +27,15 @@ the episode picked (the next one to watch by default): play a direct link
 in the app or in mpv, download it into the library (its link is looked up
 again when the download starts, from the same provider in the closest
 quality: links expire), send a torrent to the torrent client (saved into
-the library), open a YouTube video or a web page in the browser. Streams
+the library), open a YouTube video or a web page in the browser, or a web
+player's page in Moviko's own window. Streams
 show as each provider answers (`GET /api/providers/streams/live`), with a
 spinner for the providers still looking and each one's error; once all
 have answered, the list is the ranked one above.
 
 Above them, **Watch free** lists the services where the title is free,
 with or without ads, and **On streaming services** those that have it with
-a subscription, in the region of Settings › Metadata (TMDB's "where to
+a subscription, in the region of Settings › Accounts (TMDB's "where to
 watch", data from JustWatch: the `free`, `ads` and `flatrate` tiers of
 `Media.watchProviders`). Their logos open TMDB's watch page for the title
 in the browser. They show even without any provider enabled.
@@ -45,7 +47,7 @@ lasts across restarts): answers and failures, failures in a row, the last
 error (the links it names cut down to their host: addon links can carry
 the addon's settings) and the last ten answers' times. An answer with no
 streams is a success; an addon that can't be asked about the title (no
-IMDb id...) counts neither way. **Settings › Providers › Provider health**
+IMDb id...) counts neither way. **Settings › Streaming & torrents › Provider health**
 lists them, with a **Test** button (this computer only) asking the provider
 right away for Night of the Living Dead (1968), a public-domain film.
 
@@ -69,7 +71,8 @@ same with the version of the episode that just played.
 Code: `server/internal/providers` (common types, ranking, aggregation,
 `health.go`), `providers/mediaserver` (Jellyfin, Emby, Plex),
 `providers/archive`, `providers/cinejoy` (luffy's site),
-`providers/freeflix` (FreeFlix's sites), `providers/stremio`,
+`providers/freeflix` (FreeFlix's sites), `providers/webplayers`
+(Streambert's web players), `providers/stremio`,
 `server/internal/extensions` (`nuvio*.go`) for Nuvio providers,
 `server/internal/stream` (`onlinestream.go`: the service asking them;
 `live.go`: searches as they go; `version.go`: a show's version;
@@ -163,7 +166,7 @@ the settings).
 
 ### Media servers (Jellyfin, Emby, Plex)
 
-Settings › Providers › Media servers (`providers.mediaServers`: `[{kind:
+Settings › Streaming & torrents › Media servers (`providers.mediaServers`: `[{kind:
 "jellyfin" | "emby" | "plex", name, url, token, userId}]`), with a **Test**
 button (`POST /api/providers/mediaservers/test`, this computer only)
 showing the server's name and version. The token is a Jellyfin or Emby API
@@ -206,7 +209,7 @@ default source) and **Vidlink, Hexa, Xpass, Mapple and Videasy** from
 movies & series source; FreeFlix's other sources are anime or French
 sites, and its YTS/EZTV torrents are already Moviko torrent sources).
 They're unofficial sites: each is off until turned on, on the Providers &
-extensions page (Built-in) or in Settings › Providers, which also takes a
+extensions page (Built-in) or in Settings › Streaming & torrents, which also takes a
 mirror's address for each (`providers.sites`: `{cinejoy, vidlink, hexa,
 xpass, mapple, videasy: {enabled, url}, decryptUrl}`). Each is a provider
 of its own (its health, its Test button, the default provider), asked
@@ -246,6 +249,48 @@ works, the code to look at is `server/internal/providers/cinejoy` and
 `server/internal/providers/freeflix` (one file per site), with luffy's
 `core/providers/cinejoy.go` and FreeFlix's `scraping/goldenms.py` as the
 references.
+
+### Streambert's web players
+
+Providers & extensions › Built in has the players the
+[Streambert](https://github.com/truelockmc/streambert) app streams from
+(its `src/utils/api.js`), each off until it's turned on: **VidSrc**,
+**Vidfast**, **Vidlove**, **Aether** and **Vidrift** (several audio
+languages), **Vidnest**, **DeVideoSrc** (German), **Frembed** (French)
+and **KinoHub** (Russian, movies only). Settings › Streaming & torrents
+has a mirror's address for each.
+
+They aren't like the other providers: a web player hands out no video
+link. Its stream is the page of the site's player for the movie or the
+episode (`externalUrl`, with `embed: true`), which is all Moviko knows:
+nothing is asked of the site before its page opens, so a web player is
+always listed, whether or not it has the title, and its Test only checks
+that the page's address can be made. Pages are found by the TMDB id;
+DeVideoSrc takes the IMDb id, KinoHub the Kinopoisk id, which Moviko looks
+up on Wikidata (the item with the TMDB or IMDb id; kept while Moviko
+runs). The sites that take a subtitle language get the preferred one of
+Settings › Playback.
+
+Playing one shows the page in Moviko's own window, under a bar with Back,
+Mark as watched and Open in browser:
+
+- In the **desktop app** the page gets a view of its own, apart from
+  Moviko's (`desktop/main.js`, "Web players"): its own session (none of
+  Moviko's cookies or its token, no preload), no popups, no downloads, no
+  permission but full screen, and once it's been clicked it stays on the
+  site it opened on. The app reads how far the video is (in the page or
+  in a frame inside it), so Continue watching, the list and Up next's
+  "watched" work as with Moviko's player. The video itself is the site's:
+  Moviko's subtitles, track choices, skips and downloads don't apply.
+- In a **browser** (the web UI) and on a **TV** the page is a frame in
+  Moviko's page. A browser doesn't let Moviko see into it: mark the movie
+  or episode watched from the bar. Popups the site opens are the
+  browser's to block.
+
+The sites and their pages are in
+`server/internal/providers/webplayers/webplayers.go`: a new one is an
+entry in `Sites` (and in `web/src/lib/streamSites.ts` for its name and
+help).
 
 ### Stremio addons
 
@@ -315,12 +360,12 @@ repository).
 | Route | What |
 |---|---|
 | `GET /api/providers` | every provider, in order: `[{id, name, kind, icon, types, enabled, extension}]` |
-| `GET /api/providers/streams?mediaId=&episode=&provider=` | `{streams, errors: [{provider, name, error}], subtitles, providers, matches, preferred}`; each stream has a stable `id` and a `kind` (`direct`, `torrent`, `youtube`, `external`), `preferred` on those of the show's last version; `episode` is a key (a movie's is 1), `provider` empty for all |
+| `GET /api/providers/streams?mediaId=&episode=&provider=` | `{streams, errors: [{provider, name, error}], subtitles, providers, matches, preferred}`; each stream has a stable `id` and a `kind` (`direct`, `torrent`, `youtube`, `external`; `embed: true` on a web player's page), `preferred` on those of the show's last version; `episode` is a key (a movie's is 1), `provider` empty for all |
 | `POST /api/providers/streams/refresh` | `{mediaId, episode, provider}`: the same, the providers asked again |
 | `GET /api/providers/streams/live?mediaId=&episode=&provider=` | the same search as NDJSON, a line as each provider answers: `{asking: [{provider, name, demoted}]}`, then `{provider, name, streams, error, ms, cached}` per provider, then `{done: true, result}` (`result` as above) or `{done: true, error}`; `POST` with `{mediaId, episode, provider, refresh: true}` asks the providers again |
 | `GET /api/providers/health` | every provider with `{successes, failures, consecutiveFailures, lastError, lastErrorAt, lastSuccessAt, latencies, avgMs, demoted}` |
 | `POST /api/providers/{id}/test` | `{mediaId, episode}` optional (Night of the Living Dead by default) → `{provider, name, title, streams, direct, error, ms, health}`; this computer only |
-| `POST /api/providers/play` | `{mediaId, episode, streamId \| stream \| provider, player: "builtin" \| "mpv", start}` → `{action: "builtin", sources, title, resumeAt, tracks}` (sources through `/api/proxy`, each named for the conversion endpoints as `remote`, the stream picked first), `{action: "mpv", session}`, `{action: "torrent", savePath}` or `{action: "external", url}` |
+| `POST /api/providers/play` | `{mediaId, episode, streamId \| stream \| provider, player: "builtin" \| "mpv", start}` → `{action: "builtin", sources, title, resumeAt, tracks}` (sources through `/api/proxy`, each named for the conversion endpoints as `remote`, the stream picked first), `{action: "mpv", session}`, `{action: "torrent", savePath}` or `{action: "external", url}` (a YouTube video or a web page, for the browser), `{action: "embed", url, provider, providerName}` (a web player's page, for Moviko's own window) |
 | `GET /api/providers/subtitles?mediaId=&episode=&remote=&filename=` | the subtitles of subtitle addons for the very file the stream `remote` (a source's `remote:` path) plays, matched by its size and OpenSubtitles hash: `[{url, language, label, original, addon}]`, WebVTT through the proxy, the preferred languages first |
 | `POST /api/providers/download` | `{mediaId, episodes: [keys], provider, quality}` → the queued downloads |
 | `GET /api/providers/search?provider=&q=`, `POST /api/providers/mapping` | an extension's titles, and picking one by hand `{provider, mediaId, id, title}` |
@@ -470,7 +515,7 @@ Differences with the Nuvio app:
 * Providers run in Moviko's extension sandbox: they can't reach this
   computer or the local network (`localhost`, `192.168.x.x`... are
   refused, for the repository and the code too), a call to `getStreams`
-  gets the provider timeout of Settings › Providers, loading the file
+  gets the provider timeout of Settings › Streaming & torrents, loading the file
   30 seconds. So a development server on the LAN (`npm start` in the
   nuvio-providers repository) can't be used: publish the repository
   somewhere public (a GitHub repository, a gist...) to test it.

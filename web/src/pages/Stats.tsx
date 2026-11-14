@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query"
 import { ChartColumn, Table } from "lucide-react"
 import { useMemo, useState } from "react"
-import { EmptyState } from "@/components/ui"
+import { Button, EmptyState } from "@/components/ui"
 import { api } from "@/lib/api"
 import { useCollection } from "@/lib/queries"
 import { episodeIndex, mediaIsShow, totalEpisodes } from "@/lib/ids"
+import { useClassic } from "@/lib/themes"
 import type { CollectionItem } from "@/lib/types"
 import { cn, LIST_STATUS } from "@/lib/utils"
 
@@ -60,27 +61,32 @@ export default function StatsPage() {
         return { movies, shows, episodes, minutes, topGenres, byStatus }
     }, [coll])
 
+    // Every chart as its table, from the one button in the header.
+    const [asTable, setAsTable] = useState(false)
+
     if (isLoading) return <div className="m-10 card h-60 shimmer" />
     if (!coll) return <EmptyState title="Couldn't load your list" />
 
     return (
         <div className="min-h-full px-6 pt-8 pb-24 md:px-8 xl:px-10">
-            <div className="mb-8">
+            <div className="mb-8 flex items-center justify-between gap-4">
                 <h1 className="text-[1.75rem] font-semibold tracking-tight">Stats</h1>
-                <p className="mt-1 text-muted">Your movies and shows in numbers: your list, and what you watched in Moviko.</p>
+                <Button aria-pressed={asTable} icon={asTable ? <ChartColumn className="size-4" /> : <Table className="size-4" />} onClick={() => setAsTable(t => !t)}>
+                    {asTable ? "Charts" : "Tables"}
+                </Button>
             </div>
-            <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-10">
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                    <StatTile label="Movies watched" value={stats.movies.toLocaleString()} sub="rewatches included" />
-                    <StatTile label="Shows on your list" value={stats.shows.toLocaleString()} sub="not counting your watchlist" />
-                    <StatTile label="Episodes watched" value={compact(stats.episodes)} sub="rewatches included" />
+                    <StatTile label="Movies" value={stats.movies.toLocaleString()} sub="With rewatches" />
+                    <StatTile label="Shows" value={stats.shows.toLocaleString()} sub="Not on your watchlist" />
+                    <StatTile label="Episodes" value={compact(stats.episodes)} sub="With rewatches" />
                     {/* In days and hours, and (from a day on) all in hours. */}
                     <StatTile label="Time watched" value={duration(stats.minutes)} sub={stats.minutes >= 24 * 60 ? `${Math.round(stats.minutes / 60).toLocaleString()} hours` : undefined} />
                 </div>
-                <MonthlyChart months={months ?? []} />
-                <div className="grid gap-8 lg:grid-cols-2">
-                    <GenreBars genres={stats.topGenres} />
-                    <StatusBar counts={stats.byStatus} />
+                <MonthlyChart months={months ?? []} asTable={asTable} />
+                <div className="grid gap-10 lg:grid-cols-2">
+                    <GenreBars genres={stats.topGenres} asTable={asTable} />
+                    <StatusBar counts={stats.byStatus} asTable={asTable} />
                 </div>
             </div>
         </div>
@@ -88,34 +94,25 @@ export default function StatsPage() {
 }
 
 function StatTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
+    const classic = useClassic()
     return (
-        <div className="card px-5 py-4">
-            <p className="text-sm text-muted">{label}</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight">{value}</p>
-            {sub && <p className="mt-0.5 text-xs text-subtle">{sub}</p>}
+        <div className="card min-w-0 px-4 py-4 sm:px-5">
+            <p className={cn("truncate text-3xl font-semibold tracking-tight sm:text-4xl", classic ? "tabular-nums" : "font-display")}>{value}</p>
+            <p className={cn("truncate text-muted", classic ? "mt-1 text-sm" : "label mt-2")}>{label}</p>
+            {sub && <p className="truncate text-xs text-subtle">{sub}</p>}
         </div>
     )
 }
 
-// A chart's frame: its title, and a button between the chart and its table.
-function ChartCard({ title, note, table, children }: { title: string; note?: string; table: React.ReactNode; children: React.ReactNode }) {
-    const [asTable, setAsTable] = useState(false)
+// A chart's frame: a plain heading with what it counts beside it, then the
+// chart (or its table) on the page itself.
+function ChartSection({ title, note, asTable, table, children }: { title: string; note?: string; asTable: boolean; table: React.ReactNode; children: React.ReactNode }) {
     return (
-        <section className="card px-5 pt-4 pb-5">
-            <div className="mb-4 flex items-start justify-between gap-4">
-                <div>
-                    <h2 className="text-[15px] font-semibold">{title}</h2>
-                    {note && <p className="mt-0.5 text-xs text-subtle">{note}</p>}
-                </div>
-                <button
-                    onClick={() => setAsTable(t => !t)}
-                    className="focus-ring flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-muted hover:bg-white/[0.05] hover:text-fg"
-                    aria-pressed={asTable}
-                >
-                    {asTable ? <ChartColumn className="size-3.5" /> : <Table className="size-3.5" />}
-                    {asTable ? "Chart" : "Table"}
-                </button>
-            </div>
+        <section className="min-w-0">
+            <h2 className="mb-4 text-xl font-semibold tracking-tight">
+                {title}
+                {note && <span className="ml-2 text-sm font-normal tracking-normal text-subtle">{note}</span>}
+            </h2>
             {asTable ? table : children}
         </section>
     )
@@ -123,7 +120,8 @@ function ChartCard({ title, note, table, children }: { title: string; note?: str
 
 // Movies and episodes finished in Moviko, month by month: one series, in
 // the accent.
-function MonthlyChart({ months }: { months: Month[] }) {
+function MonthlyChart({ months, asTable }: { months: Month[]; asTable: boolean }) {
+    const classic = useClassic()
     const [hover, setHover] = useState<number | null>(null)
     const count = (m: Month) => (m.movies ?? 0) + m.episodes
     const what = (m: Month) => [m.movies ? `${m.movies} ${m.movies === 1 ? "movie" : "movies"}` : "", m.episodes ? `${m.episodes} ${m.episodes === 1 ? "episode" : "episodes"}` : ""].filter(Boolean).join(", ") || "Nothing"
@@ -134,7 +132,7 @@ function MonthlyChart({ months }: { months: Month[] }) {
     const empty = months.every(m => count(m) === 0)
     const table = (
         <table className="w-full text-sm">
-            <thead className="text-left text-xs text-subtle">
+            <thead className={cn("text-left text-subtle", classic ? "text-xs" : "label text-[10px]")}>
                 <tr>
                     <th className="pb-2 font-medium">Month</th>
                     <th className="pb-2 text-right font-medium">Movies</th>
@@ -155,17 +153,18 @@ function MonthlyChart({ months }: { months: Month[] }) {
         </table>
     )
     return (
-        <ChartCard title="Watched in Moviko" note="Movies and episodes, by the month you last watched each one, the last 12 months" table={table}>
+        <ChartSection title="Watched in Moviko" note="Movies and episodes, last 12 months" asTable={asTable} table={table}>
             {empty ? (
-                <p className="py-10 text-center text-sm text-muted">Nothing finished in Moviko these 12 months yet. Each movie and episode you watch to the end here shows up by month.</p>
+                <p className="py-10 text-sm text-muted">Nothing watched yet.</p>
             ) : (
                 // Headroom above the plot: the hover readout over the tallest
                 // month stays clear of the title.
-                <div className="mt-12 flex gap-3">
+                <div className="mt-14 flex gap-2 sm:gap-3">
                     {/* y axis: clean ticks, tabular so they line up */}
-                    <div className="relative h-48 w-8 shrink-0 text-right text-[11px] text-subtle tabular-nums">
+                    <div className={cn("relative h-48 w-6 shrink-0 sm:w-8 text-right text-[11px] text-subtle", classic ? "tabular-nums" : "font-mono")}>
                         {ticks.map(t => (
-                            <span key={t} className="absolute right-0 -translate-y-1/2" style={{ bottom: `${(t / top) * 100}%` }}>
+                            // This look: on its line.
+                            <span key={t} className={cn("absolute right-0", classic ? "-translate-y-1/2" : "translate-y-1/2")} style={{ bottom: `${(t / top) * 100}%` }}>
                                 {t}
                             </span>
                         ))}
@@ -182,20 +181,21 @@ function MonthlyChart({ months }: { months: Month[] }) {
                                         key={m.month}
                                         tabIndex={0}
                                         aria-label={`${monthName(m.month, true)}: ${what(m)}, ${hoursMinutes(m.minutes)}`}
-                                        className="group relative flex h-full flex-1 cursor-default items-end justify-center outline-none"
+                                        className="group relative flex h-full min-w-0 flex-1 cursor-default items-end justify-center rounded-t-md outline-none focus-visible:bg-white/[0.06]"
                                         onPointerEnter={() => setHover(i)}
                                         onPointerLeave={() => setHover(h => (h === i ? null : h))}
                                         onFocus={() => setHover(i)}
                                         onBlur={() => setHover(h => (h === i ? null : h))}
                                     >
                                         <div
-                                            className={cn("w-full max-w-6 rounded-t-[4px] bg-brand transition-opacity", hover !== null && hover !== i && "opacity-60")}
+                                            className={cn("w-full max-w-6 bg-brand transition-opacity", classic && "rounded-t-[4px]", hover !== null && hover !== i && "opacity-60")}
                                             style={{ height: `${(count(m) / top) * 100}%` }}
                                         />
                                         {hover === i && (
                                             <div
                                                 className={cn(
-                                                    "pointer-events-none absolute z-10 rounded-lg bg-surface-3 px-3 py-2 text-xs whitespace-nowrap shadow-xl ring-1 ring-white/10",
+                                                    "pointer-events-none absolute z-10 px-3 py-2 text-xs whitespace-nowrap",
+                                                    classic ? "rounded-lg bg-surface-3 shadow-xl ring-1 ring-white/10" : "border border-line-strong bg-bg",
                                                     i < 2 ? "left-0" : i > months.length - 3 ? "right-0" : "left-1/2 -translate-x-1/2",
                                                 )}
                                                 style={{ bottom: `calc(${(count(m) / top) * 100}% + 8px)` }}
@@ -212,7 +212,7 @@ function MonthlyChart({ months }: { months: Month[] }) {
                         </div>
                         <div className="mt-2 flex text-[11px] text-subtle">
                             {months.map((m, i) => (
-                                <span key={m.month} className="flex-1 text-center">
+                                <span key={m.month} className={cn("min-w-0 flex-1 text-center whitespace-nowrap", i % 2 === 1 && "max-sm:invisible")}>
                                     {monthName(m.month, i === 0 || m.month.endsWith("-01"))}
                                 </span>
                             ))}
@@ -220,13 +220,14 @@ function MonthlyChart({ months }: { months: Month[] }) {
                     </div>
                 </div>
             )}
-        </ChartCard>
+        </ChartSection>
     )
 }
 
 // The genres of the movies and shows on the list (not planned): one series, bars with
 // their count at the tip.
-function GenreBars({ genres }: { genres: [string, number][] }) {
+function GenreBars({ genres, asTable }: { genres: [string, number][]; asTable: boolean }) {
+    const classic = useClassic()
     const max = Math.max(1, ...genres.map(g => g[1]))
     const table = (
         <table className="w-full text-sm">
@@ -241,29 +242,30 @@ function GenreBars({ genres }: { genres: [string, number][] }) {
         </table>
     )
     return (
-        <ChartCard title="Top genres" note="Movies and shows on your list in each genre (one can have several)" table={table}>
+        <ChartSection title="Top genres" asTable={asTable} table={table}>
             {genres.length === 0 ? (
-                <p className="py-10 text-center text-sm text-muted">Nothing on your list yet.</p>
+                <p className="py-10 text-sm text-muted">Nothing on your list yet.</p>
             ) : (
                 <div className="flex flex-col gap-2.5">
                     {genres.map(([g, n]) => (
-                        <div key={g} className="grid grid-cols-[7rem_1fr] items-center gap-3 text-sm" title={`${g}: ${n}`}>
+                        <div key={g} className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-3 text-sm" title={`${g}: ${n}`}>
                             <span className="truncate text-muted">{g}</span>
                             <div className="flex items-center gap-2">
-                                <div className="h-4 rounded-r-[4px] bg-brand" style={{ width: `${(n / max) * 85}%` }} />
+                                <div className={cn("h-4 bg-brand", classic && "rounded-r-[4px]")} style={{ width: `${(n / max) * 85}%` }} />
                                 <span className="text-xs text-muted tabular-nums">{n}</span>
                             </div>
                         </div>
                     ))}
                 </div>
             )}
-        </ChartCard>
+        </ChartSection>
     )
 }
 
 // The list by status: one bar of its parts, with a legend (and the counts in
 // it, so identity never rests on color alone).
-function StatusBar({ counts }: { counts: Map<string, number> }) {
+function StatusBar({ counts, asTable }: { counts: Map<string, number>; asTable: boolean }) {
+    const classic = useClassic()
     const parts = STATUSES.filter(s => (counts.get(s.status) ?? 0) > 0).map(s => ({ ...s, n: counts.get(s.status)! }))
     const total = parts.reduce((s, p) => s + p.n, 0)
     const [hover, setHover] = useState<string | null>(null)
@@ -280,9 +282,9 @@ function StatusBar({ counts }: { counts: Map<string, number> }) {
         </table>
     )
     return (
-        <ChartCard title="Your list" note={`${total.toLocaleString()} movies and shows by status`} table={table}>
+        <ChartSection title="Your list" note={`${total.toLocaleString()} movies and shows`} asTable={asTable} table={table}>
             {total === 0 ? (
-                <p className="py-10 text-center text-sm text-muted">Nothing on your list yet.</p>
+                <p className="py-10 text-sm text-muted">Nothing on your list yet.</p>
             ) : (
                 <div className="flex flex-col gap-5">
                     <div className="flex h-6 gap-[2px]">
@@ -291,7 +293,7 @@ function StatusBar({ counts }: { counts: Map<string, number> }) {
                                 key={p.status}
                                 tabIndex={0}
                                 aria-label={`${p.label}: ${p.n}`}
-                                className={cn("outline-none transition-opacity", i === 0 && "rounded-l-[4px]", i === parts.length - 1 && "rounded-r-[4px]", hover && hover !== p.status && "opacity-50")}
+                                className={cn("outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-white/70", classic && i === 0 && "rounded-l-[4px]", classic && i === parts.length - 1 && "rounded-r-[4px]", hover && hover !== p.status && "opacity-50")}
                                 style={{ flexGrow: p.n, flexBasis: 0, minWidth: 3, background: p.color }}
                                 onPointerEnter={() => setHover(p.status)}
                                 onPointerLeave={() => setHover(null)}
@@ -311,7 +313,7 @@ function StatusBar({ counts }: { counts: Map<string, number> }) {
                     </ul>
                 </div>
             )}
-        </ChartCard>
+        </ChartSection>
     )
 }
 

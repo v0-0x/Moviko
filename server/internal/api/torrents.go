@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -60,6 +61,7 @@ func (s *Server) torrentRoutes() {
 		return nil, s.app.AutoDL.DeleteRule(id)
 	}))
 	m.HandleFunc("GET /api/autodownloader/rules/{id}/wanted", h(s.ruleWanted))
+	m.HandleFunc("POST /api/autodownloader/rules/{id}/test", h(s.testRule))
 	m.HandleFunc("POST /api/autodownloader/run", h(func(r *http.Request) (any, error) { return s.app.AutoDL.Run(r.Context()) }))
 	m.HandleFunc("GET /api/autodownloader/items", h(func(r *http.Request) (any, error) { return s.app.AutoDL.Items(), nil }))
 	m.HandleFunc("DELETE /api/autodownloader/items/{key}", h(func(r *http.Request) (any, error) {
@@ -370,4 +372,14 @@ func (s *Server) ruleWanted(r *http.Request) (any, error) {
 		return nil, err
 	}
 	return map[string]any{"episodes": keys}, nil
+}
+
+// testRule runs a rule's searches and picks without grabbing anything.
+func (s *Server) testRule(r *http.Request) (any, error) {
+	id, _ := strconv.Atoi(r.PathValue("id"))
+	out, err := s.app.AutoDL.DryRun(r.Context(), id)
+	if errors.Is(err, torrent.ErrNoRule) {
+		return nil, notFound("No such rule")
+	}
+	return out, err
 }

@@ -9,7 +9,7 @@ import type { ExtensionInfo, NuvioEntry, NuvioRepo } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { ExtIcon, LanNote, LogsDialog, TabSection, TypeBadges } from "./parts"
 
-// Nuvio provider repositories (Settings › Providers keeps their URLs) and
+// Nuvio provider repositories (Settings › Streaming & torrents keeps their URLs) and
 // their providers, installed as extensions (nuvio.<id>).
 export function NuvioTab() {
     const { data: status } = useStatus()

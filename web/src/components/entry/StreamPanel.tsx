@@ -9,6 +9,7 @@ import {
     Download,
     ExternalLink,
     History,
+    ListPlus,
     Loader2,
     Magnet,
     MonitorPlay,
@@ -30,9 +31,12 @@ import { type LiveProgress, mergeAnswers, useLiveStreams } from "@/lib/liveStrea
 import { tv } from "@/lib/tv"
 import { usePlay } from "@/lib/play"
 import { useProviders, useSeason, useStatus } from "@/lib/queries"
+import type { PlaylistItem } from "@/lib/playlist"
+import { useClassic } from "@/lib/themes"
 import type { EntryView, ProviderError, ProviderInfo, ProviderStream, Season, StreamsResult } from "@/lib/types"
-import { cn, copyText, formatBytes, plural } from "@/lib/utils"
+import { cn, copyText, cover, formatBytes, plural, title } from "@/lib/utils"
 import { Badge, Button, Dialog, EmptyState, Field, IconButton, Input, Select, Skeleton, Tabs, Tooltip } from "../ui"
+import { AddToPlaylistDialog } from "../PlaylistDialog"
 import { WatchServices } from "./WatchServices"
 
 // "Watch online": the streams of the movie, or of the episode picked, from
@@ -45,6 +49,9 @@ export function StreamPanel({ entry }: { entry: EntryView }) {
     const { data: status } = useStatus()
     const { data: providers } = useProviders()
     const [params, setParams] = useSearchParams()
+    // The movie or episode on its way to a playlist (its dialog open): played
+    // from the best link found when its turn comes.
+    const [toPlaylist, setToPlaylist] = useState<PlaylistItem[] | null>(null)
 
     // A show's episode: the one asked for in the URL, else the next one to
     // watch (never a special).
@@ -84,6 +91,7 @@ export function StreamPanel({ entry }: { entry: EntryView }) {
     const searching = !!search
     const live = search && (search.answers.length > 0 || !data) ? mergeAnswers(search.answers, status?.settings.providers?.preferredQuality ?? "") : null
     const streams = live ?? data?.streams ?? []
+    const best = streams.find(x => x.kind === "direct")
     const liveErrors: ProviderError[] = (search?.answers ?? []).filter(a => a.error).map(a => ({ provider: a.provider, name: a.name, error: a.error! }))
     const errors = live ? liveErrors : (data?.errors ?? [])
     const addonSubs = live ? 0 : (data?.subtitles.length ?? 0)
@@ -124,9 +132,15 @@ export function StreamPanel({ entry }: { entry: EntryView }) {
                 )}
                 <div className="ml-auto flex items-center gap-2">
                     {show && (
-                        <Button variant="subtle" icon={<Download className="size-4" />} onClick={() => setDlOpen(true)}>
-                            Download episodes
-                        </Button>
+                        <IconButton label="Download episodes" variant="subtle" onClick={() => setDlOpen(true)}>
+                            <Download className="size-4" />
+                        </IconButton>
+                    )}
+                    {/* From the provider of the best link found (asked again when its turn comes). */}
+                    {best && (
+                        <IconButton label={`Add to playlist (from ${best.providerName})`} variant="subtle" onClick={() => setToPlaylist([{ mediaId: media.id, episode: key, title: title(media), image: cover(media), play: { kind: "stream", provider: best.provider } }])}>
+                            <ListPlus className="size-4" />
+                        </IconButton>
                     )}
                     <IconButton label="Look again" variant="subtle" onClick={() => refresh()} disabled={searching}>
                         <RefreshCw className={cn("size-4", searching && "animate-spin")} />
@@ -200,6 +214,7 @@ export function StreamPanel({ entry }: { entry: EntryView }) {
                     onPicked={refresh}
                 />
             )}
+            <AddToPlaylistDialog items={toPlaylist} onClose={() => setToPlaylist(null)} />
             {show && <DownloadDialog open={dlOpen} onOpenChange={setDlOpen} entry={entry} from={key} streams={streams} providers={usable} />}
         </div>
     )
@@ -295,6 +310,8 @@ function ProviderIcon({ src, className }: { src?: string; className?: string }) 
 // direct links).
 function StreamRow({ s, provider, addonSubs, mediaId, episode }: { s: ProviderStream; provider?: ProviderInfo; addonSubs: number; mediaId: number; episode: number }) {
     const { playStream, sendTorrent, remote } = usePlay()
+    // A TV streams a torrent through the computer its downloads go to.
+    const noStream = tv && !useStatus().data?.settings?.sharing?.downloadTo
     const [busy, setBusy] = useState(false)
     const lines = s.title
         .split("\n")
@@ -402,7 +419,7 @@ function StreamRow({ s, provider, addonSubs, mediaId, episode }: { s: ProviderSt
                                 <Copy className="size-4" />
                             </IconButton>
                         )}
-                        {tv ? (
+                        {noStream ? (
                             <Button size="sm" variant="white" icon={<Magnet className="size-3.5" />} onClick={() => sendTorrent(mediaId, episode, s)}>
                                 Send to torrent client
                             </Button>
@@ -425,7 +442,7 @@ function StreamRow({ s, provider, addonSubs, mediaId, episode }: { s: ProviderSt
                 )}
                 {(s.kind === "youtube" || s.kind === "external") && (
                     <Button size="sm" variant="white" icon={s.kind === "youtube" ? <SquarePlay className="size-3.5" /> : <ExternalLink className="size-3.5" />} onClick={() => playStream(mediaId, episode, { stream: s })}>
-                        Open
+                        {s.embed ? "Watch" : "Open"}
                     </Button>
                 )}
             </div>
@@ -459,6 +476,7 @@ function Matches({ result, onFix }: { result: StreamsResult; onFix: (p: { provid
 // The providers asked and how far they got: a spinner for those still
 // looking, what each one that answered found, its error otherwise.
 function SearchProgress({ progress, timeout, fallback }: { progress: LiveProgress; timeout: number; fallback: number }) {
+    const classic = useClassic()
     const answers = new Map(progress.answers.map(a => [a.provider, a]))
     const pending = progress.asking.filter(a => !answers.has(a.provider)).length
     return (
@@ -478,10 +496,11 @@ function SearchProgress({ progress, timeout, fallback }: { progress: LiveProgres
                             <Tooltip key={p.provider} content={label}>
                                 <span
                                     className={cn(
-                                        "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs",
-                                        !a && "bg-white/[0.04] text-muted",
-                                        a && !a.error && "bg-emerald-400/10 text-emerald-200",
-                                        a?.error && "bg-amber-400/10 text-amber-200",
+                                        "flex items-center gap-1.5 text-xs",
+                                        classic ? "rounded-full px-2.5 py-1" : "pr-2",
+                                        !a && cn("text-muted", classic && "bg-white/[0.04]"),
+                                        a && !a.error && cn("text-emerald-200", classic && "bg-emerald-400/10"),
+                                        a?.error && cn("text-amber-200", classic && "bg-amber-400/10"),
                                     )}
                                 >
                                     {!a ? <Loader2 className="size-3 animate-spin" /> : a.error ? <AlertTriangle className="size-3" /> : <Check className="size-3" />}
@@ -499,8 +518,9 @@ function SearchProgress({ progress, timeout, fallback }: { progress: LiveProgres
 
 function ProviderErrors({ errors, startOpen, onFix }: { errors: ProviderError[]; startOpen: boolean; onFix: (p: { provider: string; name: string }) => void }) {
     const [open, setOpen] = useState(startOpen)
+    const classic = useClassic()
     return (
-        <div className="rounded-xl bg-white/[0.025]">
+        <div className={classic ? "rounded-xl bg-white/[0.025]" : "border-y border-line"}>
             <button onClick={() => setOpen(o => !o)} className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-muted transition-colors hover:text-fg">
                 <AlertTriangle className="size-4 text-amber-300" />
                 {plural(errors.length, "provider")} found nothing
@@ -566,7 +586,7 @@ function ManualMatchDialog({
         }
     }
     return (
-        <Dialog open={open} onOpenChange={onOpenChange} title={`Pick the right title on ${providerName}`} description="Search the provider and choose the matching entry. Moviko remembers your choice.">
+        <Dialog open={open} onOpenChange={onOpenChange} title={`Pick the right title on ${providerName}`} >
             <div className="flex gap-2">
                 <Input autoFocus value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === "Enter" && search()} placeholder="Search…" icon={<Search className="size-4" />} />
                 <Button variant="primary" loading={busy} onClick={search}>
@@ -575,7 +595,7 @@ function ManualMatchDialog({
             </div>
             <div className="mt-4 flex flex-col gap-1">
                 {results.map(r => (
-                    <button key={r.id} onClick={() => pick(r)} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-white/[0.06]">
+                    <button key={r.id} onClick={() => pick(r)} className="focus-ring flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-white/[0.06]">
                         <span className="font-medium">{r.title}</span>
                         {r.subOrDub && <Badge tone="brand">{r.subOrDub}</Badge>}
                     </button>
@@ -640,7 +660,7 @@ function DownloadDialog({
             open={open}
             onOpenChange={onOpenChange}
             title="Download episodes"
-            description="Each episode's link is looked up when its download starts (links expire), from the provider picked, in the closest quality. Saved into your downloads folder and matched automatically."
+            description="Each link is looked up when its download starts, in the closest quality. Saved to your downloads folder."
             footer={
                 <>
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>

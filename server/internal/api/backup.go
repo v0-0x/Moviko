@@ -13,7 +13,7 @@ import (
 	"github.com/v0-0x/kumobox-movies/server/internal/share"
 )
 
-// Settings › Backup & data: the user's data as one file, and back. Only this
+// Settings › App & data: the user's data as one file, and back. Only this
 // computer: a backup can hold the logins, a restore changes everything.
 func (s *Server) backupRoutes() {
 	m := s.mux

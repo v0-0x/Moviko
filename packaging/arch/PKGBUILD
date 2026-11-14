@@ -19,7 +19,7 @@ else
     conflicts=('kumobox')
     replaces=('kumobox')
 fi
-pkgver=2.0.0
+pkgver=3.0.0
 pkgrel=1
 pkgdesc="Movies & TV shows: local library with auto matching, TMDB metadata, Letterboxd tracking, mpv & in-app player, streaming providers, torrents, extensions"
 arch=('x86_64' 'aarch64')
@@ -40,7 +40,7 @@ _root="$(realpath "${startdir}/../..")"
 # The version and commit go into the server, which compares them with
 # GitHub's to offer updates (Home page). Moviko's updater builds a downloaded
 # source, which has no .git: it passes them in MOVIKO_COMMIT and MOVIKO_VERSION.
-# In a git checkout they come from git (version 2.0.<commits since 2.0.0's>,
+# In a git checkout they come from git (version 3.0.<commits since 3.0.0's>,
 # see desktop/package.json); otherwise, e.g. in an extracted source zip, the
 # defaults stay. pkgver stays as it is on purpose: a pkgver() function would
 # make makepkg rewrite this file in your checkout, and git pull would then
@@ -58,12 +58,24 @@ build() {
         [[ -n ${commit} ]] || commit="$(git -C "${_root}" rev-parse HEAD 2>/dev/null)" || commit=""
         if [[ -z ${version} ]] && count="$(git -C "${_root}" rev-list --count HEAD 2>/dev/null)"; then
             # Major.minor from desktop/package.json, and the commits since
-            # the one its movikoVersionBase counts (2.0.0's).
+            # the one its movikoVersionBase counts (3.0.0's).
             local pkg="${_root}/desktop/package.json" mm from
             mm="$(sed -n 's/^ *"version": *"\([0-9]*\.[0-9]*\)\..*/\1/p' "${pkg}")"
             from="$(sed -n 's/^ *"movikoVersionBase": *\([0-9]*\).*/\1/p' "${pkg}")"
             version="${mm:-1.0}.$((count - ${from:-0}))"
         fi
+    fi
+    # Not a checkout (a source zip from GitHub): the version from a VERSION
+    # file at the root, else from the folder's name (a release's source zip
+    # unpacks to Moviko-windows-v3.0.4), else the newest release's.
+    if [[ -z ${version} && -r "${_root}/VERSION" ]]; then
+        version="$(tr -d '[:space:]' < "${_root}/VERSION")"
+    fi
+    if [[ -z ${version} && "$(basename "${_root}")" =~ -v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+        version="${BASH_REMATCH[1]}"
+    fi
+    if [[ -z ${version} && ! -e "${_root}/.git" ]] && command -v curl >/dev/null; then
+        version="$(curl -fsSL --max-time 10 https://api.github.com/repos/v0-0x/Moviko/releases/latest 2>/dev/null | sed -n 's/.*"tag_name": *"[a-z]*-v\([0-9.]*\)".*/\1/p' | head -n1)"
     fi
     local config=github.com/v0-0x/kumobox-movies/server/internal/config
     local ldflags="-s -w"
