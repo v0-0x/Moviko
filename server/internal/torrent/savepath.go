@@ -68,21 +68,30 @@ func ResultSeason(r *SearchResult, def int) int {
 }
 
 func savePath(cfg config.Settings, media *catalog.Media, season int, files []*library.LocalFile) string {
-	dir := config.ExpandHome(cfg.Library.Dir)
-	if dir == "" {
+	// New titles go into the library folder chosen for downloads; one that
+	// has a folder already, in any library folder, keeps it.
+	lib := cfg.DownloadDir()
+	if lib == "" {
 		return ""
 	}
-	lib := filepath.Clean(dir)
 	if !cfg.Torrent.CreateSubfolder || media == nil || media.PreferredTitle() == "" {
 		return lib
 	}
 	show := media.IsShow()
+	libs := append([]string{lib}, cfg.LibraryDirs()...)
 	if show && season >= 0 {
-		if d := seasonDir(lib, files, season); d != "" {
-			return d
+		for _, l := range libs {
+			if d := seasonDir(l, files, season); d != "" {
+				return d
+			}
 		}
 	}
-	root := titleDir(lib, files, show)
+	root := ""
+	for _, l := range libs {
+		if root = titleDir(l, files, show); root != "" {
+			break
+		}
+	}
 	if root == "" {
 		root = filepath.Join(lib, TitleFolder(media))
 	}

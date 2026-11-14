@@ -1,6 +1,7 @@
 import { Search } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useCollection, useSearch } from "@/lib/queries"
+import { useClassic } from "@/lib/themes"
 import type { Media } from "@/lib/types"
 import { cn, mediaSummary, originalTitle, poster, title } from "@/lib/utils"
 import { Dialog, ErrorState, Input, Spinner, Tabs } from "./ui"
@@ -31,6 +32,7 @@ export function MediaPicker({
     useEffect(() => {
         if (open) setKind(type || typeFilter || "")
     }, [open, type, typeFilter])
+    const classic = useClassic()
     const [q, setQ] = useState(initialQuery)
     const [dq, setDq] = useState(initialQuery)
     useEffect(() => {
@@ -91,7 +93,7 @@ export function MediaPicker({
                                 {originalTitle(m) ? ` · ${originalTitle(m)}` : ""}
                             </p>
                         </div>
-                        {i < fromList.length && <span className={cn("rounded-md bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-brand-strong")}>On your list</span>}
+                        {i < fromList.length && <span className={cn(classic ? "rounded-md bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-brand-strong" : "label shrink-0 text-[10px] text-muted")}>On your list</span>}
                     </button>
                 ))}
                 {!isFetching && dq.trim().length > 1 && error && <ErrorState compact title="Couldn't search TMDB" error={error} onRetry={() => refetch()} />}

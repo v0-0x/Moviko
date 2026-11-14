@@ -24,10 +24,10 @@ export function ProvidersSection({ draft, set }: SectionProps) {
     return (
         <>
             <Group title="Online streaming">
-                <Row label="Watch online" help="Stream movies and episodes from the providers below.">
+                <Row label="Watch online" help="From the providers below.">
                     <Switch checked={draft.onlineStream.enabled} onChange={v => set("onlineStream", { enabled: v })} />
                 </Row>
-                <Row label="Default provider" help="All providers: every source is listed, ranked together. A provider: its sources come first, and Play (on something not in your library) plays its best link.">
+                <Row label="Default provider" help="Its sources come first, and Play uses its best link.">
                     <Select
                         className="w-56"
                         value={draft.onlineStream.defaultProvider}
@@ -35,10 +35,10 @@ export function ProvidersSection({ draft, set }: SectionProps) {
                         options={[{ value: "", label: "All providers" }, ...(providers ?? []).filter(x => x.enabled).map(x => ({ value: x.id, label: x.name }))]}
                     />
                 </Row>
-                <Row label="Prefer dubbed versions" help="For extensions that have titles dubbed as well as in their original version.">
+                <Row label="Prefer dubbed versions" help="For extensions that have both.">
                     <Switch checked={draft.onlineStream.preferDub} onChange={v => set("onlineStream", { preferDub: v })} />
                 </Row>
-                <Row label="Preferred quality" help="Sources are listed best first otherwise.">
+                <Row label="Preferred quality" help="Otherwise the best comes first.">
                     <Select
                         className="w-40"
                         value={p?.preferredQuality ?? ""}
@@ -52,7 +52,7 @@ export function ProvidersSection({ draft, set }: SectionProps) {
                         ]}
                     />
                 </Row>
-                <Row label="Provider timeout (seconds)" help="How long each provider may take to find sources (5–120).">
+                <Row label="Provider timeout (seconds)" help="For each provider to find sources, 5 to 120.">
                     <Input type="number" min={5} max={120} className="w-24" value={p?.timeoutSeconds ?? 20} onChange={e => set("providers", { timeoutSeconds: Number(e.target.value) })} />
                 </Row>
             </Group>
@@ -61,7 +61,7 @@ export function ProvidersSection({ draft, set }: SectionProps) {
 
             <MediaServersGroup servers={p?.mediaServers ?? []} onChange={v => set("providers", { mediaServers: v })} lan={lan} />
 
-            <Group title="Internet Archive" description="Built in: public-domain movies and TV from archive.org.">
+            <Group title="Internet Archive" description="Public-domain movies and TV from archive.org.">
                 <Row label="Use the Internet Archive">
                     <Switch checked={p?.archive ?? false} onChange={v => set("providers", { archive: v })} />
                 </Row>
@@ -69,7 +69,7 @@ export function ProvidersSection({ draft, set }: SectionProps) {
 
             <Group
                 title="luffy and FreeFlix sites"
-                description="The sites the luffy and FreeFlix command-line apps stream from, built in. They're unofficial sites, off until you turn them on; each can point to a mirror when it moves."
+                description="Unofficial sites, off until you turn them on. Each can point to a mirror."
             >
                 {STREAM_SITES.map(site => {
                     const cur = sites?.[site.key] ?? SITE_OFF
@@ -96,7 +96,7 @@ export function ProvidersSection({ draft, set }: SectionProps) {
                     )
                 })}
                 {STREAM_SITES.some(x => x.decrypts && sites?.[x.key]?.enabled) && (
-                    <Stack label="Decryption service" help="Vidlink, Hexa and Videasy have enc-dec.app work out their keys, as FreeFlix does: it's sent what they're asked for.">
+                    <Stack label="Decryption service" help="Works out the keys of Vidlink, Hexa and Videasy. It's sent what they're asked for.">
                         <Input
                             value={sites?.decryptUrl ?? ""}
                             disabled={lan}
@@ -109,7 +109,7 @@ export function ProvidersSection({ draft, set }: SectionProps) {
 
             <Group
                 title="Stremio addons"
-                description="Addon collections the Providers page lists to install from: JSON lists of addons, like Stremio's own. Addons can also be installed by their manifest URL there."
+                description="The collections the Providers page installs addons from."
             >
                 <Stack label="Addon collections" help={`Stremio's official collection is ${DEFAULT_STREMIO_CATALOG}.`}>
                     <ListInput value={p?.stremioCatalogs ?? []} onChange={v => set("providers", { stremioCatalogs: v })} placeholder={DEFAULT_STREMIO_CATALOG} addLabel="Add collection" />
@@ -123,7 +123,7 @@ export function ProvidersSection({ draft, set }: SectionProps) {
                 </Row>
             </Group>
 
-            <Group title="Nuvio providers" description="Repositories of Nuvio scrapers (manifest.json URLs). Their providers run in Moviko's extension sandbox.">
+            <Group title="Nuvio providers" description="Repositories of Nuvio scrapers, by their manifest.json URL.">
                 <Stack label="Repositories">
                     <ListInput value={p?.nuvioRepos ?? []} onChange={v => set("providers", { nuvioRepos: v })} placeholder="https://…/manifest.json" addLabel="Add repository" />
                 </Stack>
@@ -132,11 +132,11 @@ export function ProvidersSection({ draft, set }: SectionProps) {
             <Group title="Downloads" description="Movies and episodes downloaded from streaming providers.">
                 <Stack
                     label="Download folder"
-                    help={`Empty: your library folder (${status?.settings.library.dir || "not set"}). Downloads are matched automatically.${lan ? " Changed on the computer Moviko runs on." : ""}`}
+                    help={`Empty uses your library folder: ${status?.settings.library.dir || "not set"}.${lan ? " Changed on the computer Moviko runs on." : ""}`}
                 >
                     <PathInput value={dl?.dir ?? ""} disabled={lan} onChange={v => set("downloads", { dir: v })} placeholder="Library folder" />
                 </Stack>
-                <Row label="Downloader" help="yt-dlp is faster and more reliable for most streams.">
+                <Row label="Downloader" help="yt-dlp is faster for most streams.">
                     <Select
                         className="w-40"
                         value={dl?.downloader || "auto"}
@@ -178,7 +178,7 @@ export function TorrentSourcesSection({ draft, set }: SectionProps) {
     return (
         <>
             <Group title="Search">
-                <Row label="Default source" help="Where the Torrents tab of a movie or show searches first.">
+                <Row label="Default source" help="Searched first on a movie's or show's Torrents tab.">
                     <Select
                         className="w-56"
                         value={draft.torrent.defaultProvider}
@@ -204,7 +204,7 @@ export function TorrentSourcesSection({ draft, set }: SectionProps) {
 
             <Group
                 title="Torznab indexers"
-                description="Your own indexers, through Jackett or Prowlarr. In Prowlarr, an indexer's Torznab URL looks like http://127.0.0.1:9696/1/api, with Prowlarr's API key (Settings › General). In Jackett, use “Copy Torznab Feed” and Jackett's API key."
+                description="Your Jackett or Prowlarr indexers: each one's Torznab URL and the API key."
             >
                 {indexers.map((x, i) => (
                     <div key={i} className="flex flex-col gap-3 px-4 py-3.5">
@@ -238,7 +238,7 @@ export function TorrentSourcesSection({ draft, set }: SectionProps) {
                 )}
             </Group>
 
-            <Group title="Built-in sources" description="Public sites searched without an indexer. Each can point to a mirror when the site moves.">
+            <Group title="Built-in sources" description="Public sites searched without an indexer. Each can point to a mirror.">
                 {BUILT_IN.map(b => {
                     const s = source(b.key)
                     return (

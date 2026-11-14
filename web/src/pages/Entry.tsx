@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query"
-import { CalendarClock, Check, ExternalLink, Eye, FolderOpen, Info, LayoutList, Magnet, MoreHorizontal, Play, RefreshCw, Star, Tv } from "lucide-react"
+import { Check, ExternalLink, Eye, FolderOpen, Info, Magnet, MoreHorizontal, Play, RefreshCw, Star } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { toast } from "@/lib/toast"
@@ -16,6 +16,8 @@ import { api } from "@/lib/api"
 import { airedEpisodes, episodeIndex, episodeKeyOf, formatKey, MOVIE_EPISODE, mediaIsShow, nextEpisode } from "@/lib/ids"
 import { usePlay } from "@/lib/play"
 import { useEntry, useEpisodeMarker, useStatus } from "@/lib/queries"
+import { useClassic } from "@/lib/themes"
+import { tv } from "@/lib/tv"
 import type { EntryView } from "@/lib/types"
 import { airsIn, banner, cleanDescription, cn, externalLinks, img, originalTitle, poster, runtimeLabel, statusLabel, title, year } from "@/lib/utils"
 
@@ -44,11 +46,25 @@ export default function EntryPage() {
 
     const show = mediaIsShow(entry.media)
     const online = status?.settings.onlineStream.enabled !== false
-    const tabs: { value: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
-        ...(show ? [{ value: "episodes" as Tab, label: "Episodes", icon: <LayoutList className="size-4" />, count: (entry.episodes ?? []).filter(e => e.hasFile).length || undefined }] : []),
-        { value: "overview", label: show ? "Details" : "Overview", icon: <Info className="size-4" /> },
-        ...(online ? [{ value: "stream" as Tab, label: "Watch online", icon: <Tv className="size-4" /> }] : []),
-        { value: "torrents", label: "Torrents", icon: <Magnet className="size-4" /> },
+    const files = (entry.episodes ?? []).filter(e => e.hasFile).length
+    // One slim row; a tab's count is a plain muted number (as on Library tools).
+    const tabs: { value: Tab; label: React.ReactNode }[] = [
+        ...(show
+            ? [
+                  {
+                      value: "episodes" as Tab,
+                      label: (
+                          <>
+                              Episodes
+                              {files > 0 && <span className="font-normal text-subtle tabular-nums">{files}</span>}
+                          </>
+                      ),
+                  },
+              ]
+            : []),
+        { value: "overview", label: show ? "Details" : "Overview" },
+        ...(online ? [{ value: "stream" as Tab, label: "Watch online" }] : []),
+        { value: "torrents", label: "Torrents" },
     ]
     // Old links say "details"; a movie has no episodes tab.
     const raw = params.get("tab") === "details" ? "overview" : (params.get("tab") as Tab)
@@ -67,7 +83,7 @@ export default function EntryPage() {
     return (
         <div className="relative min-h-full pb-24">
             <EntryHero entry={entry} onTab={setTab} />
-            <div className="relative z-10 flex flex-col gap-8 px-6 md:px-8 xl:px-10">
+            <div className="relative z-10 flex flex-col gap-6 px-6 md:px-8 xl:px-10">
                 <PluginSlot slot="before-anime-entry-episode-list" />
                 <Tabs variant="underline" value={tab} onChange={t => setTab(t)} tabs={tabs} />
                 {/* Keyed by media too: panels keep per-title state (search results, chosen provider). */}
@@ -99,6 +115,7 @@ export default function EntryPage() {
 }
 
 function EntryHero({ entry, onTab }: { entry: EntryView; onTab: (t: Tab) => void }) {
+    const classic = useClassic()
     const media = entry.media
     const show = mediaIsShow(media)
     const list = entry.listEntry
@@ -154,19 +171,29 @@ function EntryHero({ entry, onTab }: { entry: EntryView; onTab: (t: Tab) => void
                 </span>
             </Tooltip>
         ) : null,
-        media.studios?.nodes?.[0] ? <span className="text-white/55">{media.studios.nodes.map(s => s.name).slice(0, 2).join(", ")}</span> : null,
+        // The next one to air, here with the rest (the studios are under Details).
+        show && media.nextAiringEpisode ? (
+            <span className="font-medium text-brand-strong">
+                {formatKey(media.nextAiringEpisode.episode)}
+                {media.nextAiringEpisode.title ? ` “${media.nextAiringEpisode.title}”` : ""} {airsIn(media.nextAiringEpisode.airingAt)}
+            </span>
+        ) : null,
     ].filter(Boolean)
 
     return (
         <div className="relative">
-            <div className="absolute inset-x-0 top-0 h-[520px] overflow-hidden">
-                {bannerImg && <img src={bannerImg} alt="" className="size-full object-cover object-top opacity-60 fade-in" />}
+            <div className="absolute inset-x-0 top-0 h-[460px] overflow-hidden">
+                {bannerImg && <img src={bannerImg} alt="" className="size-full object-cover object-top opacity-80 fade-in [mask-image:linear-gradient(to_bottom,#000_80%,transparent)]" />}
                 <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/75 to-bg/10" />
                 <div className="absolute inset-0 bg-gradient-to-r from-bg/90 via-bg/30 to-transparent" />
             </div>
-            <div className="relative z-10 flex flex-col gap-8 px-6 pt-[200px] pb-8 md:flex-row md:px-8 xl:px-10">
-                <div className="w-40 shrink-0 md:w-52">
-                    <img {...poster(media, 208)} alt="" className="aspect-[2/3] w-full rounded-lg object-cover shadow-2xl shadow-black/60 ring-1 ring-white/10 fade-in" />
+            {/* What it is and what to do with it, on one glass panel over its art (the Classic look's). */}
+            <div className="relative z-10 px-6 pt-28 pb-8 md:px-8 xl:px-10">
+            <div className={cn("flex flex-col gap-6 md:flex-row", classic ? "rounded-3xl border border-white/10 bg-black/35 p-5 shadow-[0_24px_60px_-28px_rgb(0_0_0/0.9),inset_0_1px_0_rgb(255_255_255/0.08)] md:p-6" : "md:gap-8", !tv && classic && "backdrop-blur-2xl")}>
+                <div className="w-32 shrink-0 md:w-44">
+                    <div className="marks">
+                        <img {...poster(media, 208)} alt="" className="aspect-[2/3] w-full rounded-lg object-cover shadow-2xl shadow-black/60 ring-1 ring-white/10 fade-in" />
+                    </div>
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col justify-end gap-4 fade-in">
                     <div>
@@ -189,30 +216,24 @@ function EntryHero({ entry, onTab }: { entry: EntryView; onTab: (t: Tab) => void
                             </Badge>
                         )}
                     </div>
-                    {show && media.nextAiringEpisode && (
-                        <div className="flex items-center gap-2 text-[13px] font-medium text-brand-strong">
-                            <CalendarClock className="size-4" /> {formatKey(media.nextAiringEpisode.episode)}
-                            {media.nextAiringEpisode.title ? ` “${media.nextAiringEpisode.title}”` : ""} airs {airsIn(media.nextAiringEpisode.airingAt)}
-                        </div>
-                    )}
+                    {/* Its first genres, as words: each opens a search. */}
                     {!!media.genres?.length && (
-                        <div className="flex flex-wrap gap-1.5">
-                            {media.genres.map(g => (
-                                <Link
-                                    key={g}
-                                    to={`/search?genre=${encodeURIComponent(g)}&type=${media.type}`}
-                                    className="rounded-md bg-white/[0.07] px-2.5 py-1 text-xs font-medium text-white/75 transition-colors hover:bg-white/[0.12] hover:text-white"
-                                >
-                                    {g}
-                                </Link>
+                        <p className="text-sm text-white/55">
+                            {media.genres.slice(0, 3).map((g, k) => (
+                                <span key={g}>
+                                    {k > 0 && " · "}
+                                    <Link to={`/search?genre=${encodeURIComponent(g)}&type=${media.type}`} className="transition-colors hover:text-white">
+                                        {g}
+                                    </Link>
+                                </span>
                             ))}
-                        </div>
+                        </p>
                     )}
                     {media.tagline && <p className="text-[15px] text-white/60 italic">{media.tagline}</p>}
                     {desc && (
                         <div className="max-w-3xl">
-                            <p className={cn("text-[15px] leading-relaxed whitespace-pre-line text-white/70", !expanded && "line-clamp-3")}>{desc}</p>
-                            {desc.length > 260 && (
+                            <p className={cn("text-[15px] leading-relaxed whitespace-pre-line text-white/70", !expanded && "line-clamp-2")}>{desc}</p>
+                            {desc.length > 180 && (
                                 <button onClick={() => setExpanded(e => !e)} className="mt-1 text-sm font-medium text-fg/80 transition-colors hover:text-fg">
                                     {expanded ? "Show less" : "Read more"}
                                 </button>
@@ -247,12 +268,13 @@ function EntryHero({ entry, onTab }: { entry: EntryView; onTab: (t: Tab) => void
                                 </Tooltip>
                             )
                         )}
+                        {/* The list's status and progress, and the rest: one quiet group. */}
+                        <div className={classic ? "flex max-w-full flex-wrap items-center gap-0.5 rounded-xl border border-white/10 bg-white/[0.06] p-0.5 *:h-[38px]! *:rounded-[9px]! *:bg-transparent! [&>button:not([aria-label])]:px-3.5! [&>button]:text-sm! [&>button:hover]:bg-white/[0.08]! [&>button[data-state=open]]:bg-white/[0.08]!" : "flex max-w-full flex-wrap items-center gap-x-1 gap-y-2"}>
                         <ListStatusButton media={media} entry={list} />
                         {show && list && <ProgressEditor media={media} entry={list} />}
-                        <PluginActions kind="anime-page-button" mediaId={media.id} />
                         <Dropdown>
                             <DropdownTrigger asChild>
-                                <Button variant="subtle" size="lg" className="w-11 px-0" aria-label="More">
+                                <Button variant="ghost" size="lg" className="w-[38px] px-0! text-fg" aria-label="More">
                                     <MoreHorizontal className="size-5" />
                                 </Button>
                             </DropdownTrigger>
@@ -281,11 +303,14 @@ function EntryHero({ entry, onTab }: { entry: EntryView; onTab: (t: Tab) => void
                                 ))}
                             </DropdownContent>
                         </Dropdown>
+                        </div>
+                        <PluginActions kind="anime-page-button" mediaId={media.id} />
                     </div>
                     <div className="max-w-3xl">
                         <RatingBar media={media} entry={list} />
                     </div>
                 </div>
+            </div>
             </div>
         </div>
     )

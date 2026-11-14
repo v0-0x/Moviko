@@ -12,27 +12,30 @@ import {
     Landmark,
     Link2,
     Magnet,
+    MoreVertical,
     Puzzle,
     RefreshCw,
     Search,
     Settings2,
     ShieldAlert,
     ShieldCheck,
-    Star,
+    SlidersHorizontal,
     Trash2,
     Tv,
+    TriangleAlert,
 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { toast } from "@/lib/toast"
-import { Badge, Button, Dialog, EmptyState, Field, IconButton, Input, Select, Switch, Tabs } from "@/components/ui"
+import { Badge, Button, ContextArea, Dialog, Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger, EmptyState, Field, IconButton, Input, Popover, Select, Switch, Tabs } from "@/components/ui"
 import { api } from "@/lib/api"
 import { useExtensions, useMarketplace, useStatus, useStremioAddons } from "@/lib/queries"
+import { useClassic } from "@/lib/themes"
 import type { ExtensionInfo, MarketEntry } from "./extensionTypes"
 import { cn, safeUrl } from "@/lib/utils"
 import { BuiltInTab } from "./providers/BuiltIn"
 import { NuvioTab } from "./providers/Nuvio"
-import { ExtIcon, LanNote, LogsDialog } from "./providers/parts"
+import { ExtIcon, LogsDialog } from "./providers/parts"
 import { StremioTab } from "./providers/Stremio"
 
 const TYPES: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -43,6 +46,16 @@ const TYPES: Record<string, { label: string; icon: React.ReactNode }> = {
     "custom-source": { label: "Custom source", icon: <Globe className="size-3.5" /> },
 }
 
+// Only http(s) links are opened (a manifest's website is whatever it says).
+const openLink = (url: string) => {
+    const safe = safeUrl(url)
+    if (safe) window.open(safe, "_blank", "noopener,noreferrer")
+}
+
+// The extensions, in columns: in this look rows on hairlines, not a box each.
+const grid = (classic: boolean) => cn("grid lg:grid-cols-2 2xl:grid-cols-3", classic ? "gap-2" : "grid-cols-1 gap-x-8 border-t border-line")
+const row = (classic: boolean) => cn("flex items-center gap-3 fade-in", classic ? "card p-3" : "border-b border-line py-3")
+
 type PageTab = "builtin" | "stremio" | "nuvio" | "extensions"
 const PAGE_TABS: PageTab[] = ["builtin", "stremio", "nuvio", "extensions"]
 
@@ -50,6 +63,7 @@ const PAGE_TABS: PageTab[] = ["builtin", "stremio", "nuvio", "extensions"]
 // repositories (pages/providers) and marketplace extensions (streaming and
 // torrent providers, UI plugins).
 export default function ExtensionsPage() {
+    const classic = useClassic()
     const [params, setParams] = useSearchParams()
     const raw = params.get("tab") ?? ""
     // Old links: ?tab=installed and ?tab=marketplace were the extensions'.
@@ -60,26 +74,52 @@ export default function ExtensionsPage() {
     const { data: addons } = useStremioAddons()
     const { data: status } = useStatus()
     const [manualOpen, setManualOpen] = useState(false)
+    const [checking, setChecking] = useState(false)
+    const [updates, setUpdates] = useState<Record<string, string>>({})
     // From another device on the network: what's installed is shown, but only
-    // the computer Moviko runs on installs and sets up extensions.
+    // the computer Moviko runs on installs and sets up extensions (the server
+    // refuses the rest).
     const lan = status?.client === "lan"
     const exts = (installed ?? []).filter(e => e.manifest.type !== "nuvio-provider")
     const nuvio = (installed ?? []).filter(e => e.manifest.type === "nuvio-provider")
     const go = (t: PageTab, v?: string) => setParams(v ? { tab: t, view: v } : { tab: t }, { replace: true })
+    const check = async () => {
+        setChecking(true)
+        try {
+            const u = await api.get<{ id: string; latestVersion: string }[]>("/api/extensions/updates")
+            setUpdates(Object.fromEntries(u.map(x => [x.id, x.latestVersion])))
+            toast.success(u.length ? `${u.length} update(s) available` : "Everything is up to date")
+        } catch (e: any) {
+            toast.error(e.message)
+        } finally {
+            setChecking(false)
+        }
+    }
     return (
         <div className="min-h-full px-6 pt-8 pb-24 md:px-8 xl:px-10">
-            <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-                <div>
-                    <h1 className="text-[1.75rem] font-semibold tracking-tight">Providers & extensions</h1>
-                    <p className="mt-1 max-w-2xl text-muted">Where movies and episodes stream from (the Internet Archive, the luffy and FreeFlix sites, Stremio addons, Nuvio providers, extensions), plus torrent providers and plugins.</p>
-                </div>
-                {tab === "extensions" && status?.client !== "lan" && (
-                    <Button icon={<Link2 className="size-4" />} onClick={() => setManualOpen(true)}>
-                        Install from URL
-                    </Button>
+            <div className="mb-8 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+                <h1 className="text-[1.75rem] font-semibold tracking-tight">Providers & extensions</h1>
+                {tab === "extensions" && (
+                    <div className="flex min-w-0 items-center gap-1">
+                        <Tabs
+                            className="mr-1"
+                            value={view}
+                            onChange={v => go("extensions", v)}
+                            tabs={[
+                                { value: "installed", label: "Installed", count: exts.length },
+                                { value: "marketplace", label: "Marketplace" },
+                            ]}
+                        />
+                        {!lan && view === "installed" && exts.length > 0 && <IconButton label="Check for updates" icon={<RefreshCw className="size-4" />} loading={checking} onClick={check} />}
+                        {!lan && (
+                            <IconButton label="Install from URL" onClick={() => setManualOpen(true)}>
+                                <Link2 className="size-4" />
+                            </IconButton>
+                        )}
+                    </div>
                 )}
             </div>
-            {lan && <p className="mb-6 rounded-lg bg-white/[0.04] px-3 py-2 text-sm text-muted">Extensions are installed and set up on the computer Moviko runs on; from here you can see them.</p>}
+            {lan && <p className={cn("mb-6 text-sm text-muted", classic ? "rounded-xl bg-white/[0.04] px-3 py-2" : "border-l border-line-strong pl-3")}>View only. Set up providers and extensions on the computer Moviko runs on.</p>}
             <Tabs
                 variant="underline"
                 className="mb-8"
@@ -97,18 +137,9 @@ export default function ExtensionsPage() {
                 {tab === "stremio" && <StremioTab />}
                 {tab === "nuvio" && <NuvioTab />}
                 {tab === "extensions" && (
-                    <div className="flex flex-col gap-8">
-                        <Tabs
-                            className="self-start"
-                            value={view}
-                            onChange={v => go("extensions", v)}
-                            tabs={[
-                                { value: "installed", label: "Installed", count: exts.length },
-                                { value: "marketplace", label: "Marketplace" },
-                            ]}
-                        />
-                        {view === "installed" ? <Installed /> : <Marketplace />}
-                    </div>
+                    <fieldset disabled={lan} className="m-0 min-w-0 border-0 p-0">
+                        {view === "installed" ? <Installed updates={updates} /> : <Marketplace />}
+                    </fieldset>
                 )}
             </div>
             <InstallUrlDialog open={manualOpen} onOpenChange={setManualOpen} />
@@ -118,26 +149,11 @@ export default function ExtensionsPage() {
 
 // ---------------------------------------------------------------------------
 
-function Installed() {
+function Installed({ updates }: { updates: Record<string, string> }) {
+    const classic = useClassic()
     const { data, isLoading } = useExtensions()
-    // Updates are checked for and installed on this computer only.
-    const lan = useStatus().data?.client === "lan"
     const qc = useQueryClient()
-    const [checking, setChecking] = useState(false)
-    const [updates, setUpdates] = useState<Record<string, string>>({})
-    const check = async () => {
-        setChecking(true)
-        try {
-            const u = await api.get<{ id: string; latestVersion: string }[]>("/api/extensions/updates")
-            setUpdates(Object.fromEntries(u.map(x => [x.id, x.latestVersion])))
-            toast.success(u.length ? `${u.length} update(s) available` : "Everything is up to date")
-        } catch (e: any) {
-            toast.error(e.message)
-        } finally {
-            setChecking(false)
-        }
-    }
-    if (isLoading) return <div className="card h-40 shimmer" />
+    if (isLoading) return <div className="card h-[4.5rem] shimmer" />
     const list = (data ?? []).filter(e => e.manifest.type !== "nuvio-provider") // in their own tab
     if (!list.length)
         return (
@@ -149,32 +165,23 @@ function Installed() {
                         <Button variant="primary">Browse the marketplace</Button>
                     </Link>
                 }
-            >
-                Streaming and torrent providers and plugins come from the marketplace.
-            </EmptyState>
+            />
         )
-    const groups = Object.keys(TYPES)
+    // A type Moviko doesn't know still gets its rows.
+    const groups = [...Object.keys(TYPES), ...new Set(list.map(e => e.manifest.type).filter(t => !TYPES[t]))]
         .map(t => ({ type: t, items: list.filter(e => e.manifest.type === t) }))
         .filter(g => g.items.length)
     return (
-        <div className="flex flex-col gap-10">
-            {lan ? (
-                <LanNote />
-            ) : (
-                <div>
-                    <Button size="sm" icon={<RefreshCw className="size-4" />} loading={checking} onClick={check}>
-                        Check for updates
-                    </Button>
-                </div>
-            )}
+        <div className="flex flex-col gap-8">
             {groups.map(g => (
                 <section key={g.type}>
-                    <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold tracking-tight">
-                        {TYPES[g.type].icon} {TYPES[g.type].label}
+                    <h2 className={cn("flex items-center gap-2 text-sm font-medium text-muted", classic ? "mb-3" : "mb-1")}>
+                        {/* This look: a small capital label (in a span: a heading has its own face). */}
+                        {TYPES[g.type]?.icon} <span className={classic ? undefined : "label"}>{TYPES[g.type]?.label ?? g.type}</span>
                     </h2>
-                    <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+                    <div className={grid(classic)}>
                         {g.items.map(e => (
-                            <InstalledCard key={e.manifest.id} ext={e} update={updates[e.manifest.id]} onChange={() => qc.invalidateQueries({ queryKey: ["extensions"] })} />
+                            <InstalledRow key={e.manifest.id} ext={e} update={updates[e.manifest.id]} onChange={() => qc.invalidateQueries({ queryKey: ["extensions"] })} />
                         ))}
                     </div>
                 </section>
@@ -183,11 +190,9 @@ function Installed() {
     )
 }
 
-function InstalledCard({ ext, update, onChange }: { ext: ExtensionInfo; update?: string; onChange: () => void }) {
+function InstalledRow({ ext, update, onChange }: { ext: ExtensionInfo; update?: string; onChange: () => void }) {
+    const classic = useClassic()
     const m = ext.manifest
-    // Extensions are installed, set up, turned on or off and removed on this
-    // computer only (their logs are read there too).
-    const lan = useStatus().data?.client === "lan"
     const [cfgOpen, setCfgOpen] = useState(false)
     const [logsOpen, setLogsOpen] = useState(false)
     const [grantOpen, setGrantOpen] = useState(false)
@@ -206,72 +211,86 @@ function InstalledCard({ ext, update, onChange }: { ext: ExtensionInfo; update?:
     }
     const isPlugin = m.type === "plugin"
     const needsGrant = isPlugin && !ext.granted
+    const on = ext.enabled && !needsGrant
+    const facts = [`v${m.version}`, m.author, m.language === "typescript" ? "TS" : "JS", m.lang?.toUpperCase(), ext.running && "Running", update && `${update} available`].filter(Boolean)
+    const notes = !ext.supported || !!ext.error || !!ext.configError || needsGrant
+    // View only from another device (the page's fieldset): no menu either.
+    const lan = useStatus().data?.client === "lan"
+    // The "⋯" button's items, and a right-click's on the row.
+    const menu = (
+        <>
+            {update && (
+                <DropdownItem icon={<ArrowUpCircle />} disabled={busy} onSelect={() => call(api.post(`/api/extensions/${m.id}/update`), `Updated to ${update}`)}>
+                    Update to {update}
+                </DropdownItem>
+            )}
+            {needsGrant && (
+                <DropdownItem icon={<ShieldCheck />} onSelect={() => setGrantOpen(true)}>
+                    Review permissions
+                </DropdownItem>
+            )}
+            {(m.userConfig?.fields?.length ?? 0) > 0 && (
+                <DropdownItem icon={<Settings2 />} onSelect={() => setCfgOpen(true)}>
+                    Configure
+                </DropdownItem>
+            )}
+            <DropdownItem icon={<FileText />} onSelect={() => setLogsOpen(true)}>
+                Logs
+            </DropdownItem>
+            {m.website && (
+                <DropdownItem icon={<ExternalLink />} onSelect={() => openLink(m.website)}>
+                    Website
+                </DropdownItem>
+            )}
+            <DropdownSeparator />
+            <DropdownItem danger icon={<Trash2 />} disabled={busy} onSelect={() => confirm(`Uninstall ${m.name}?`) && call(api.del(`/api/extensions/${m.id}`), "Uninstalled")}>
+                Uninstall
+            </DropdownItem>
+        </>
+    )
     return (
-        <div className="card flex flex-col gap-4 p-4">
-            <div className="flex items-start gap-3">
-                <ExtIcon src={m.icon} className="size-12" />
-                <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                        <p className="truncate font-semibold">{m.name}</p>
-                        <span className="text-xs text-subtle">v{m.version}</span>
+        // The dialogs stay outside the row: a right-click in one is its own.
+        <>
+        <ContextArea menu={lan ? null : menu} className={row(classic)}>
+            <ExtIcon src={m.icon} className={cn("size-11 transition-opacity", !on && "opacity-60")} />
+            <div className="min-w-0 flex-1">
+                <p className={cn("truncate font-medium transition-opacity", !on && "opacity-60")}>{m.name}</p>
+                <p className="mt-0.5 truncate text-sm text-muted">{facts.join(" · ")}</p>
+                {m.description && (
+                    <p className="mt-0.5 truncate text-xs text-subtle" title={m.description}>
+                        {m.description}
+                    </p>
+                )}
+                {notes && (
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
+                        {!ext.supported && <Badge tone="amber">Not supported by Moviko yet</Badge>}
+                        {needsGrant && <span className="text-amber-300">Permissions needed</span>}
+                        {ext.configError && <span className="text-amber-300">Needs configuration</span>}
+                        {ext.error && <span className="line-clamp-3 min-w-0 break-words text-rose-300">{ext.error}</span>}
                     </div>
-                    <p className="text-xs text-subtle">by {m.author}</p>
-                </div>
+                )}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
                 <Switch
-                    checked={ext.enabled && !needsGrant}
-                    disabled={busy || lan}
+                    label={`${m.name} enabled`}
+                    checked={on}
+                    disabled={busy}
                     onChange={v => (v && needsGrant ? setGrantOpen(true) : call(api.post(`/api/extensions/${m.id}/enable`, { enabled: v })))}
                 />
-            </div>
-            {m.description && <p className="line-clamp-2 text-sm text-muted">{m.description}</p>}
-            <div className="flex flex-wrap gap-1.5">
-                <Badge>{m.language === "typescript" ? "TS" : "JS"}</Badge>
-                {m.lang && <Badge className="uppercase">{m.lang}</Badge>}
-                {!ext.supported && <Badge tone="amber">Not supported by Moviko yet</Badge>}
-                {ext.error && <Badge tone="red">Error</Badge>}
-                {ext.configError && <Badge tone="amber">Needs configuration</Badge>}
-                {needsGrant && <Badge tone="amber">Permissions needed</Badge>}
-                {ext.running && <Badge tone="green">Running</Badge>}
-            </div>
-            {ext.error && <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{ext.error}</p>}
-            <div className="mt-auto flex flex-wrap items-center gap-1.5">
-                {update && !lan && (
-                    <Button size="sm" variant="primary" icon={<ArrowUpCircle className="size-4" />} loading={busy} onClick={() => call(api.post(`/api/extensions/${m.id}/update`), `Updated to ${update}`)}>
-                        Update to {update}
-                    </Button>
-                )}
-                {needsGrant && !lan && (
-                    <Button size="sm" variant="primary" icon={<ShieldCheck className="size-4" />} onClick={() => setGrantOpen(true)}>
-                        Review permissions
-                    </Button>
-                )}
-                {(m.userConfig?.fields?.length ?? 0) > 0 && !lan && (
-                    <Button size="sm" icon={<Settings2 className="size-4" />} onClick={() => setCfgOpen(true)}>
-                        Configure
-                    </Button>
-                )}
-                {!lan && (
-                    <Button size="sm" variant="ghost" icon={<FileText className="size-4" />} onClick={() => setLogsOpen(true)}>
-                        Logs
-                    </Button>
-                )}
-                {m.website && (
-                    <a href={safeUrl(m.website) || undefined} target="_blank" rel="noopener noreferrer">
-                        <IconButton size="sm" label="Website">
-                            <ExternalLink className="size-4" />
+                <Dropdown>
+                    <DropdownTrigger asChild>
+                        <IconButton aria-label="More">
+                            <MoreVertical className="size-4" />
                         </IconButton>
-                    </a>
-                )}
-                {!lan && (
-                    <IconButton size="sm" label="Uninstall" className="ml-auto hover:text-rose-300" onClick={() => confirm(`Uninstall ${m.name}?`) && call(api.del(`/api/extensions/${m.id}`), "Uninstalled")}>
-                        <Trash2 className="size-4" />
-                    </IconButton>
-                )}
+                    </DropdownTrigger>
+                    <DropdownContent>{menu}</DropdownContent>
+                </Dropdown>
             </div>
+        </ContextArea>
             <ConfigDialog open={cfgOpen} onOpenChange={setCfgOpen} ext={ext} onSaved={onChange} />
             <LogsDialog open={logsOpen} onOpenChange={setLogsOpen} id={m.id} />
             <GrantDialog open={grantOpen} onOpenChange={setGrantOpen} ext={ext} onDone={onChange} />
-        </div>
+        </>
     )
 }
 
@@ -312,6 +331,7 @@ function ConfigDialog({ open, onOpenChange, ext, onSaved }: { open: boolean; onO
 }
 
 function GrantDialog({ open, onOpenChange, ext, onDone }: { open: boolean; onOpenChange: (v: boolean) => void; ext: ExtensionInfo; onDone: () => void }) {
+    const classic = useClassic()
     const perms = ext.manifest.plugin?.permissions
     const grant = async () => {
         try {
@@ -331,7 +351,7 @@ function GrantDialog({ open, onOpenChange, ext, onDone }: { open: boolean; onOpe
             open={open}
             onOpenChange={onOpenChange}
             title={`Allow ${ext.manifest.name}?`}
-            description="Plugins run sandboxed. Review what this one asks for before enabling it."
+            description="Check what this plugin asks for before enabling it."
             footer={
                 <>
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>
@@ -345,28 +365,28 @@ function GrantDialog({ open, onOpenChange, ext, onDone }: { open: boolean; onOpe
         >
             <div className="flex flex-col gap-5 text-sm">
                 <div>
-                    <p className="mb-2 font-semibold">Requested access</p>
-                    <div className="flex flex-wrap gap-1.5">
+                    <p className={classic ? "mb-2 font-semibold" : "label mb-2 text-muted"}>Requested access</p>
+                    <div className={cn("flex flex-wrap", classic ? "gap-1.5" : "gap-x-3 gap-y-1")}>
                         {scopes.length ? scopes.map(s => <Badge key={s} tone={s.includes("token") || s === "system" ? "amber" : "gray"}>{s}</Badge>) : <span className="text-muted">Nothing special</span>}
                     </div>
                 </div>
                 {domains.length > 0 && (
                     <div>
-                        <p className="mb-2 font-semibold">Network</p>
+                        <p className={classic ? "mb-2 font-semibold" : "label mb-2 text-muted"}>Network</p>
                         <p className="text-muted">{domains.join(", ")}</p>
                         {perms?.allow.networkAccess.reasoning && <p className="mt-1 text-xs text-subtle">“{perms.allow.networkAccess.reasoning}”</p>}
                     </div>
                 )}
                 {unsafe.length > 0 && (
-                    <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-amber-200">
+                    <div className={cn("text-amber-200", classic ? "rounded-xl border border-amber-500/25 bg-amber-500/10 p-3" : "border-l border-amber-400 pl-3")}>
                         <p className="flex items-center gap-2 font-semibold">
                             <ShieldAlert className="size-4" /> Page modification
                         </p>
-                        <p className="mt-1 text-xs">This plugin wants to modify the app’s pages. Moviko doesn’t allow that, so those features won’t work.</p>
+                        <p className="mt-1 text-xs">Moviko doesn’t let plugins modify its pages. Those features won’t work.</p>
                     </div>
                 )}
                 <p className="text-xs text-subtle">
-                    Moviko never gives plugins access to your files, terminal or local network. {scopes.includes("anilist-token") && "This plugin asks for an account token Moviko doesn't have: those features won't work."}
+                    Plugins can't reach your files, terminal or local network. {scopes.includes("anilist-token") && "This plugin asks for an account token Moviko doesn't have: those features won't work."}
                 </p>
             </div>
         </Dialog>
@@ -376,10 +396,8 @@ function GrantDialog({ open, onOpenChange, ext, onDone }: { open: boolean; onOpe
 // ---------------------------------------------------------------------------
 
 function Marketplace() {
+    const classic = useClassic()
     const { data: status } = useStatus()
-    // Devices on the LAN see the marketplace of the settings, as it was
-    // last downloaded.
-    const lan = status?.client === "lan"
     const [url, setUrl] = useState("")
     const effectiveUrl = url || status?.settings.extensions.marketplaceUrl || ""
     const { data, isLoading, error, refetch, isFetching } = useMarketplace(effectiveUrl)
@@ -417,48 +435,64 @@ function Marketplace() {
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="card flex flex-col gap-3 p-4">
-                <div className="flex gap-2">
-                    <Input
-                        defaultValue={effectiveUrl}
-                        disabled={lan}
-                        onKeyDown={e => e.key === "Enter" && setUrl((e.target as HTMLInputElement).value)}
-                        onBlur={e => setUrl(e.target.value)}
-                        icon={<Globe className="size-4" />}
-                    />
-                    {!lan && (
-                        <Button icon={<RefreshCw className={cn("size-4", (reloading || isFetching) && "animate-spin")} />} disabled={reloading} onClick={reload}>
-                            Reload
-                        </Button>
-                    )}
+            <div className="flex flex-wrap items-center gap-2">
+                <div className="min-w-0 basis-full sm:max-w-80 sm:flex-1 sm:basis-0">
+                    <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search…" aria-label="Search extensions" icon={<Search className="size-4" />} />
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
-                    <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search extensions…" icon={<Search className="size-4" />} className="w-72" />
-                    <Select
-                        className="w-48"
-                        value={type}
-                        onChange={setType}
-                        options={[{ value: "all", label: `All types (${data?.length ?? 0})` }, ...Object.entries(TYPES).map(([k, v]) => ({ value: k, label: `${v.label} (${counts[k] ?? 0})` }))]}
-                    />
-                    <Select
-                        className="w-40"
-                        value={sort}
-                        onChange={setSort}
-                        options={[
-                            { value: "stars", label: "Most starred" },
-                            { value: "new", label: "Recently updated" },
-                            { value: "name", label: "Name" },
-                        ]}
-                    />
-                    <label className="flex items-center gap-2 text-sm text-muted">
-                        <Switch checked={hideBroken} onChange={setHideBroken} /> Hide broken
-                    </label>
-                </div>
+                <Select
+                    className="min-w-0 flex-1 sm:w-52 sm:flex-none"
+                    value={type}
+                    onChange={setType}
+                    options={[{ value: "all", label: `All types (${data?.length ?? 0})` }, ...Object.entries(TYPES).map(([k, v]) => ({ value: k, label: `${v.label} (${counts[k] ?? 0})` }))]}
+                />
+                <Popover
+                    side="bottom"
+                    align="end"
+                    className="w-[min(22rem,calc(100vw-1.5rem))]"
+                    trigger={
+                        <IconButton aria-label="Sort and source" className={classic ? "rounded-xl border border-white/10 bg-white/[0.045]" : undefined}>
+                            <SlidersHorizontal className="size-4" />
+                        </IconButton>
+                    }
+                >
+                    <div className="flex flex-col gap-4">
+                        <Field label="Sort">
+                            <Select
+                                value={sort}
+                                onChange={setSort}
+                                options={[
+                                    { value: "stars", label: "Most starred" },
+                                    { value: "new", label: "Recently updated" },
+                                    { value: "name", label: "Name" },
+                                ]}
+                            />
+                        </Field>
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                            Hide broken
+                            <Switch label="Hide broken" checked={hideBroken} onChange={setHideBroken} />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                            <span className="text-[13px] font-medium text-fg/90">Source</span>
+                            <div className="flex gap-2">
+                                <Input
+                                    aria-label="Marketplace URL"
+                                    defaultValue={effectiveUrl}
+                                    onKeyDown={e => e.key === "Enter" && setUrl((e.target as HTMLInputElement).value)}
+                                    onBlur={e => setUrl(e.target.value)}
+                                    icon={<Globe className="size-4" />}
+                                />
+                                <IconButton variant="subtle" label="Reload" disabled={reloading} onClick={reload}>
+                                    <RefreshCw className={cn("size-4", (reloading || isFetching) && "animate-spin")} />
+                                </IconButton>
+                            </div>
+                        </div>
+                    </div>
+                </Popover>
             </div>
             {isLoading && (
-                <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-                    {Array.from({ length: 9 }).map((_, i) => (
-                        <div key={i} className="card h-44 shimmer" />
+                <div className="grid gap-2 lg:grid-cols-2 2xl:grid-cols-3">
+                    {Array.from({ length: 12 }).map((_, i) => (
+                        <div key={i} className="card h-[4.5rem] shimmer" />
                     ))}
                 </div>
             )}
@@ -467,21 +501,21 @@ function Marketplace() {
                     {(error as Error).message}
                 </EmptyState>
             )}
-            <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+            {!isLoading && !error && entries.length === 0 && <EmptyState icon={<Search className="size-6" />} title="Nothing found" />}
+            <div className={cn(grid(classic), !classic && entries.length === 0 && "border-t-0")}>
                 {entries.map(e => (
-                    <MarketCard key={e.id} e={e} />
+                    <MarketRow key={e.id} e={e} />
                 ))}
             </div>
         </div>
     )
 }
 
-function MarketCard({ e }: { e: MarketEntry }) {
+function MarketRow({ e }: { e: MarketEntry }) {
+    const classic = useClassic()
     const [busy, setBusy] = useState(false)
     const [grant, setGrant] = useState<ExtensionInfo | null>(null)
     const qc = useQueryClient()
-    // Installed (and updated from here) on this computer only.
-    const lan = useStatus().data?.client === "lan"
     const install = async () => {
         setBusy(true)
         try {
@@ -495,72 +529,90 @@ function MarketCard({ e }: { e: MarketEntry }) {
             setBusy(false)
         }
     }
-    const t = TYPES[e.type]
+    const facts = [
+        TYPES[e.type]?.label,
+        `v${e.version}`,
+        e.author,
+        e.lang?.toUpperCase(),
+        e.stars > 0 && `★ ${e.stars}`,
+        e.official && "Official",
+        e.workingTag && "Working",
+        e.brokenTag && "Broken",
+        e.deprecatedTag && "Deprecated",
+    ].filter(Boolean)
+    const needs = (e.unsupported?.length ?? 0) > 0
+    // View only from another device (the page's fieldset): no menu either.
+    const lan = useStatus().data?.client === "lan"
+    // The "⋯" button's items, and a right-click's on the row.
+    const menu = (e.website || e.permalink) && (
+        <>
+            {e.website && (
+                <DropdownItem icon={<ExternalLink />} onSelect={() => openLink(e.website)}>
+                    Website
+                </DropdownItem>
+            )}
+            {e.permalink && (
+                <DropdownItem icon={<ShieldCheck />} onSelect={() => openLink(e.permalink)}>
+                    VirusTotal scan{e.flags ? ` · ${e.flags}` : ""}
+                </DropdownItem>
+            )}
+        </>
+    )
     return (
-        <div className={cn("card flex flex-col gap-3 p-4 transition hover:border-line-strong", e.brokenTag && "opacity-60")}>
-            <div className="flex items-start gap-3">
-                <ExtIcon src={e.icon} className="size-12" />
-                <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">{e.name}</p>
-                    <p className="truncate text-xs text-subtle">
-                        by {e.author} · v{e.version}
+        <>
+        <ContextArea menu={lan ? null : menu} className={row(classic)}>
+            <ExtIcon src={e.icon} className={cn("size-11", e.brokenTag && "opacity-60")} />
+            <div className="min-w-0 flex-1">
+                <p className={cn("truncate font-medium", e.brokenTag && "opacity-60")}>{e.name}</p>
+                <p className={cn("mt-0.5 truncate text-sm text-muted", e.brokenTag && "text-rose-300/80", e.deprecatedTag && !e.brokenTag && "text-amber-300/80")}>{facts.join(" · ")}</p>
+                {e.description && (
+                    <p className="mt-0.5 truncate text-xs text-subtle" title={e.description}>
+                        {e.description}
                     </p>
-                </div>
-                {e.stars > 0 && (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-amber-300">
-                        <Star className="size-3.5 fill-amber-300" /> {e.stars}
-                    </span>
+                )}
+                {(!e.supported || needs) && (
+                    <div className={cn("mt-1 flex flex-wrap", classic ? "gap-1.5" : "gap-x-3 gap-y-1")}>
+                        {!e.supported && <Badge tone="amber">Not supported</Badge>}
+                        {needs && (
+                            <span className="min-w-0" title={`Moviko doesn't support ${e.unsupported!.join(", ")}. Parts of this plugin won't work.`}>
+                                <Badge tone="amber" className="max-w-full">
+                                    <TriangleAlert className="size-3 shrink-0" /> <span className="truncate">Needs {e.unsupported!.join(", ")}</span>
+                                </Badge>
+                            </span>
+                        )}
+                    </div>
                 )}
             </div>
-            <p className="line-clamp-2 min-h-10 text-sm text-muted">{e.description}</p>
-            <div className="flex flex-wrap gap-1.5">
-                {t && (
-                    <Badge tone="brand">
-                        {t.icon}
-                        {t.label}
-                    </Badge>
-                )}
-                {e.lang && <Badge className="uppercase">{e.lang}</Badge>}
-                {e.workingTag && (
-                    <Badge tone="green">
-                        <CheckCircle2 className="size-3" /> Working
-                    </Badge>
-                )}
-                {e.brokenTag && <Badge tone="red">Broken</Badge>}
-                {e.deprecatedTag && <Badge tone="amber">Deprecated</Badge>}
-                {e.official && <Badge tone="blue">Official</Badge>}
-                {!e.supported && <Badge tone="amber">Not supported</Badge>}
-            </div>
-            <div className="mt-auto flex items-center gap-2 pt-1">
-                {lan ? (
-                    e.installed && (
-                        <Badge tone="green">
-                            <CheckCircle2 className="size-3" /> Installed
-                        </Badge>
-                    )
-                ) : e.installed ? (
+            <div className="flex shrink-0 items-center gap-1">
+                {e.installed ? (
                     e.hasUpdate ? (
-                        <Button size="sm" variant="primary" icon={<ArrowUpCircle className="size-4" />} loading={busy} onClick={install}>
-                            Update to {e.version}
+                        <Button size="sm" icon={<ArrowUpCircle className="size-4" />} loading={busy} onClick={install} aria-label={`Update to ${e.version}`} title={`Update to ${e.version}`}>
+                            <span className="max-sm:sr-only">Update</span>
                         </Button>
                     ) : (
-                        <Badge tone="green">
-                            <CheckCircle2 className="size-3" /> Installed
-                        </Badge>
+                        <span className={cn("flex items-center gap-1.5 px-1 text-emerald-300", classic ? "text-xs font-medium" : "label text-[10px]")}>
+                            <CheckCircle2 className="size-4" /> <span className="max-sm:sr-only">Installed</span>
+                        </span>
                     )
                 ) : (
-                    <Button size="sm" variant="white" icon={<Download className="size-4" />} loading={busy} onClick={install} disabled={!e.manifestURI}>
-                        Install
+                    <Button size="sm" icon={<Download className="size-4" />} loading={busy} onClick={install} disabled={!e.manifestURI} aria-label="Install">
+                        <span className="max-sm:sr-only">Install</span>
                     </Button>
                 )}
-                {e.permalink && (
-                    <a href={safeUrl(e.permalink) || undefined} target="_blank" rel="noopener noreferrer" className="ml-auto text-xs text-subtle hover:text-fg" title="VirusTotal scan">
-                        VT {e.flags}
-                    </a>
+                {menu && (
+                    <Dropdown>
+                        <DropdownTrigger asChild>
+                            <IconButton aria-label="More">
+                                <MoreVertical className="size-4" />
+                            </IconButton>
+                        </DropdownTrigger>
+                        <DropdownContent>{menu}</DropdownContent>
+                    </Dropdown>
                 )}
             </div>
+        </ContextArea>
             {grant && <GrantDialog open onOpenChange={v => !v && setGrant(null)} ext={grant} onDone={() => qc.invalidateQueries({ queryKey: ["extensions"] })} />}
-        </div>
+        </>
     )
 }
 
@@ -586,7 +638,7 @@ function InstallUrlDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
             open={open}
             onOpenChange={onOpenChange}
             title="Install from URL"
-            description="Paste the manifest URL of a marketplace extension."
+            description="Paste an extension's manifest URL."
             footer={
                 <Button variant="primary" loading={busy} disabled={!url.trim()} onClick={go}>
                     Install

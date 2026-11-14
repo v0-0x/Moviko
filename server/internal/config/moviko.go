@@ -55,6 +55,11 @@ type ProviderSettings struct {
 	Archive bool `json:"archive"`
 	// Sites are the built-in streaming sites.
 	Sites StreamSiteSettings `json:"sites"`
+	// WebPlayers are the built-in web players (the sites Streambert
+	// streams from: providers/webplayers), by their key ("vidsrc",
+	// "vidfast"...): on or off, and a mirror's address. They're unofficial
+	// sites too: off until the user turns them on.
+	WebPlayers map[string]StreamSite `json:"webPlayers"`
 	// StremioCatalogs are addon collections the Providers page lists
 	// (JSON arrays of addon descriptors, like Stremio's own).
 	StremioCatalogs []string `json:"stremioCatalogs"`
@@ -248,6 +253,14 @@ func sanitizeMoviko(s *Settings) {
 		site.URL = strings.TrimSpace(site.URL)
 	}
 	sites.DecryptURL = strings.TrimSpace(sites.DecryptURL)
+	players := map[string]StreamSite{}
+	for key, site := range s.Providers.WebPlayers {
+		site.URL = strings.TrimSpace(site.URL)
+		if key = strings.TrimSpace(key); key != "" && len(key) <= 32 && len(players) < 64 && (site.Enabled || site.URL != "") {
+			players[key] = site
+		}
+	}
+	s.Providers.WebPlayers = players
 	if s.TorrentSources.Torznab == nil {
 		s.TorrentSources.Torznab = []TorznabIndexer{}
 	}

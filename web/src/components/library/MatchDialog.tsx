@@ -193,7 +193,7 @@ export function MatchDialog({
                 }}
                 initialQuery={initialQuery}
                 heading={`Match ${files.length} ${files.length === 1 ? "file" : "files"} to…`}
-                description="Search TMDB for the right movie or show. The match is locked, so later scans keep it."
+                description="Later scans keep this match."
                 typeFilter={looksLikeShow ? "TV" : ""}
             />
         )

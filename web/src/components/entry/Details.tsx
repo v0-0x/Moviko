@@ -4,6 +4,7 @@ import { Carousel, MediaCard } from "@/components/MediaCard"
 import { ListCardMenu } from "@/components/ListCardMenu"
 import { mediaIsShow, totalEpisodes } from "@/lib/ids"
 import type { CharacterEdge, CrewMember, Media, WatchProvider } from "@/lib/types"
+import { useClassic } from "@/lib/themes"
 import { cn, externalLinks, formatDate, fuzzyDate, img, languageName, runtimeLabel } from "@/lib/utils"
 import { Tooltip } from "../ui"
 
@@ -255,6 +256,7 @@ function Crew({ crew }: { crew: CrewMember[] }) {
 // YouTube before that).
 function Trailer({ id, thumbnail }: { id: string; thumbnail?: string }) {
     const [playing, setPlaying] = useState(false)
+    const classic = useClassic()
     const thumb = thumbnail || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`
     return (
         <section>
@@ -264,7 +266,7 @@ function Trailer({ id, thumbnail }: { id: string; thumbnail?: string }) {
                     YouTube <ExternalLink className="size-3.5" />
                 </a>
             </div>
-            <div className="relative w-full max-w-3xl overflow-hidden rounded-lg bg-black ring-1 ring-white/10">
+            <div className="marks on-dark relative w-full max-w-3xl overflow-hidden rounded-lg bg-black ring-1 ring-white/10">
                 {playing ? (
                     <iframe
                         src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0`}
@@ -277,7 +279,7 @@ function Trailer({ id, thumbnail }: { id: string; thumbnail?: string }) {
                     <button onClick={() => setPlaying(true)} className="group relative block w-full" aria-label="Play the trailer">
                         <img src={img(thumb)} alt="" className="aspect-video w-full object-cover transition-[filter] duration-300 group-hover:brightness-110" />
                         <span className="absolute inset-0 grid place-items-center bg-black/35">
-                            <span className={cn("flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-neutral-950 shadow-lg shadow-black/40")}>
+                            <span className={cn("flex items-center gap-2 bg-white px-4", classic ? "rounded-full py-2 text-sm font-medium text-neutral-950 shadow-lg shadow-black/40" : "label rounded-sm py-2.5 text-black")}>
                                 <Play className="size-4 fill-current" /> Play trailer
                             </span>
                         </span>

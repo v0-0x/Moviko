@@ -100,7 +100,7 @@ export function LetterboxdSection({ draft, set }: SectionProps) {
                 ) : (
                     <Stack
                         label="Connect your Letterboxd account"
-                        help="Your username, as in letterboxd.com/username. Moviko reads your public diary: the films you log there, with your ratings and likes, come to your list. No password needed."
+                        help="As in letterboxd.com/username. Moviko reads your public diary into your list. No password needed."
                     >
                         <div className="flex gap-2">
                             <Input icon={<AtSign className="size-4" />} placeholder="username" value={username} onChange={e => setUsername(e.target.value)} onKeyDown={e => e.key === "Enter" && connect()} />
@@ -113,7 +113,7 @@ export function LetterboxdSection({ draft, set }: SectionProps) {
             </Group>
 
             <Group title="Sync" description="What the diary brings and what Moviko keeps for Letterboxd.">
-                <Row label="Sync automatically" help="Read your Letterboxd diary in the background (its last 50 entries; older ones come with an export, below).">
+                <Row label="Sync automatically" help="Reads your diary's last 50 entries. Older ones come with an export, below.">
                     <Switch checked={l?.autoSync ?? false} onChange={v => set("letterboxd", { autoSync: v })} />
                 </Row>
                 {l?.autoSync && (
@@ -121,10 +121,10 @@ export function LetterboxdSection({ draft, set }: SectionProps) {
                         <Input type="number" min={15} className="w-24" value={l.syncMinutes} onChange={e => set("letterboxd", { syncMinutes: Number(e.target.value) })} />
                     </Row>
                 )}
-                <Row label="Log the movies I watch" help="A movie watched to the end (or marked watched) in Moviko gets a diary entry, with your rating, ready to send to Letterboxd.">
+                <Row label="Log the movies I watch" help="A movie you finish gets a diary entry, ready to send to Letterboxd.">
                     <Switch checked={l?.logWatched ?? false} onChange={v => set("letterboxd", { logWatched: v })} />
                 </Row>
-                <Row label="Import my watchlist" help="The films of your Letterboxd watchlist go on your Moviko watchlist (from an export, below).">
+                <Row label="Import my watchlist" help="From an export, below.">
                     <Switch checked={l?.importWatchlist ?? false} onChange={v => set("letterboxd", { importWatchlist: v })} />
                 </Row>
             </Group>
@@ -243,7 +243,7 @@ function ExportGroup({ pending, apiConnected }: { pending: number; apiConnected:
     return (
         <Group
             title="Send to Letterboxd"
-            description="Movies you watch in Moviko are logged in its diary. Letterboxd takes them as a CSV file: download it, import it on letterboxd.com, then tell Moviko so the next file only has new entries."
+            description="Letterboxd takes Moviko's diary as a CSV file. Download it, import it there, then confirm here."
         >
             <Row label="Waiting to be sent" help={pending ? `${plural(pending, "diary entry", "diary entries")} not on Letterboxd yet` : "Everything is on Letterboxd"}>
                 <Badge tone={pending ? "amber" : "green"}>{pending}</Badge>

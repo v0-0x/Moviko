@@ -42,8 +42,8 @@ ffmpeg, ffprobe and yt-dlp for your Mac (Apple silicon or Intel) into Moviko's
 own folder, `~/Library/Application Support/Moviko/bin`, in a Terminal window:
 no Homebrew, no password. ffmpeg comes from
 [Martin Riedl's builds](https://ffmpeg.martin-riedl.de) (and
-[evermeet.cx](https://evermeet.cx/ffmpeg/) on Intel), yt-dlp from its GitHub
-project. The script is
+[ffmpeg-static](https://github.com/eugeneware/ffmpeg-static) on GitHub when
+that site fails), yt-dlp from its GitHub project. The script is
 [`server/internal/macsetup/install-tools.command`](../../server/internal/macsetup/install-tools.command).
 
 mpv is optional. On an Apple silicon Mac with [Homebrew](https://brew.sh) the
@@ -104,7 +104,7 @@ the zip as an update unpacks it, and that it starts and its server answers)
 and keeps the disk image and the zip as downloadable workflow artifacts, so a
 branch can be tried before it's merged. Only pushes to the default branch (or
 a run from the **Actions** tab with **publish** ticked) publish the release
-`macos-v<version>`. The version is `2.0.<commits since 2.0.0's>`
+`macos-v<version>`. The version is `3.0.<commits since 3.0.0's>`
 (`1.0.<number of commits>` before), like the Windows release's. Each published
 build is a beta (a pre-release) unless its commit's message says `[stable]` or
 it's run by hand as stable (see packaging/windows/README.md). The newest 10

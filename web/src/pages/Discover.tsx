@@ -1,25 +1,25 @@
-import { ChevronLeft, ChevronRight, Compass, Info, Play, RefreshCw, Star } from "lucide-react"
+import { ChevronLeft, ChevronRight, Compass, Play, RefreshCw } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { ListCardMenu } from "@/components/ListCardMenu"
 import { Carousel, MediaCard, MediaCardSkeleton } from "@/components/MediaCard"
 import { PluginSlot } from "@/components/plugins/PluginSlot"
-import { Button, ChipRow, EmptyState, ErrorState, SectionHeader, Skeleton, Tabs } from "@/components/ui"
+import { artButton, Button, ChipRow, EmptyState, ErrorState, SectionHeader, Skeleton, Tabs } from "@/components/ui"
 import { HolidayIcon } from "@/components/HolidayBadge"
 import { usePersisted } from "@/lib/hooks"
 import { useDiscover, useGenres, useSearch, useStatus } from "@/lib/queries"
 import { useStore } from "@/lib/store"
-import { holidayStore } from "@/lib/themes"
+import { holidayStore, useClassic } from "@/lib/themes"
 import type { Discover, Media } from "@/lib/types"
-import { banner, cleanDescription, cn, formatLabel, title, year } from "@/lib/utils"
+import { banner, cn, formatLabel, title, year } from "@/lib/utils"
 
 type Kind = "" | "MOVIE" | "TV"
-type Row = { key: Exclude<keyof Discover, "fetchedAt">; title: string; subtitle?: string; more: string; kind: Kind }
+type Row = { key: Exclude<keyof Discover, "fetchedAt">; title: string; more: string; kind: Kind }
 
 const ROWS: Row[] = [
     { key: "trending", title: "Trending this week", more: "/search?sort=TRENDING_DESC", kind: "" },
     { key: "nowPlaying", title: "Now in theaters", more: "/search?type=MOVIE&status=RELEASING&sort=POPULARITY_DESC", kind: "MOVIE" },
-    { key: "onTheAir", title: "On the air", subtitle: "Shows with new episodes this week", more: "/search?type=TV&status=RELEASING&sort=POPULARITY_DESC", kind: "TV" },
+    { key: "onTheAir", title: "On the air", more: "/search?type=TV&status=RELEASING&sort=POPULARITY_DESC", kind: "TV" },
     { key: "upcoming", title: "Coming soon", more: "/search?type=MOVIE&status=NOT_YET_RELEASED&sort=POPULARITY_DESC", kind: "MOVIE" },
     { key: "popularMovies", title: "Popular movies", more: "/search?type=MOVIE&sort=POPULARITY_DESC", kind: "MOVIE" },
     { key: "popularShows", title: "Popular shows", more: "/search?type=TV&sort=POPULARITY_DESC", kind: "TV" },
@@ -76,32 +76,19 @@ export default function DiscoverPage() {
 
     return (
         <div className="min-h-full pb-24">
-            {isLoading ? <Skeleton className="h-[440px] rounded-none" /> : current && <Featured media={current} index={i} count={featured.length} onIndex={setI} onHold={setHold} />}
+            {isLoading ? <Skeleton className="h-[clamp(340px,50vh,540px)] rounded-none max-sm:h-[440px]" /> : current && <Featured media={current} index={i} count={featured.length} onIndex={setI} onHold={setHold} />}
             {/* Without a hero banner there is nothing to overlap. */}
             <div className={cn("relative z-10 flex flex-col gap-10 px-6 md:px-8 xl:px-10", hero ? "-mt-14" : "pt-8")}>
                 <PluginSlot slot="after-discover-screen-header" />
-                <div className="flex flex-wrap items-center gap-4">
-                    <Tabs
-                        value={kind}
-                        onChange={setKind}
-                        tabs={[
-                            { value: "", label: "All" },
-                            { value: "MOVIE", label: "Movies" },
-                            { value: "TV", label: "Shows" },
-                        ]}
-                    />
-                    <ChipRow label="More genres" className="min-w-0 flex-1">
-                        {(genres ?? []).map(g => (
-                            <Link
-                                key={g}
-                                to={`/search?genre=${encodeURIComponent(g)}${kind ? `&type=${kind}` : ""}`}
-                                className="flex h-8 shrink-0 items-center rounded-full bg-white/[0.06] px-3.5 text-[13px] font-medium text-fg/80 transition-colors hover:bg-white/[0.1] hover:text-fg"
-                            >
-                                {g}
-                            </Link>
-                        ))}
-                    </ChipRow>
-                </div>
+                <Tabs
+                    value={kind}
+                    onChange={setKind}
+                    tabs={[
+                        { value: "", label: "All" },
+                        { value: "MOVIE", label: "Movies" },
+                        { value: "TV", label: "Shows" },
+                    ]}
+                />
                 {shown.length === 0 && (
                     <EmptyState
                         icon={<Compass className="size-6" />}
@@ -112,7 +99,7 @@ export default function DiscoverPage() {
                             </Button>
                         }
                     >
-                        TMDB didn't return anything. Check your internet connection and your API key, then try again.
+                        TMDB returned nothing. Check your connection and your API key.
                     </EmptyState>
                 )}
                 {holiday && picks && pickMedia.length > 0 && (
@@ -127,7 +114,7 @@ export default function DiscoverPage() {
                             action={
                                 picks.more && (
                                     <Link to={picks.more} className="text-[13px] font-medium text-muted transition-colors hover:text-fg">
-                                        See more
+                                        See all
                                     </Link>
                                 )
                             }
@@ -139,15 +126,14 @@ export default function DiscoverPage() {
                     <section key={r.key}>
                         <SectionHeader
                             title={r.title}
-                            subtitle={r.subtitle}
                             action={
                                 <Link to={r.more} className="text-[13px] font-medium text-muted transition-colors hover:text-fg">
-                                    See more
+                                    See all
                                 </Link>
                             }
                         />
                         {isLoading ? (
-                            <div className="flex gap-4">
+                            <div className="flex gap-4 overflow-hidden">
                                 {Array.from({ length: 7 }).map((_, k) => (
                                     <div key={k} className="w-[160px] shrink-0">
                                         <MediaCardSkeleton />
@@ -163,54 +149,54 @@ export default function DiscoverPage() {
                         )}
                     </section>
                 ))}
+                {/* Last: the rows above are what most come for. */}
+                {(genres ?? []).length > 0 && (
+                    <section>
+                        <SectionHeader title="Genres" />
+                        <ChipRow label="More genres">
+                            {(genres ?? []).map(g => (
+                                <Link
+                                    key={g}
+                                    to={`/search?genre=${encodeURIComponent(g)}${kind ? `&type=${kind}` : ""}`}
+                                    className="flex h-9 shrink-0 items-center rounded-xl border border-white/10 bg-white/[0.045] px-4 text-[13px] font-medium text-fg/80 transition-colors hover:bg-white/[0.09] hover:text-fg"
+                                >
+                                    {g}
+                                </Link>
+                            ))}
+                        </ChipRow>
+                    </section>
+                )}
             </div>
         </div>
     )
 }
 
 function Featured({ media, index, count, onIndex, onHold }: { media: Media; index: number; count: number; onIndex: (i: number) => void; onHold: (on: boolean) => void }) {
-    const desc = cleanDescription(media.description)
+    const classic = useClassic()
     const score = media.averageScore ?? media.meanScore
-    const facts = [formatLabel(media.format), year(media) || "", media.genres?.slice(0, 3).join(", ") ?? ""].filter(Boolean)
+    // One line: rating, format, year, then its first genres.
+    const facts = [score ? (score / 10).toFixed(1) : "", formatLabel(media.format), year(media) || "", media.genres?.slice(0, 3).join(", ") ?? ""].filter(Boolean)
     return (
         <div
-            className="relative h-[440px] overflow-hidden"
+            className="relative h-[clamp(340px,50vh,540px)] overflow-hidden max-sm:h-[440px]"
             onFocus={() => onHold(true)}
             onBlur={e => !e.currentTarget.contains(e.relatedTarget as Node | null) && onHold(false)}
         >
             <img key={media.id} src={banner(media)} alt="" className="absolute inset-0 size-full object-cover fade-in [mask-image:linear-gradient(to_bottom,#000_80%,transparent)]" />
-            <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/50 to-bg/5" />
-            <div className="absolute inset-0 bg-gradient-to-r from-bg/90 via-bg/40 to-transparent" />
-            <div key={media.id + "t"} className="absolute bottom-24 left-6 max-w-2xl rise-in md:left-8 xl:left-10">
-                <p className="text-sm font-medium text-white/65">Trending #{index + 1}</p>
-                <h1 className="mt-1.5 text-4xl leading-[1.1] font-semibold tracking-tight text-white md:text-[2.75rem]">{title(media)}</h1>
-                <div className="mt-3 flex flex-wrap items-center gap-x-2 text-sm text-white/75">
-                    {!!score && (
-                        <>
-                            <span className="flex items-center gap-1 font-medium text-white">
-                                <Star className="size-3.5 fill-amber-300 text-amber-300" /> {(score / 10).toFixed(1)}
-                            </span>
-                            <span className="text-white/30">·</span>
-                        </>
-                    )}
-                    {facts.map((f, k) => (
-                        <span key={k} className="flex items-center gap-2">
-                            {k > 0 && <span className="text-white/30">·</span>}
-                            <span className={k === facts.length - 1 && k > 1 ? "text-white/55" : undefined}>{f}</span>
-                        </span>
-                    ))}
-                </div>
-                {desc && <p className="mt-3 line-clamp-2 max-w-xl text-[15px] leading-relaxed text-white/65">{desc}</p>}
-                <div className="mt-5 flex gap-2.5">
+            <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/60 to-bg/5" />
+            <div className="absolute inset-0 bg-gradient-to-r from-bg/80 via-bg/25 to-transparent" />
+            <div key={media.id + "t"} className="absolute inset-x-0 bottom-24 max-w-3xl px-6 rise-in md:px-8 xl:px-10">
+                <p className={cn(classic ? "text-sm font-medium" : "label", "text-white/65")}>Trending #{index + 1}</p>
+                <h1 className="mt-1.5 line-clamp-2 text-4xl leading-[1.1] font-semibold tracking-tight text-white md:text-[2.75rem]">{title(media)}</h1>
+                <p className="mt-2 line-clamp-1 text-[15px] text-white/80">{facts.join(" · ")}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
                     <Link to={`/entry?id=${media.id}`}>
-                        <Button variant="white" size="lg" icon={<Play className="size-4 fill-current" />}>
+                        <Button variant="white" icon={<Play className="size-4 fill-current" />}>
                             Watch now
                         </Button>
                     </Link>
-                    <Link to={`/entry?id=${media.id}&tab=overview`}>
-                        <Button variant="ghost" size="lg" className="glass text-white hover:bg-black/70 hover:text-white" icon={<Info className="size-4" />}>
-                            Details
-                        </Button>
+                    <Link to={`/entry?id=${media.id}&tab=overview`} className={classic ? "focus-ring inline-flex h-9 items-center rounded-lg bg-white/10 px-3.5 text-sm font-medium text-white backdrop-blur transition-colors hover:bg-white/20" : artButton}>
+                        Details
                     </Link>
                 </div>
             </div>

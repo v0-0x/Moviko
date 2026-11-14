@@ -5,7 +5,7 @@ import {
     Copy,
     Check,
     FastForward,
-    Gauge,
+    SlidersHorizontal,
     Languages,
     ListVideo,
     Loader2,
@@ -32,20 +32,34 @@ import { api, ApiError, qs } from "@/lib/api"
 import { episodeIndex, formatKey, mediaIsShow, nextEpisode, splitKey } from "@/lib/ids"
 import { markNoPicture, pictureState, prefersHls, randomId, setSoftwareVideo, softwareVideo, videoCaps, videoFormat } from "@/lib/playback"
 import { canPip, closeMini, expandMini, openMini } from "@/lib/pip"
+import { isItem, itemLabel, playlistNext, playlistStore } from "@/lib/playlist"
 import { useSettings, useStatus } from "@/lib/queries"
 import { skipAt, skipName, skipOn, skipRun, isSkippable } from "@/lib/skips"
 import { playerStore, useStore, type PlayerRequest } from "@/lib/store"
 import { formatDelay, setSubDelay, subDelay, subLine, subStyleStore, subStyleVars } from "@/lib/subtitles"
+import { useClassic } from "@/lib/themes"
 import type { EntryView, EpisodeView, PlayResult, Probe, Settings, SkipInterval, StreamSource, StreamSubtitle, TorrentStreamStatus, TrackPrefs } from "@/lib/types"
 import { android, androidApp, move, tv } from "@/lib/tv"
-import { cn, copyText, formatBytes, formatDuration, img, readLocal } from "@/lib/utils"
+import { cn, copyText, formatBytes, formatDuration, img, readLocal, writeLocal } from "@/lib/utils"
 import { parseVTT, type Cue } from "@/lib/vtt"
-import { Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownSeparator, DropdownTrigger } from "../ui"
+import { DarkScope, Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownSeparator, DropdownTrigger } from "../ui"
 
 type SubOption = { key: string; label: string; lang: string; title: string; index: number; url: string; bitmap?: boolean }
 // What the server picked to open a file with (player.ChooseTracks): the
 // audio track's index (-1: the file's default) and the subtitles' key.
 type TrackChoice = { audio: number; sub: string; note?: string }
+
+// A source from here, or a blob: (hls.js's, its data fetched with CORS):
+// one Web Audio can take (volume boost).
+const sameOrigin = (src: string) => {
+    if (!src) return true
+    if (src.startsWith("blob:")) return true
+    try {
+        return new URL(src, location.href).origin === location.origin
+    } catch {
+        return false
+    }
+}
 
 const langNames: Record<string, string> = {
     jpn: "Japanese", ja: "Japanese", eng: "English", en: "English", spa: "Spanish", es: "Spanish", fre: "French", fra: "French", fr: "French",
@@ -111,7 +125,9 @@ export function PlayerOverlay({ mini = false }: { mini?: boolean }) {
     const stage = useRef<HTMLDivElement>(null)
     if (!req) return null
     return (
-        <div ref={stage} className="fixed inset-0 z-[80] bg-black fade-in">
+        // on-dark: the player stays dark in a light theme, its menus too.
+        <div ref={stage} data-player-overlay className="on-dark fixed inset-0 z-[80] bg-black fade-in">
+            <DarkScope.Provider value={true}>
             <Player
                 key={JSON.stringify(req)}
                 req={req}
@@ -122,6 +138,7 @@ export function PlayerOverlay({ mini = false }: { mini?: boolean }) {
                     if (mini) closeMini()
                 }}
             />
+            </DarkScope.Provider>
         </div>
     )
 }
@@ -190,6 +207,13 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
 
     const [subs, setSubs] = useState<SubOption[]>([])
     const [subKey, setSubKey] = useState<string>("off")
+    // An image subtitle track picked (PGS, VobSub): the server draws it onto
+    // the video, converted (-1: none). Only for the server's own files.
+    const burn = useMemo(() => {
+        const sub = subs.find(s => s.key === subKey)
+        return sub?.bitmap && req.kind === "local" && !probe?.noBurn ? sub.index : -1
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [subKey, subs, req.kind, probe?.noBurn])
     // The subtitles of this stream were picked by hand.
     const subPicked = useRef(false)
     // Why it didn't play, with its buttons: a TV's remote goes to them.
@@ -208,10 +232,21 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
     const [skips, setSkips] = useState<SkipInterval[]>([])
 
     const [paused, setPaused] = useState(true)
+    // This look's player (the classic one keeps the rounded panel): a mark
+    // in the middle for a moment when Play or Pause is pressed.
+    const classic = useClassic()
+    const [mark, setMark] = useState<{ play: boolean; n: number } | null>(null)
     const [time, setTime] = useState(0) // absolute time
     const [duration, setDuration] = useState(0)
     const [buffered, setBuffered] = useState(0)
-    const [volume, setVolume] = useState(() => Number(readLocal("kumobox-volume") ?? 1))
+    // Volume boost: the volume goes to 300% (Web Audio, see boostTo). Only
+    // for a source from here (or a blob: hls.js's): another site's, without
+    // CORS, would go silent through Web Audio (see onLoadStart).
+    const [boost, setBoost] = useState(() => readLocal("kumobox-volume-boost") === "1")
+    const [boostOk, setBoostOk] = useState(true)
+    const maxVolume = boost && boostOk ? 3 : 1
+    const [volume, setVolume] = useState(() => Math.min(readLocal("kumobox-volume-boost") === "1" ? 3 : 1, Number(readLocal("kumobox-volume") ?? 1)))
+    const [stats, setStats] = useState(() => readLocal("kumobox-player-stats") === "1")
     const [muted, setMuted] = useState(false)
     const [rate, setRate] = useState(1)
     const [fullscreen, setFullscreen] = useState(() => !!document.fullscreenElement)
@@ -238,8 +273,18 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
     const [resumedFrom, setResumedFrom] = useState(0)
     // The "Up next" card put away for this episode (and no playing on).
     const [upNextOff, setUpNextOff] = useState(false)
+    // Played from a playlist (lib/playlist): it decides what's next, not
+    // the show.
+    const listPos = useStore(playlistStore)
+    const inList = listPos && isItem(req, listPos.items[listPos.index]) ? listPos : null
+    const listNext = inList?.items[inList.index + 1]
+    // What plays next, as Up next says it.
+    const upNext = inList ? (listNext ? { title: listNext.title, line: itemLabel(listNext) === "Movie" ? "" : itemLabel(listNext) } : null) : nextEp ? { title: nextEp.episode >= 1000 ? formatKey(nextEp.episode) : `Episode ${nextEp.episode}`, line: "" } : null
 
     const startAt = useRef(0)
+    // Where the episode was opened to start (resume or ?start), checked once
+    // it plays: a note when it started elsewhere (see onPlaying).
+    const openedAt = useRef<{ at: number; checked: boolean } | null>(null)
     const lastReport = useRef(0)
     const ended = useRef(false)
     const skipped = useRef<Set<string>>(new Set())
@@ -315,11 +360,18 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                     const m =
                         softwareVideo() && res.probe.video?.length ? "transcode" : ai === 0 && res.probe.method === "direct" ? "direct" : res.probe.method === "direct" ? "remux" : res.probe.method
                     setMethod(m)
-                    // Ignore saved positions past the end of this file.
+                    // Ignore saved positions past the end of this file (kept when
+                    // its length isn't known).
                     // (One handed over from the other player is where it was, also
                     // in the last seconds.)
-                    startAt.current = req.start !== undefined ? Math.min(req.start, Math.max(0, res.probe.duration - 1)) : res.resumeAt && res.resumeAt < res.probe.duration - 10 ? res.resumeAt : 0
+                    startAt.current =
+                        req.start !== undefined
+                            ? Math.min(req.start, Math.max(0, res.probe.duration - 1))
+                            : res.resumeAt && (!res.probe.duration || res.resumeAt < res.probe.duration - 10)
+                              ? res.resumeAt
+                              : 0
                     if (m !== "direct") setOffset(startAt.current)
+                    openedAt.current = { at: startAt.current, checked: false }
                     if (startAt.current > 30 && !handed) setResumedFrom(startAt.current)
 
                     const subOpts: SubOption[] = [
@@ -399,7 +451,16 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                     })
                     .catch(() => {})
             } catch (e: any) {
-                if (!cancelled) setError(e.message || String(e))
+                if (cancelled) return
+                // A playlist's file that can't play any more (gone):
+                // skipped, on to the next item.
+                const p = playlistStore.get()
+                const it = p?.items[p.index]
+                if (it && req.kind === "local" && isItem(req, it)) {
+                    toast.warning(`Skipped ${it.title}${itemLabel(it) === "Movie" ? "" : ` · ${itemLabel(it)}`}: ${e instanceof ApiError && e.status === 404 ? "file not found" : e.message || "can't play"}`)
+                    if (playlistNext()) return
+                }
+                setError(e.message || String(e))
             } finally {
                 if (!cancelled) setLoading(false)
             }
@@ -429,7 +490,7 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
             if (named[label] > 1) label += ` ${named[label]}`
             opts.push({ key, label, lang: s.language, title: s.language, index: opts.length, url: s.url })
         }
-        setSubs(opts)
+        setSubs([...opts, ...fileSubs.current])
         // Providers' streams are in the original version (a dub is another
         // stream). Subtitles picked by hand stay.
         if (!subPicked.current) setSubKey(streamSub(opts, settings?.playback.rememberTracks ? prefsRef.current : null, settings?.playback, originalRef.current, false))
@@ -441,6 +502,27 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
         if (handed && (handed === "off" || (src?.subtitles ?? []).some(x => `s:${x.original || x.url}` === handed))) {
             subPicked.current = true
             setSubKey(handed)
+        }
+    }
+
+    // Subtitle files loaded by hand (Load file…): for this movie or episode,
+    // as WebVTT the player reads like the others.
+    const fileSubs = useRef<SubOption[]>([])
+    const subFileInput = useRef<HTMLInputElement>(null)
+    useEffect(() => () => fileSubs.current.forEach(s => URL.revokeObjectURL(s.url)), [])
+    const loadSubFile = async (file: File) => {
+        try {
+            const text = await file.text()
+            const cues = /\.(ass|ssa)$/i.test(file.name) ? parseASS(text) : parseVTT(text)
+            if (!cues.length) throw new Error("no cues")
+            const n = fileSubs.current.length
+            const url = URL.createObjectURL(new Blob([toVTT(cues)], { type: "text/vtt" }))
+            const opt: SubOption = { key: `f${n}`, label: file.name, lang: "", title: file.name, index: 2000 + n, url }
+            fileSubs.current = [...fileSubs.current, opt]
+            setSubs(s => [...s, opt])
+            changeSub(opt.key, false)
+        } catch {
+            toast.error("Couldn't read that subtitle file")
         }
     }
 
@@ -551,6 +633,7 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
             return
         }
         let cancelled = false
+        const sub = burn >= 0 ? burn : undefined
         ;(async () => {
             try {
                 if (hlsMode) {
@@ -560,6 +643,7 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                         audio: audioIndex,
                         method,
                         caps,
+                        sub,
                         client: clientId,
                     })
                     if (!cancelled) setStream({ url: s.url, base: s.start, hls: true, id: s.id })
@@ -569,13 +653,13 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                     // keyframe there isn't known (a copy would start at an
                     // unknown frame), or the server didn't say.
                     const sp = await api
-                        .get<{ start: number; method?: string }>(`/api/local/seekpoint${qs({ path: convertPath, t: offset.toFixed(3), audio: audioIndex, method, caps: c })}`)
+                        .get<{ start: number; method?: string }>(`/api/local/seekpoint${qs({ path: convertPath, t: offset.toFixed(3), audio: audioIndex, method, caps: c, sub })}`)
                         // Not reached (the stream won't be either, and is
                         // tried again): as asked.
                         .catch(e => ({ start: offset, method: e instanceof ApiError && offset > 0 ? "transcode" : undefined }))
                     if (!cancelled)
                         setStream({
-                            url: `/api/local/transcode${qs({ path: convertPath, start: sp.start.toFixed(3), audio: audioIndex, method: sp.method || method, caps: c, encoder: software ? "software" : undefined })}`,
+                            url: `/api/local/transcode${qs({ path: convertPath, start: sp.start.toFixed(3), audio: audioIndex, method: sp.method || method, caps: c, sub, encoder: software ? "software" : undefined })}`,
                             base: sp.start,
                             hls: false,
                         })
@@ -588,7 +672,7 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
             cancelled = true
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [req, convertPath, decided, probe, method, offset, audioIndex, restart, caps, software])
+    }, [req, convertPath, decided, probe, method, offset, audioIndex, restart, caps, software, burn])
 
     // End the HLS session when the player closes.
     const sessionRef = useRef<string | undefined>(undefined)
@@ -693,7 +777,7 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                 v.addEventListener("loadedmetadata", onMeta, { once: true })
             }
         }
-        v.volume = volume
+        v.volume = Math.min(1, volume)
         v.playbackRate = rate
         // Not allowed to play by itself: the play button shows, not the spinner.
         v.play().catch(e => e?.name === "NotAllowedError" && setStarted(true))
@@ -801,7 +885,7 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                 again(() => setSoftware(true))
             } else {
                 pictureTries.current = 4
-                toast.error("This device shows no picture of this video: only its sound plays.")
+                toast.error("This device can't show the picture. Only the sound plays.")
             }
         }, 500)
         return () => {
@@ -823,7 +907,7 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
             return
         }
         if (sub.bitmap) {
-            toast.warning("Image-based subtitles (PGS/VobSub) can only be shown in mpv")
+            // Image subtitles: drawn onto the video by the server (burn).
             setCues([])
             return
         }
@@ -1028,13 +1112,14 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
         // Another computer's file: it may have gone to sleep. Woken up (if it
         // can be from here), it answers the next tries.
         if (n === 1 && req.kind === "local" && req.path.startsWith("kumobox://")) api.post("/api/sharing/wake", { path: req.path }).catch(() => {})
-        toast.info(n === 1 ? "Connection lost: trying again…" : `Still trying to reach it (${n})…`)
+        toast.info(n === 1 ? "Connection lost. Trying again…" : `Still trying (${n})…`)
         if (retryTimer.current) clearTimeout(retryTimer.current)
         retryTimer.current = setTimeout(() => reopen(at), 1000 * Math.min(8, 2 ** (n - 1)))
     }
     const togglePlay = () => {
         const v = videoRef.current
         if (!v) return
+        setMark({ play: v.paused, n: Date.now() })
         if (v.paused) v.play().catch(() => {})
         else v.pause()
     }
@@ -1049,7 +1134,8 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
     const handOver = (): PlayerRequest => {
         const tracks = { audio: audioIndex, sub: subKey, source: sourceIdx }
         const start = Math.max(0, where() - 1)
-        return req.kind === "local" ? { kind: "local", path: req.path, mediaId, episode, start, tracks } : { ...req, start, tracks }
+        const playlist = inList ?? undefined // a playlist carries on in the other window
+        return req.kind === "local" ? { kind: "local", path: req.path, mediaId, episode, start, tracks, playlist } : { ...req, start, tracks, playlist }
     }
     const toPip = async () => {
         const v = videoRef.current
@@ -1083,10 +1169,20 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
         setOffset(at)
         saveTrackPrefs({ audio: i })
     }
-    const changeSub = (key: string) => {
+    const changeSub = (key: string, save = true) => {
         subPicked.current = true
+        // To or from an image track: the stream is made again, with the
+        // subtitles drawn on (converted) or without, from where it is.
+        const next = subs.find(s => s.key === key)
+        const was = subs.find(s => s.key === subKey)
+        if (req.kind === "local" && (!!next?.bitmap || !!was?.bitmap)) {
+            const at = where()
+            startAt.current = 0
+            setOffset(at)
+            if (next?.bitmap) setMethod("transcode")
+        }
         setSubKey(key)
-        saveTrackPrefs({ sub: key })
+        if (save) saveTrackPrefs({ sub: key })
     }
     const changeSource = (i: number) => {
         const v = videoRef.current
@@ -1102,13 +1198,16 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
     }
     // The next episode. finished: this one counts as watched to the end (it
     // ended, or Up next was taken in its ending); else where it's at is saved.
+    // In a playlist, its next item.
     const playNext = (finished = false) => {
-        if (!nextEp) return
+        if (!upNext) return
         if (!finished) report(true)
         else if (!ended.current) {
             ended.current = true
             report(true, true)
         }
+        if (inList) return void playlistNext()
+        if (!nextEp) return
         if (req.kind === "local" && nextEp.path) playerStore.set({ kind: "local", path: nextEp.path, mediaId, episode: nextEp.episode })
         // The next episode: the best link of the provider playing this one.
         else if (req.kind === "stream") playerStore.set({ kind: "stream", mediaId, episode: nextEp.episode, provider: sources[sourceIdx]?.provider ?? req.provider })
@@ -1235,6 +1334,8 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
     // none). Each is skipped once a viewing, as the settings say: going back
     // to one plays it.
     const skippable = skips.filter(isSkippable)
+    // A playlist plays on by itself.
+    const autoNext = !!settings?.playback.autoPlayNext || !!inList
     const currentSkip = skipAt(skippable, time)
     const skipWhat = currentSkip && skipName(currentSkip.type)
     const autoSkip = !!currentSkip && skipOn(settings?.playback, currentSkip.type)
@@ -1248,7 +1349,7 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
         // next episode plays then.
         const run = skipRun(skippable, currentSkip, t => skipOn(settings?.playback, t))
         const total = duration || videoRef.current?.duration || 0
-        if (total > 0 && run.end >= total - 1 && !(settings?.playback.autoPlayNext && nextEp)) return
+        if (total > 0 && run.end >= total - 1 && !(autoNext && upNext)) return
         seekTo(run.end)
         toast.info(`Skipped ${run.names}`)
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1260,8 +1361,7 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
     const videoLength = Number.isFinite(duration) ? duration : 0
     const credits = skippable.find(s => s.start > videoLength / 2 && skipName(s.type) === "credits")
     const upNextAt = credits && !skipOn(settings?.playback, credits.type) ? credits.start : videoLength - 15
-    const showUpNext = !!nextEp && videoLength > 60 && started && !upNextOff && time >= upNextAt && time < videoLength
-    const autoNext = !!settings?.playback.autoPlayNext
+    const showUpNext = !!upNext && videoLength > 60 && started && !upNextOff && time >= upNextAt && time < videoLength
     const countdown = Math.max(0, Math.ceil(videoLength - time))
     // Gone back before it (rewound, also once it ended): it's shown, and
     // plays on, again.
@@ -1277,6 +1377,75 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
         // The intro is skipped again, as on a first play.
         skipped.current.clear()
         seekTo(0)
+    }
+
+    // Volume above 100%: the video's sound through a gain (Web Audio). The
+    // context is made once, the first time it goes above 100%; a video
+    // element can be routed only once, and stays routed.
+    const audioGraph = useRef<{ ctx: AudioContext; gain: GainNode; el?: HTMLVideoElement; src?: MediaElementAudioSourceNode } | null>(null)
+    const boostTo = (v: HTMLVideoElement, level: number) => {
+        const g = audioGraph.current
+        if (!boostOk || (level <= 1.001 && g?.el !== v)) return
+        try {
+            let graph = g
+            if (!graph) {
+                const ctx = new AudioContext()
+                const gain = ctx.createGain()
+                gain.connect(ctx.destination)
+                graph = audioGraph.current = { ctx, gain }
+            }
+            if (graph.el !== v) {
+                graph.src?.disconnect()
+                graph.src = graph.ctx.createMediaElementSource(v)
+                graph.src.connect(graph.gain)
+                graph.el = v
+            }
+            graph.gain.gain.value = Math.max(1, level)
+            if (graph.ctx.state === "suspended") graph.ctx.resume().catch(() => {})
+        } catch {
+            toast.error("Volume boost isn't available here", { id: "volume-boost" })
+        }
+    }
+    useEffect(() => () => void audioGraph.current?.ctx.close().catch(() => {}), [])
+    // A source boost can't take: back to 100% at most.
+    useEffect(() => {
+        if (!boostOk) setVolume(x => Math.min(1, x))
+    }, [boostOk])
+    const toggleBoost = () => {
+        const on = !boost
+        setBoost(on)
+        writeLocal("kumobox-volume-boost", on ? "1" : "0")
+        if (!on) setVolume(x => Math.min(1, x))
+    }
+    const toggleStats = () => {
+        const on = !stats
+        setStats(on)
+        writeLocal("kumobox-player-stats", on ? "1" : "0")
+    }
+    // The frame showing, as a PNG: "<title> - mm-ss.png", downloaded.
+    const screenshot = () => {
+        const v = videoRef.current
+        if (!v || !v.videoWidth) return void toast.error("No picture to capture")
+        const c = document.createElement("canvas")
+        c.width = v.videoWidth
+        c.height = v.videoHeight
+        try {
+            c.getContext("2d")!.drawImage(v, 0, 0)
+            const at = Math.max(0, Math.floor(where(v)))
+            const name = `${title || "Moviko"} - ${String(Math.floor(at / 60)).padStart(2, "0")}-${String(at % 60).padStart(2, "0")}.png`.replace(/[\\/:*?"<>|]+/g, " ")
+            c.toBlob(blob => {
+                if (!blob) return void toast.error("Couldn't capture this video")
+                const a = document.createElement("a")
+                a.href = URL.createObjectURL(blob)
+                a.download = name
+                a.click()
+                setTimeout(() => URL.revokeObjectURL(a.href), 10_000)
+                toast.success("Screenshot saved", { id: "screenshot" })
+            }, "image/png")
+        } catch {
+            // A frame from another site (no CORS) taints the canvas.
+            toast.error("This source can't be captured")
+        }
     }
 
     // -------------------------------------------------------------- keyboard
@@ -1353,7 +1522,7 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                     seekBy(10)
                     break
                 case "ArrowUp":
-                    setVolume(x => Math.min(1, x + 0.05))
+                    setVolume(x => Math.min(maxVolume, x + 0.05))
                     break
                 case "ArrowDown":
                     setVolume(x => Math.max(0, x - 0.05))
@@ -1369,8 +1538,16 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                 case "m":
                     setMuted(m => !m)
                     break
+                // s skips the intro; Shift+S takes a screenshot (not Caps
+                // Lock's S: that still skips).
                 case "s":
-                    if (currentSkip) seekTo(currentSkip.end)
+                case "S":
+                    if (e.shiftKey && e.key.toLowerCase() === "s") screenshot()
+                    else if (currentSkip) seekTo(currentSkip.end)
+                    break
+                case "i":
+                case "I":
+                    toggleStats()
                     break
                 case "z":
                     if (subKey !== "off") moveSubs(-0.1)
@@ -1441,8 +1618,9 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
     useEffect(() => {
         const v = videoRef.current
         if (!v) return
-        v.volume = volume
+        v.volume = Math.min(1, volume)
         v.muted = muted
+        boostTo(v, volume)
         try {
             localStorage.setItem("kumobox-volume", String(volume))
         } catch {
@@ -1519,6 +1697,26 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
     const thumbSrc = thumbs && thumbStep !== null ? `/api/local/thumb${qs({ path: req.path, t: thumbStep })}` : ""
     const aspect = probe?.video?.[0]?.width && probe.video[0].height ? probe.video[0].width / probe.video[0].height : 16 / 9
     const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2
+    const statsRows: [string, string][] = stats
+        ? [
+              ["Source", req.kind === "local" ? (req.path.split(/[\\/]/).pop() ?? req.path) : [sources[sourceIdx]?.server, sources[sourceIdx]?.quality || "auto"].filter(Boolean).join(" · ")],
+              [
+                  "Play",
+                  method === "direct"
+                      ? req.kind === "local"
+                          ? "Direct play"
+                          : hlsRef.current
+                            ? "Stream (HLS)"
+                            : "Stream"
+                      : `Converted (${method}${stream?.hls ? ", HLS" : ""}${software && method === "transcode" ? ", software" : ""})`,
+              ],
+              [
+                  "Codec",
+                  [probe?.video?.[0]?.codec, probe?.audio?.[audioIndex]?.codec].filter(Boolean).join(" / ").toUpperCase() || hlsRef.current?.levels?.[hlsRef.current.currentLevel]?.codecSet || "–",
+              ],
+              ...(volume > 1 ? [["Volume", `${Math.round(volume * 100)}%`] as [string, string]] : []),
+          ]
+        : []
 
     return (
         <div
@@ -1544,6 +1742,8 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                 onPlay={() => {
                     setPaused(false)
                     poke()
+                    // Volume boost made before Moviko could play sound.
+                    if (audioGraph.current?.ctx.state === "suspended") audioGraph.current.ctx.resume().catch(() => {})
                 }}
                 onPause={() => {
                     setPaused(true)
@@ -1551,11 +1751,27 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                     report(true)
                 }}
                 onWaiting={() => setBuffering(true)}
-                onPlaying={() => {
+                onPlaying={e => {
+                    // Started more than 10s from where it was opened at (a
+                    // fallback, a lost resume): said in the log, with both.
+                    const o = openedAt.current
+                    if (o && !o.checked) {
+                        o.checked = true
+                        const now = absTime(e.currentTarget)
+                        if (Math.abs(now - o.at) > 10) note(`started at ${Math.round(now)}s, opened at ${Math.round(o.at)}s (${method}${stream?.hls ? " hls" : ""})`)
+                    }
                     setBuffering(false)
                     setStarted(true)
                 }}
                 onCanPlay={() => setBuffering(false)}
+                onLoadStart={e => {
+                    const v = e.currentTarget
+                    const ok = sameOrigin(v.currentSrc)
+                    setBoostOk(ok)
+                    // Routed through Web Audio for an earlier source: this
+                    // one would be silent there. A new video element.
+                    if (!ok && audioGraph.current?.el === v) setVideoKey(k => k + 1)
+                }}
                 onTimeUpdate={e => {
                     const v = e.currentTarget
                     if (v.currentTime > 0) expected.current = absTime(v)
@@ -1581,7 +1797,7 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                 onEnded={() => {
                     if (ended.current) return
                     const v = videoRef.current
-                    const at = v ? absTime(v) : 0
+                    const at = where(v)
                     const total = duration || (v && Number.isFinite(v.duration) ? v.duration : 0)
                     // Stopped well before the episode's end: the stream broke
                     // (the computer went to sleep, its connection dropped), it
@@ -1590,13 +1806,13 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                     if (v && total > 0 && total - at > 20 && earlyEnds.current < 3) {
                         earlyEnds.current++
                         note(`the video stopped at ${Math.round(at)}s of ${Math.round(total)}s (${method})`)
-                        toast.info("The video stopped early: going on from there…")
+                        toast.info("The video stopped early. Continuing…")
                         reopen(at)
                         return
                     }
                     ended.current = true
                     report(true, true)
-                    if (settings?.playback.autoPlayNext && nextEp && !upNextOff) playNext(true)
+                    if (autoNext && upNext && !upNextOff) playNext(true)
                 }}
                 onError={() => {
                     const v = videoRef.current
@@ -1617,7 +1833,7 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                             else {
                                 note(`the video can't be reached${why}`)
                                 unreachableAt.current = at
-                                setError("The video can't be reached. Is the computer that has it on, and on the network?")
+                                setError("The video can't be reached. Check that its computer is on and on the network.")
                             }
                             return
                         }
@@ -1642,6 +1858,23 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                 }}
             />
 
+            {stats && <StatsOverlay video={videoRef} rows={statsRows} mini={mini} />}
+            <input
+                ref={subFileInput}
+                type="file"
+                accept=".srt,.vtt,.ass,.ssa"
+                hidden
+                onChange={e => {
+                    const f = e.target.files?.[0]
+                    e.target.value = ""
+                    if (f) loadSubFile(f)
+                }}
+            />
+            {mark && !classic && started && !error && (
+                <div key={mark.n} aria-hidden onAnimationEnd={() => setMark(null)} className="player-mark pointer-events-none absolute inset-0 grid place-items-center">
+                    <span className={cn("grid place-items-center bg-black/55 text-white", mini ? "size-11" : "size-16")}>{mark.play ? <Play className={cn("fill-white", mini ? "size-5" : "size-7")} /> : <Pause className={cn("fill-white", mini ? "size-5" : "size-7")} />}</span>
+                </div>
+            )}
             {(loading || buffering || !started) && !error && (
                 <div className="pointer-events-none absolute inset-0 grid place-items-center">
                     <div className="flex flex-col items-center gap-3">
@@ -1716,19 +1949,19 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                 </div>
             )}
             <div data-tv-controls="top" hidden={mini} className={cn("absolute inset-x-0 top-0 flex items-center gap-4 bg-gradient-to-b from-black/80 to-transparent px-6 pt-5 pb-14 transition-opacity duration-300", controls || paused ? "opacity-100" : "pointer-events-none opacity-0")}>
-                <button onClick={close} className="grid size-10 place-items-center rounded-full bg-white/10 text-white backdrop-blur hover:bg-white/20" aria-label="Close player">
+                <button onClick={close} className={cn("grid size-10 place-items-center text-white", classic ? "rounded-full bg-white/10 backdrop-blur hover:bg-white/20" : "-ml-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white")} aria-label="Close player">
                     <ArrowLeft className="size-5" />
                 </button>
                 <div className="min-w-0">
-                    <p className="truncate text-lg font-semibold text-white">{title}</p>
+                    <p className={cn("truncate text-lg font-semibold text-white", !classic && "font-display tracking-tight")}>{title}</p>
                     {probe && (
-                        <p className="text-xs text-white/60">
+                        <p className={classic ? "text-xs text-white/60" : "label mt-0.5 text-[10px] text-white/55"}>
                             {method === "direct" ? "Direct play" : method === "remux" ? "Direct stream (remuxed)" : "Transcoding"} · {probe.video?.[0]?.codec?.toUpperCase()}{" "}
                             {probe.video?.[0]?.height ? `${probe.video[0].height}p` : ""}
                         </p>
                     )}
                     {req.kind === "stream" && sources[sourceIdx] && (
-                        <p className="text-xs text-white/60">
+                        <p className={classic ? "text-xs text-white/60" : "label mt-0.5 text-[10px] text-white/55"}>
                             {sources[sourceIdx].server} · {sources[sourceIdx].quality || "auto"}
                         </p>
                     )}
@@ -1739,14 +1972,24 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
             <div
                 data-tv-controls="bottom"
                 className={cn(
-                    "absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300",
-                    mini ? "px-3 pt-10 pb-1.5" : "px-6 pt-20 pb-5",
+                    "absolute transition-opacity duration-300",
+                    // The small window keeps the plain strip; the player's
+                    // controls are a glass panel floating over the picture,
+                    // in the middle (this look's with square corners and no
+                    // edge).
+                    mini
+                        ? "inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-3 pt-10 pb-1.5"
+                        : classic
+                          ? "inset-x-3 bottom-3 mx-auto max-w-5xl rounded-2xl bg-black/60 px-4 pt-3 pb-2 shadow-[0_16px_48px_-12px_rgb(0_0_0/0.8)] ring-1 ring-white/10 backdrop-blur-xl sm:inset-x-6 sm:bottom-5 sm:px-5"
+                          : "inset-x-3 bottom-3 mx-auto max-w-5xl bg-black/65 px-4 pt-3 pb-2 backdrop-blur-xl sm:inset-x-6 sm:bottom-5 sm:px-5",
                     controls || paused ? "opacity-100" : "pointer-events-none opacity-0",
                 )}
             >
-                {/* scrubber */}
+                {/* scrubber; in this look the time so far and the time left at its ends */}
+                <div className={cn(!classic && !mini && "mb-1.5 flex items-center gap-3")}>
+                {!classic && !mini && <span className="min-w-11 shrink-0 text-xs whitespace-nowrap text-white/90 tabular-nums">{formatDuration(time)}</span>}
                 <div
-                    className={cn("group/seek relative cursor-pointer", mini ? "mb-1 h-4" : "mb-3 h-5")}
+                    className={cn("group/seek relative cursor-pointer", mini ? "mb-1 h-4" : classic ? "mb-1.5 h-5" : "h-5 min-w-0 flex-1")}
                     onMouseMove={e => {
                         const r = e.currentTarget.getBoundingClientRect()
                         setHoverTime({ x: e.clientX - r.left, t: ((e.clientX - r.left) / r.width) * total })
@@ -1791,10 +2034,12 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                         </div>
                     )}
                 </div>
+                {!classic && !mini && <span className="min-w-11 shrink-0 text-right text-xs whitespace-nowrap text-white/55 tabular-nums">-{formatDuration(Math.max(0, total - time))}</span>}
+                </div>
 
-                <div className={cn("flex items-center text-white", mini ? "gap-0.5" : "gap-2")}>
-                    <CtrlButton small={mini} onClick={togglePlay} label={paused ? "Play (k)" : "Pause (k)"}>
-                        {paused ? <Play className={cn("fill-white", mini ? "size-5" : "size-6")} /> : <Pause className={cn("fill-white", mini ? "size-5" : "size-6")} />}
+                <div className={cn("flex items-center text-white", mini ? "gap-0.5" : "gap-0.5 sm:gap-2")}>
+                    <CtrlButton small={mini} onClick={togglePlay} label={paused ? "Play (k)" : "Pause (k)"} className={mini ? undefined : "mr-1 bg-white text-black hover:bg-white/85"}>
+                        {paused ? <Play className={mini ? "size-5 fill-white" : "size-5 translate-x-px fill-black"} /> : <Pause className={mini ? "size-5 fill-white" : "size-5 fill-black"} />}
                     </CtrlButton>
                     {!mini && (
                         // Not on a phone, where the buttons wouldn't fit across (its
@@ -1809,8 +2054,8 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                     <CtrlButton small={mini} onClick={() => seekBy(10)} label="Forward 10s (l)">
                         <RotateCw className={mini ? "size-4" : "size-5"} />
                     </CtrlButton>
-                    {nextEp && (
-                        <CtrlButton small={mini} onClick={() => playNext()} label="Next episode (n)">
+                    {upNext && (
+                        <CtrlButton small={mini} onClick={() => playNext()} label={inList ? "Next in playlist (n)" : "Next episode (n)"}>
                             <SkipForward className={mini ? "size-4" : "size-5"} />
                         </CtrlButton>
                     )}
@@ -1837,11 +2082,11 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                             className="w-0 accent-white opacity-0 transition-all duration-200 group-hover/vol:w-24 group-hover/vol:opacity-100"
                         />
                     </div>
-                    <span className={cn("font-medium text-white/85 tabular-nums", mini ? "ml-1 text-xs" : "ml-2 text-sm")}>
+                    <span hidden={!classic && !mini} className={cn("font-medium whitespace-nowrap text-white/85 tabular-nums", mini ? "ml-1 text-xs" : "ml-1 text-sm sm:ml-2")}>
                         {formatDuration(time)} <span className="text-white/45">/ {formatDuration(total)}</span>
                     </span>
 
-                    <div className="ml-auto flex items-center gap-1">
+                    <div className="ml-auto flex items-center gap-0 sm:gap-1">
                         {/* subtitles */}
                         <Dropdown>
                             <DropdownTrigger asChild>
@@ -1851,14 +2096,23 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                             </DropdownTrigger>
                             <DropdownContent className="z-[90] max-h-[min(20rem,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto">
                                 <DropdownLabel>Subtitles</DropdownLabel>
-                                <DropdownItem onSelect={() => changeSub("off")}>{subKey === "off" ? "● " : ""}Off</DropdownItem>
+                                <DropdownItem onSelect={() => changeSub("off")}><Picked on={subKey === "off"} />Off</DropdownItem>
                                 {subs.map(s => (
-                                    <DropdownItem key={s.key} onSelect={() => changeSub(s.key)} disabled={s.bitmap}>
-                                        {subKey === s.key ? "● " : ""}
+                                    <DropdownItem key={s.key} onSelect={() => changeSub(s.key)} disabled={s.bitmap && (req.kind !== "local" || !!probe?.noBurn)}>
+                                        <Picked on={subKey === s.key} />
                                         {s.label}
-                                        {s.bitmap ? " (mpv only)" : ""}
+                                        {s.bitmap ? (req.kind !== "local" ? " (mpv only)" : probe?.noBurn ? ` (${probe.noBurn})` : " (drawn on by the server)") : ""}
                                     </DropdownItem>
                                 ))}
+                                {!tv && (
+                                    <>
+                                        <DropdownSeparator />
+                                        <DropdownItem onSelect={() => subFileInput.current?.click()}>
+                                            <Picked on={false} />
+                                            Load file…
+                                        </DropdownItem>
+                                    </>
+                                )}
                                 {subKey !== "off" && (
                                     <>
                                         <DropdownSeparator />
@@ -1896,7 +2150,7 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                                     <DropdownLabel>Audio</DropdownLabel>
                                     {(probe?.audio ?? []).map((a, i) => (
                                         <DropdownItem key={i} onSelect={() => changeAudio(i)}>
-                                            {audioIndex === i ? "● " : ""}
+                                            <Picked on={audioIndex === i} />
                                             {[langName(a.language), a.title, a.codec?.toUpperCase(), a.channels ? `${a.channels}ch` : ""].filter(Boolean).join(" · ") || `Track ${i + 1}`}
                                         </DropdownItem>
                                     ))}
@@ -1908,7 +2162,7 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                             <Dropdown>
                                 <DropdownTrigger asChild>
                                     <button className="grid size-10 place-items-center rounded-full hover:bg-white/15" aria-label="Settings">
-                                        <Gauge className="size-5" />
+                                        <SlidersHorizontal className="size-5" />
                                     </button>
                                 </DropdownTrigger>
                                 <DropdownContent className="z-[90] max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto">
@@ -1917,7 +2171,7 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                                             <DropdownLabel>Source</DropdownLabel>
                                             {sources.map((s, i) => (
                                                 <DropdownItem key={i} onSelect={() => changeSource(i)}>
-                                                    {sourceIdx === i ? "● " : ""}
+                                                    <Picked on={sourceIdx === i} />
                                                     {[s.server, s.quality, s.label].filter(Boolean).join(" · ")}
                                                 </DropdownItem>
                                             ))}
@@ -1932,7 +2186,7 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                                                     // The video too: copied, it would stay as it was.
                                                     const vt = probe?.video?.[0]
                                                     if (vt) setNoPic(n => [...n, videoFormat(vt)])
-                                                    setOffset(v ? absTime(v) : 0)
+                                                    setOffset(where(v))
                                                     setMethod("transcode")
                                                 }}
                                             >
@@ -1949,21 +2203,37 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                                                     const on = !software
                                                     setSoftwareVideo(on)
                                                     note(on ? "grey picture: converted in software from now on, on this device" : "converted as before again, on this device")
-                                                    if (on) toast.info("Converting the video in software on this device from now on")
-                                                    setOffset(v ? absTime(v) : 0)
+                                                    if (on) toast.info("Converting in software on this device")
+                                                    setOffset(where(v))
                                                     setSoftware(on)
                                                     setMethod("transcode")
                                                 }}
                                             >
-                                                {software ? "● Converted in software here (turn off)" : "Grey picture? Convert in software"}
+                                                <Picked on={software} />
+                                                Convert in software
                                             </DropdownItem>
                                             <DropdownSeparator />
                                         </>
                                     )}
+                                    {boostOk && (
+                                        <DropdownItem onSelect={toggleBoost}>
+                                            <Picked on={boost} />
+                                            Volume boost
+                                        </DropdownItem>
+                                    )}
+                                    <DropdownItem onSelect={toggleStats}>
+                                        <Picked on={stats} />
+                                        Stats (i)
+                                    </DropdownItem>
+                                    <DropdownItem onSelect={screenshot}>
+                                        <Picked on={false} />
+                                        Screenshot (S)
+                                    </DropdownItem>
+                                    <DropdownSeparator />
                                     <DropdownLabel>Speed</DropdownLabel>
                                     {[0.75, 1, 1.25, 1.5, 2].map(r => (
                                         <DropdownItem key={r} onSelect={() => setRate(r)}>
-                                            {rate === r ? "● " : ""}
+                                            <Picked on={rate === r} />
                                             {r}×
                                         </DropdownItem>
                                     ))}
@@ -2003,11 +2273,12 @@ function Player({ req, onClose, mini, stage }: { req: PlayerRequest; onClose: ()
                         <FastForward className={cn("fill-black", mini ? "size-3.5" : "size-4")} /> Skip {skipWhat}
                     </button>
                 )}
-                {showUpNext && nextEp && (
+                {showUpNext && upNext && (
                     <div data-tv-skip className={cn("bg-black/80 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur rise-in", mini ? "w-52 rounded-xl p-2.5" : "w-72 rounded-2xl p-4")}>
                         <p className="text-xs font-medium tracking-wide text-white/60 uppercase">Up next</p>
-                        <p className={cn("mt-0.5 font-semibold", mini && "text-sm")}>Episode {nextEp.episode}</p>
-                        <p className={cn("mt-0.5 text-white/70 tabular-nums", mini ? "text-xs" : "text-sm")}>{autoNext ? (countdown <= 10 ? `Playing in ${countdown}s` : "Plays when this one ends") : "Ready when you are"}</p>
+                        <p className={cn("mt-0.5 truncate font-semibold", mini && "text-sm")}>{upNext.title}</p>
+                        {upNext.line && <p className={cn("mt-0.5 truncate text-white/80", mini ? "text-xs" : "text-sm")}>{upNext.line}</p>}
+                        <p className={cn("mt-0.5 text-white/70 tabular-nums", mini ? "text-xs" : "text-sm")}>{autoNext ? (countdown <= 10 ? `Playing in ${countdown}s` : "Plays when this one ends") : "Ready"}</p>
                         <div className={cn("flex gap-2", mini ? "mt-2" : "mt-3")}>
                             <button
                                 ref={upNextRef}
@@ -2085,6 +2356,12 @@ async function fetchable(src: string): Promise<Fetchable> {
 
 // An empty picture (a transparent pixel): the video's poster.
 const BLANK = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+
+// The mark before a menu's choices: a check on the one in use, the same
+// room on the others so their names line up.
+function Picked({ on }: { on: boolean }) {
+    return <span className="mr-1.5 inline-grid w-4 shrink-0 place-items-center align-[-2px]">{on && <Check className="size-4 text-brand-strong" />}</span>
+}
 
 const CtrlButton = forwardRef<HTMLButtonElement, { children: React.ReactNode; onClick: () => void; label: string; small?: boolean; className?: string }>(function CtrlButton(
     { children, onClick, label, small, className },
@@ -2174,7 +2451,7 @@ function EpisodesPanel({
             role="dialog"
             aria-label="Episodes"
             className={cn(
-                "absolute bottom-[6.75rem] left-4 z-30 flex max-h-[min(30rem,calc(100%-9.5rem))] w-[clamp(19rem,24vw,30rem)] max-w-[calc(100%-2rem)] origin-bottom-left flex-col overflow-hidden rounded-2xl border border-line bg-surface-1/[0.98] text-fg shadow-2xl shadow-black/60 sm:left-6",
+                "absolute bottom-[6.75rem] left-4 z-30 flex max-h-[min(30rem,calc(100%-9.5rem))] w-[clamp(19rem,24vw,30rem)] max-w-[calc(100%-2rem)] origin-bottom-left flex-col overflow-hidden rounded-2xl border border-line bg-surface-1/[0.98] text-fg shadow-2xl shadow-black/60 sm:left-[max(1.5rem,calc(50%-32rem))]",
                 leaving ? "corner-out" : "corner-in",
             )}
         >
@@ -2366,5 +2643,76 @@ function TorrentProgress({ id }: { id: string }) {
         <p className="rounded-full bg-black/50 px-3 py-1 text-[13px] text-white/85 tabular-nums">
             Torrent · {data.peers} {data.peers === 1 ? "peer" : "peers"} · {formatBytes(data.speed)}/s · {pct}% here
         </p>
+    )
+}
+// An .ass/.ssa file's lines as cues: their text, italics and bold kept,
+// the rest of their styling (positions, effects, drawings) dropped.
+function parseASS(text: string): Cue[] {
+    const cues: Cue[] = []
+    let fields: string[] = []
+    const time = (s: string) => {
+        const [h, m, sec] = s.trim().split(":")
+        return Number(h) * 3600 + Number(m) * 60 + Number(sec)
+    }
+    for (const line of text.replace(/\r/g, "").split("\n")) {
+        if (/^Format:/i.test(line)) fields = line.slice(7).split(",").map(f => f.trim().toLowerCase())
+        if (!/^Dialogue:/i.test(line) || !fields.length) continue
+        const parts = line.slice(9).split(",")
+        const values = [...parts.slice(0, fields.length - 1), parts.slice(fields.length - 1).join(",")]
+        const get = (k: string) => values[fields.indexOf(k)] ?? ""
+        const raw = get("text")
+        if (/\{[^}]*\\p[1-9]/.test(raw)) continue
+        const body = raw
+            .replace(/\{([^}]*)\}/g, (_, tags: string) =>
+                (tags.match(/\\[ib][01]/g) ?? []).map(t => (t[2] === "1" ? `<${t[1]}>` : `</${t[1]}>`)).join(""),
+            )
+            .replace(/\\N/gi, "\n")
+            .replace(/\\h/g, " ")
+            .trim()
+        const start = time(get("start"))
+        const end = time(get("end"))
+        if (body && isFinite(start) && isFinite(end)) cues.push({ start, end, text: body })
+    }
+    return cues.sort((a, b) => a.start - b.start)
+}
+
+// Cues as a WebVTT file (what the player loads its subtitles from).
+function toVTT(cues: Cue[]): string {
+    const ts = (t: number) => {
+        const ms = Math.round(t * 1000)
+        const p = (n: number, l = 2) => String(n).padStart(l, "0")
+        return `${p(Math.floor(ms / 3600000))}:${p(Math.floor(ms / 60000) % 60)}:${p(Math.floor(ms / 1000) % 60)}.${p(ms % 1000, 3)}`
+    }
+    const clean = (s: string) => s.replace(/\{\\[^}]*\}/g, "").replace(/\n{2,}/g, "\n").replace(/-->/g, "→").trim()
+    return "WEBVTT\n\n" + cues.map(c => `${ts(c.start)} --> ${ts(c.end)}\n${clean(c.text)}`).filter(c => !c.endsWith("\n")).join("\n\n") + "\n"
+}
+
+// "Stats for nerds": what plays and how, small in the top-left corner.
+function StatsOverlay({ video, rows, mini }: { video: React.RefObject<HTMLVideoElement | null>; rows: [string, string][]; mini: boolean }) {
+    const [, tick] = useState(0)
+    useEffect(() => {
+        const t = setInterval(() => tick(n => n + 1), 1000)
+        return () => clearInterval(t)
+    }, [])
+    const v = video.current
+    const q = v && "getVideoPlaybackQuality" in v ? v.getVideoPlaybackQuality() : null
+    let ahead = 0
+    if (v) for (let i = 0; i < v.buffered.length; i++) if (v.buffered.start(i) <= v.currentTime + 0.5 && v.buffered.end(i) > v.currentTime) ahead = v.buffered.end(i) - v.currentTime
+    const all: [string, string][] = [
+        ...rows,
+        ["Size", v?.videoWidth ? `${v.videoWidth}×${v.videoHeight}` : "–"],
+        ["Dropped", q ? `${q.droppedVideoFrames} / ${q.totalVideoFrames}` : "–"],
+        ["Buffer", `${ahead.toFixed(1)}s`],
+        ["Speed", `${v?.playbackRate ?? 1}×`],
+    ]
+    return (
+        <div className={cn("pointer-events-none absolute z-20 max-w-[calc(100%-1rem)] rounded-lg bg-black/70 px-3 py-2 font-mono text-[11px] leading-[1.5] text-white/90", mini ? "top-11 left-2" : "top-24 left-6")}>
+            {all.map(([k, val]) => (
+                <div key={k} className="truncate whitespace-pre">
+                    <span className="text-white/50">{k.padEnd(8)}</span>
+                    {val}
+                </div>
+            ))}
+        </div>
     )
 }

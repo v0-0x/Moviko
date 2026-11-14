@@ -3,9 +3,10 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { ListCardMenu } from "@/components/ListCardMenu"
 import { MediaCard, MediaCardSkeleton, MediaGrid } from "@/components/MediaCard"
-import { Button, EmptyState, ErrorState, Input, Select } from "@/components/ui"
+import { Button, EmptyState, ErrorState, IconButton, Input, Popover, Select } from "@/components/ui"
 import { useGenres, useSearch } from "@/lib/queries"
 import type { Media } from "@/lib/types"
+import { useClassic } from "@/lib/themes"
 import { cn, LANGUAGES } from "@/lib/utils"
 
 const SORTS = [
@@ -25,6 +26,7 @@ const TYPES = [
 const FILTERS = ["genre", "year", "status", "minScore", "lang"]
 
 export default function SearchPage() {
+    const classic = useClassic()
     const [params, setParams] = useSearchParams()
     const q = params.get("q") ?? ""
     const [text, setText] = useState(q)
@@ -114,74 +116,114 @@ export default function SearchPage() {
 
     const years = Array.from({ length: new Date().getFullYear() - 1899 }, (_, i) => String(new Date().getFullYear() + 2 - i))
     const active = genres.length + (year ? 1 : 0) + (status ? 1 : 0) + (minScore ? 1 : 0) + (lang ? 1 : 0)
+    // Those behind the Filters button; the year sits beside it.
+    const tucked = active - (year ? 1 : 0)
     // A genre from a link that TMDB doesn't list still shows, to be turned off.
     const genreChips = [...(allGenres ?? []), ...genres.filter(g => !(allGenres ?? []).includes(g))]
 
     return (
         <div className="min-h-full px-6 pt-8 pb-24 md:px-8 xl:px-10">
-            <div className="mb-8 flex flex-col gap-6">
+            <div className="mb-8 flex flex-col gap-5">
                 <div className="flex items-center justify-between gap-4">
                     <h1 className="text-[1.75rem] font-semibold tracking-tight">Search</h1>
-                    <div className="flex rounded-lg bg-white/[0.04] p-0.5">
+                    <div className={cn("flex", classic ? "rounded-xl border border-white/10 bg-white/[0.045] p-0.5" : "gap-1")}>
                         {TYPES.map(t => (
                             <button
                                 key={t.value}
+                                aria-pressed={type === t.value}
                                 onClick={() => set("type", t.value || null)}
-                                className={cn("h-7 rounded-md px-3 text-[13px] font-medium transition-colors", type === t.value ? "bg-white/[0.1] text-fg" : "text-muted hover:text-fg")}
+                                className={cn(
+                                    "h-8 px-3.5 font-medium transition-colors",
+                                    classic ? "rounded-[10px] text-[13px]" : "word label focus-ring text-[10.5px]",
+                                    type === t.value ? (classic ? "bg-white/[0.1] text-fg" : "text-fg") : "text-muted hover:text-fg",
+                                )}
                             >
                                 {t.label}
                             </button>
                         ))}
                     </div>
                 </div>
-                <Input autoFocus value={text} onChange={e => setText(e.target.value)} placeholder="Search movies and TV shows by title…" icon={<SearchIcon className="size-4" />} className="h-11 text-[15px]" />
-                <div className="flex flex-wrap items-center gap-3">
-                    <SlidersHorizontal className="size-4 text-subtle" />
-                    <Select className="w-32" value={year} onChange={v => set("year", v)} options={[{ value: "", label: "Any year" }, ...years.map(y => ({ value: y, label: y }))]} />
-                    <Select
-                        className="w-40"
-                        value={status}
-                        onChange={v => set("status", v)}
-                        options={[
-                            { value: "", label: "Any status" },
-                            { value: "RELEASING", label: type === "MOVIE" ? "In theaters" : type === "TV" ? "Airing" : "Airing / in theaters" },
-                            { value: "FINISHED", label: type === "TV" ? "Ended" : "Released" },
-                            { value: "NOT_YET_RELEASED", label: "Upcoming" },
-                        ]}
-                    />
-                    <Select
-                        className="w-40"
-                        value={minScore}
-                        onChange={v => set("minScore", v)}
-                        options={[{ value: "", label: "Any rating" }, ...[90, 80, 70, 60, 50].map(n => ({ value: String(n), label: `${(n / 10).toFixed(0)}+ on TMDB` }))]}
-                    />
-                    <Select className="w-44" value={lang} onChange={v => set("lang", v)} options={[{ value: "", label: "Any language" }, ...LANGUAGES]} />
-                    <Select className="w-52" value={sort} onChange={v => set("sort", v)} options={SORTS} />
-                    {active > 0 && (
-                        <Button variant="ghost" size="sm" icon={<X className="size-4" />} onClick={() => update(p => FILTERS.forEach(k => p.delete(k)))}>
-                            Clear filters
-                        </Button>
-                    )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    {genreChips.map(g => {
-                        const on = genres.includes(g)
-                        return (
-                            <button
-                                key={g}
-                                onClick={() =>
-                                    update(p => {
-                                        const cur = p.getAll("genre")
-                                        p.delete("genre")
-                                        for (const v of cur.includes(g) ? cur.filter(c => c !== g) : [...cur, g]) p.append("genre", v)
-                                    })
-                                }
-                                className={cn("h-8 rounded-full px-3.5 text-[13px] font-medium transition-colors", on ? "bg-white text-neutral-950" : "bg-white/[0.05] text-muted hover:bg-white/[0.09] hover:text-fg")}
-                            >
-                                {g}
-                            </button>
-                        )
-                    })}
+                <Input
+                    autoFocus
+                    value={text}
+                    onChange={e => setText(e.target.value)}
+                    placeholder="Search movies and shows by title…"
+                    aria-label="Search by title"
+                    icon={<SearchIcon className="size-5" />}
+                    className="h-14 rounded-2xl border-white/10 bg-white/[0.045] pr-4 pl-11 text-base"
+                />
+                {/* Two by two on a phone, one row from there up. */}
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+                    <Select className="sm:w-32" value={year} onChange={v => set("year", v)} options={[{ value: "", label: "Any year" }, ...years.map(y => ({ value: y, label: y }))]} />
+                    <Select className="sm:w-52" value={sort} onChange={v => set("sort", v)} options={SORTS} />
+                    <div className="flex min-w-0 items-center gap-1">
+                        <Popover
+                            side="bottom"
+                            align="start"
+                            className="w-[min(24rem,calc(100vw-1.5rem))]"
+                            trigger={
+                                <Button variant={classic ? "ghost" : "outline"} className={cn("min-w-0 flex-1 sm:flex-none", classic && "rounded-xl border border-white/10 bg-white/[0.045]")} icon={<SlidersHorizontal className="size-4" />}>
+                                    Filters
+                                    {tucked > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white/15 px-1.5 text-xs font-semibold text-fg">{tucked}</span>}
+                                </Button>
+                            }
+                        >
+                            <div className="flex flex-col gap-4">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <Select
+                                        value={status}
+                                        onChange={v => set("status", v)}
+                                        options={[
+                                            { value: "", label: "Any status" },
+                                            { value: "RELEASING", label: type === "MOVIE" ? "In theaters" : type === "TV" ? "Airing" : "Airing / in theaters" },
+                                            { value: "FINISHED", label: type === "TV" ? "Ended" : "Released" },
+                                            { value: "NOT_YET_RELEASED", label: "Upcoming" },
+                                        ]}
+                                    />
+                                    <Select
+                                        value={minScore}
+                                        onChange={v => set("minScore", v)}
+                                        options={[{ value: "", label: "Any rating" }, ...[90, 80, 70, 60, 50].map(n => ({ value: String(n), label: `${(n / 10).toFixed(0)}+ on TMDB` }))]}
+                                    />
+                                    <Select className="col-span-2" value={lang} onChange={v => set("lang", v)} options={[{ value: "", label: "Any language" }, ...LANGUAGES]} />
+                                </div>
+                                <div>
+                                    <p className="mb-2 text-xs font-medium text-subtle">Genres</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {genreChips.map(g => {
+                                            const on = genres.includes(g)
+                                            return (
+                                                <button
+                                                    key={g}
+                                                    aria-pressed={on}
+                                                    onClick={() =>
+                                                        update(p => {
+                                                            const cur = p.getAll("genre")
+                                                            p.delete("genre")
+                                                            for (const v of cur.includes(g) ? cur.filter(c => c !== g) : [...cur, g]) p.append("genre", v)
+                                                        })
+                                                    }
+                                                    className={cn(
+                                                        "h-8 px-3 font-medium transition-colors",
+                                                        classic
+                                                            ? cn("rounded-full text-[13px]", on ? "bg-white/20 text-fg" : "bg-white/[0.05] text-muted hover:bg-white/[0.09] hover:text-fg")
+                                                            : cn("word label text-[10.5px]", on ? "text-fg" : "text-muted hover:text-fg"),
+                                                    )}
+                                                >
+                                                    {g}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        </Popover>
+                        {active > 0 && (
+                            <IconButton label="Clear filters" onClick={() => update(p => FILTERS.forEach(k => p.delete(k)))}>
+                                <X className="size-4" />
+                            </IconButton>
+                        )}
+                    </div>
                 </div>
             </div>
 

@@ -3,8 +3,9 @@ import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { toast } from "@/lib/toast"
 import { resultSummary, useLetterboxd, useLetterboxdStatus, useStatus } from "@/lib/queries"
+import { useClassic } from "@/lib/themes"
 import type { LetterboxdResult, LetterboxdStatus } from "@/lib/types"
-import { img, plural, relativeTime } from "@/lib/utils"
+import { cn, img, plural, relativeTime } from "@/lib/utils"
 import { Badge, Button, Dialog, Field, Input } from "./ui"
 
 // Letterboxd's orange, green and blue dots.
@@ -59,9 +60,10 @@ export function SyncState({ lb, syncing }: { lb?: LetterboxdStatus; syncing?: bo
 
 // What a sync or an import did, with the titles that couldn't be found.
 export function ResultDetails({ result, label, files }: { result: LetterboxdResult; label?: string; files?: string[] | null }) {
+    const classic = useClassic()
     const unmatched = result.unmatched ?? []
     return (
-        <div className="rounded-lg bg-white/[0.03] px-4 py-3">
+        <div className={classic ? "rounded-lg bg-white/[0.03] px-4 py-3" : "border-l border-line-strong pl-4"}>
             <div className="flex flex-wrap items-center gap-2">
                 {label && <span className="mr-1 text-xs font-medium text-muted">{label}</span>}
                 <Badge tone="green">{result.added} added</Badge>
@@ -94,6 +96,7 @@ export function LetterboxdDialog({ open, onOpenChange }: { open: boolean; onOpen
     const { data: status } = useStatus()
     const { data: lb } = useLetterboxdStatus(open)
     const actions = useLetterboxd()
+    const classic = useClassic()
     const [username, setUsername] = useState("")
     const [result, setResult] = useState<{ label: string; result: LetterboxdResult } | null>(null)
     useEffect(() => {
@@ -141,7 +144,7 @@ export function LetterboxdDialog({ open, onOpenChange }: { open: boolean; onOpen
         >
             {connected ? (
                 <div className="flex flex-col gap-5">
-                    <div className="flex items-center gap-4 rounded-lg bg-white/[0.03] p-4">
+                    <div className={cn("flex items-center gap-4", classic && "rounded-lg bg-white/[0.03] p-4")}>
                         {viewer?.avatar?.large ? (
                             <img src={img(viewer.avatar.large)} alt="" className="size-12 rounded-full object-cover" />
                         ) : (
@@ -178,7 +181,7 @@ export function LetterboxdDialog({ open, onOpenChange }: { open: boolean; onOpen
                 </div>
             ) : (
                 <div className="flex flex-col gap-5">
-                    <div className="flex items-start gap-4 rounded-lg bg-white/[0.03] p-5">
+                    <div className={cn("flex items-start gap-4", classic && "rounded-lg bg-white/[0.03] p-5")}>
                         <LetterboxdMark className="mt-1 w-9 shrink-0" />
                         <p className="text-sm text-muted">
                             Moviko reads your public Letterboxd diary and adds the films you watched, with your ratings and likes, to your list. Films you watch in Moviko are
@@ -186,7 +189,7 @@ export function LetterboxdDialog({ open, onOpenChange }: { open: boolean; onOpen
                         </p>
                     </div>
                     {lan ? (
-                        <p className="rounded-lg border border-line px-4 py-3 text-sm text-muted">Letterboxd is connected on the computer Moviko runs on, in Settings › Letterboxd.</p>
+                        <p className={classic ? "rounded-lg border border-line px-4 py-3 text-sm text-muted" : "border-l border-line-strong pl-4 text-sm text-muted"}>Letterboxd is connected on the computer Moviko runs on, in Settings › Letterboxd.</p>
                     ) : (
                         <>
                             <Field label="Letterboxd username" help="As in letterboxd.com/username. Your profile and diary must be public.">
@@ -199,7 +202,7 @@ export function LetterboxdDialog({ open, onOpenChange }: { open: boolean; onOpen
                                     onKeyDown={e => e.key === "Enter" && connect()}
                                 />
                             </Field>
-                            <Button variant="white" loading={actions.connect.isPending} disabled={!parseLetterboxdUsername(username)} onClick={connect}>
+                            <Button variant={classic ? "white" : "subtle"} loading={actions.connect.isPending} disabled={!parseLetterboxdUsername(username)} onClick={connect}>
                                 {actions.connect.isPending ? "Reading your diary…" : "Connect"}
                             </Button>
                         </>

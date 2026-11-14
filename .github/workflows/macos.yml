@@ -8,7 +8,7 @@
 # electron-builder merges them into the app's one program
 # (desktop/electron-builder.yml).
 #
-# The version is 2.0.<commits since 2.0.0's>, like the Windows release's (see
+# The version is 3.0.<commits since 3.0.0's>, like the Windows release's (see
 # windows.yml): installed copies look for the macos-v release with the
 # highest version and offer it on the Home page (server/internal/update),
 # which downloads the zip.
@@ -115,7 +115,7 @@ jobs:
             echo "::error::desktop/package.json has no version like 1.0.0 (it says '$base')"
             exit 1
           fi
-          # The commits since the one movikoVersionBase counts (2.0.0's).
+          # The commits since the one movikoVersionBase counts (3.0.0's).
           from=$(node -p 'require("./desktop/package.json").movikoVersionBase || 0')
           patch=$(( $(git rev-list --count HEAD) - from ))
           if (( patch < 0 )); then

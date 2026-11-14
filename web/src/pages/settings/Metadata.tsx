@@ -87,7 +87,7 @@ export function MetadataSection({ draft, set }: SectionProps) {
     }
     return (
         <>
-            <Group title="TMDB" description="Moviko gets every title, poster, season, episode and where-to-watch listing from The Movie Database (themoviedb.org). Its API is free for personal use.">
+            <Group title="TMDB" description="Titles, posters, seasons and where to watch come from The Movie Database. Its API is free for personal use.">
                 <Row label="Status" help={status?.tmdbConfigured ? "Search, Discover and the calendar work." : "Without a key, only your library and players work."}>
                     {status?.tmdbConfigured ? <Badge tone="green">Connected</Badge> : <Badge tone="amber">No key yet</Badge>}
                 </Row>
@@ -108,13 +108,13 @@ export function MetadataSection({ draft, set }: SectionProps) {
                 {lan && <LanOnly />}
             </Group>
             <Group title="Language & region">
-                <Row label="Language" help="Titles, overviews and episode names, when TMDB has them in this language (English otherwise).">
+                <Row label="Language" help="For titles, overviews and episode names. English when TMDB has none.">
                     <Select className="w-56" value={t?.language ?? "en-US"} onChange={v => set("tmdb", { language: v })} options={withCurrent(LANGUAGES, t?.language ?? "")} />
                 </Row>
-                <Row label="Region" help="Release dates, age ratings and where to watch are for this country.">
+                <Row label="Region" help="For release dates, age ratings and where to watch.">
                     <Select className="w-56" value={t?.region ?? "US"} onChange={v => set("tmdb", { region: v })} options={withCurrent(REGIONS, t?.region ?? "")} />
                 </Row>
-                <Row label="Cached metadata" help="Changes apply to what's fetched from now on. Clear the cache to fetch everything again in the new language.">
+                <Row label="Cached metadata" help="Clear it to fetch everything again in a new language.">
                     <Button variant="subtle" size="sm" icon={<Trash2 className="size-4" />} onClick={clearCache}>
                         Clear cache
                     </Button>

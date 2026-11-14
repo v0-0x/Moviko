@@ -391,6 +391,8 @@ export type Settings = {
         off?: boolean
         dir: string
         extraDirs: string[]
+        // The library folder new downloads go into ("" = the first).
+        downloadDir?: string
         autoRefresh: boolean
         refreshOnStartup: boolean
         matchThreshold: number
@@ -454,7 +456,7 @@ export type Settings = {
         colorTheme?: string
         seasonal?: string
         seasonalEffects?: boolean
-        // Moviko's look from before 2.0.
+        // Moviko's look from before 3.0 (rounded panels).
         classicLook?: boolean
     }
     discord: { richPresence: boolean; clientId: string }
@@ -628,6 +630,8 @@ export type Probe = {
     externalSubs: { name: string; path: string; language: string }[] | null
     method: "direct" | "remux" | "transcode"
     reason: string
+    // The computer the file is on can't draw its image subtitles (too old).
+    noBurn?: string
 }
 
 // A direct link as the in-app player gets it (POST /api/providers/play):
@@ -970,6 +974,8 @@ export type MarketEntry = {
     installedVersion?: string
     hasUpdate: boolean
     supported: boolean
+    // A plugin's permission scopes Moviko doesn't have: what it does with them won't work here.
+    unsupported?: string[]
 }
 
 export type UINode = { id: string; type: string; props: Record<string, any> }
@@ -1078,6 +1084,9 @@ export type SharingPeer = {
     // shares): downloading there.
     downloads: boolean
     takesDownloads: boolean
+    // It answers when asked, but none of its announcements got through in a
+    // minute: found by its address alone (a firewall on it).
+    noBeacons?: boolean
     // It shares with this Moviko and has said how to wake it up (Wake-on-LAN);
     // waking: a wake-up was just sent.
     canWake?: boolean

@@ -4,15 +4,14 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from "r
 import { Route, Routes, useLocation, useNavigate, useNavigationType } from "react-router-dom"
 import { Toaster } from "sonner"
 import { NowPlaying, ScanIndicator } from "./components/NowPlaying"
-import { PlayerOverlay } from "./components/player/Player"
 import { TvMenu } from "./components/TvMenu"
 import { QuickSearch } from "./components/QuickSearch"
 import { HolidayBackdrop, HolidayGarland } from "./components/HolidayDecor"
-import { HolidayEffects } from "./components/HolidayEffects"
 import { useHolidayNotice } from "./components/HolidayBadge"
 import { WhatsNew } from "./components/WhatsNew"
 import { MovikoLogo, Sidebar } from "./components/Sidebar"
 import { TmdbNotice } from "./components/TmdbNotice"
+import { PageError } from "./components/PageError"
 import { PhoneNav } from "./components/PhoneNav"
 import { Button, Input, Spinner, TooltipProvider } from "./components/ui"
 import { api, onPasswordRequired } from "./lib/api"
@@ -30,6 +29,10 @@ import HomePage from "./pages/Home"
 // Narrower than this: a phone's layout.
 const PHONE = "(max-width: 639px)"
 
+// The player (with hls.js) and a holiday's falling effects load when the
+// page is up, not before it: half of what the app starts with otherwise.
+const PlayerOverlay = lazy(() => import("./components/player/Player").then(m => ({ default: m.PlayerOverlay })))
+const HolidayEffects = lazy(() => import("./components/HolidayEffects").then(m => ({ default: m.HolidayEffects })))
 const EntryPage = lazy(() => import("./pages/Entry"))
 const DiscoverPage = lazy(() => import("./pages/Discover"))
 const SearchPage = lazy(() => import("./pages/Search"))
@@ -38,6 +41,7 @@ const ListsPage = lazy(() => import("./pages/Lists"))
 const StatsPage = lazy(() => import("./pages/Stats"))
 const TorrentsPage = lazy(() => import("./pages/Torrents"))
 const DownloadsPage = lazy(() => import("./pages/Downloads"))
+const PlaylistsPage = lazy(() => import("./pages/Playlists"))
 const AutoDownloaderPage = lazy(() => import("./pages/AutoDownloader"))
 const LibraryPage = lazy(() => import("./pages/Library"))
 const LocalLibraryPage = lazy(() => import("./pages/LocalLibrary"))
@@ -129,7 +133,8 @@ function MovikoApp() {
     // Updates are looked for each time Moviko opens (on this computer only).
     useCheckOnOpen(!!status && status.client !== "lan" && !mini)
     const playing = useStore(playerStore, p => !!p)
-    // Before 2.0's look: its plain panel, no holiday decorations.
+    // The Classic look (before 3.0): the pages are a rounded panel inset
+    // in the window.
     const classic = useClassic()
     // A phone (a narrow window, not a TV): the pages take the whole width,
     // with tabs along the bottom instead of the sidebar. What floats at the
@@ -154,13 +159,14 @@ function MovikoApp() {
                 {/* The pages: a panel inset in the window, next to the sidebar
                     (on a phone, the whole width). Its background is behind
                     them (with a holiday's art). */}
-                <div className={cn("relative min-h-0 min-w-0 flex-1", !phone && "py-2 pr-2")}>
-                    {!classic && <HolidayBackdrop holiday={ui ? look.holiday : null} phone={phone} />}
+                <div className={cn("relative min-h-0 min-w-0 flex-1", !phone && classic && "py-2 pr-2")}>
+                    <HolidayBackdrop holiday={ui ? look.holiday : null} inset={classic && !phone} />
                     <main
                         id="main-scroll"
                         className={cn(
                             "relative h-full overflow-x-hidden overflow-y-auto",
-                            phone ? classic && "bg-bg" : cn("border border-line", classic ? "rounded-xl bg-bg" : "rounded-[14px] shadow-[0_12px_36px_-20px_rgb(0_0_0/0.75)]"),
+                            // This look: one plane, a line between the sidebar and the pages.
+                            !phone && (classic ? "rounded-[14px] border border-line shadow-[0_12px_36px_-20px_rgb(0_0_0/0.75)]" : "border-l border-line-strong"),
                         )}
                     >
                         <TmdbNotice />
@@ -171,6 +177,8 @@ function MovikoApp() {
                                 </div>
                             }
                         >
+                            {/* A page that fails says so; the rest of the app stays (a new page starts fresh). */}
+                            <PageError key={location.pathname}>
                             <Routes>
                                 <Route path="/" element={<HomePage />} />
                                 <Route path="/entry" element={<EntryPage />} />
@@ -181,6 +189,7 @@ function MovikoApp() {
                                 <Route path="/stats" element={<StatsPage />} />
                                 <Route path="/torrent-list" element={<TorrentsPage />} />
                                 <Route path="/downloads" element={<DownloadsPage />} />
+                                <Route path="/playlists" element={<PlaylistsPage />} />
                                 <Route path="/auto-downloader" element={<AutoDownloaderPage />} />
                                 <Route path="/library" element={<LibraryPage />} />
                                 <Route path="/local" element={<LocalLibraryPage />} />
@@ -189,25 +198,32 @@ function MovikoApp() {
                                 <Route path="/webview" element={<WebviewPage />} />
                                 <Route path="*" element={<HomePage />} />
                             </Routes>
+                            </PageError>
                         </Suspense>
                     </main>
-                    {!classic && <HolidayGarland holiday={ui ? look.holiday : null} animate={look.effects && !playing && !ui?.reducedMotion} />}
+                    <HolidayGarland holiday={ui ? look.holiday : null} animate={look.effects && !playing && !ui?.reducedMotion} inset={classic} />
                 </div>
                 {phone && <PhoneNav />}
             </div>
             <NowPlaying />
             <ScanIndicator />
             <QuickSearch />
-            <PlayerOverlay />
+            <Suspense>
+                <PlayerOverlay />
+            </Suspense>
             <WhatsNew />
-            <HolidayEffects effect={ui && look.effects ? look.holiday!.effect : null} reduceMotion={!!ui?.reducedMotion} />
+            {ui && look.effects && look.holiday?.effect && (
+                <Suspense>
+                    <HolidayEffects effect={look.holiday.effect} reduceMotion={!!ui.reducedMotion} />
+                </Suspense>
+            )}
             {tv && <TvMenu />}
             <Toaster
-                theme="dark"
+                theme={look.theme.light && !classic ? "light" : "dark"}
                 position="top-right"
                 richColors
                 closeButton
-                toastOptions={{ style: { background: "var(--surface-2)", border: "1px solid var(--line-strong)", borderRadius: 10 } }}
+                toastOptions={{ style: { background: "var(--surface-2)", border: "1px solid var(--line-strong)", borderRadius: classic ? 10 : 2 } }}
             />
         </TooltipProvider>
     )
@@ -225,7 +241,7 @@ function MiniPlayer() {
     }, [])
     return (
         <TooltipProvider>
-            {ok ? <PlayerOverlay mini /> : <p className="grid h-full place-items-center bg-black p-4 text-center text-sm text-muted">Nothing to play here.</p>}
+            {ok ? <Suspense><PlayerOverlay mini /></Suspense> : <p className="grid h-full place-items-center bg-black p-4 text-center text-sm text-muted">Nothing to play here.</p>}
             <Toaster
                 theme="dark"
                 position="top-center"

@@ -5,6 +5,7 @@ import { Button, Progress } from "@/components/ui"
 import { api, ApiError } from "@/lib/api"
 import { useApplyUpdate, useStatus, useUpdateStatus } from "@/lib/queries"
 import { createStore, setUpdateLater, updateLaterStore, useStore } from "@/lib/store"
+import { useClassic } from "@/lib/themes"
 import type { UpdateStatus, UpdateVersion } from "@/lib/types"
 import { cn, copyText, plural } from "@/lib/utils"
 
@@ -63,6 +64,7 @@ export function UpdateBanner({ inSettings }: { inSettings?: boolean }) {
 const InSettings = createContext(false)
 
 function Banner({ inSettings }: { inSettings?: boolean }) {
+    const classic = useClassic()
     const { data: status } = useStatus()
     const { data: u } = useUpdateStatus()
     const apply = useApplyUpdate()
@@ -105,9 +107,9 @@ function Banner({ inSettings }: { inSettings?: boolean }) {
                 title="Restarting Moviko…"
                 text={
                     windows
-                        ? "The installer is updating Moviko, which then opens again. This page reloads when Moviko is back."
+                        ? "Installing. This page reloads when Moviko is back."
                         : mac
-                          ? "Moviko is putting the new version in place, then opens again. This page reloads when Moviko is back."
+                          ? "Installing. This page reloads when Moviko is back."
                           : "This page reloads when Moviko is back."
                 }
             />
@@ -131,7 +133,7 @@ function Banner({ inSettings }: { inSettings?: boolean }) {
             <Panel
                 icon={<Icon><Download /></Icon>}
                 title={`Moviko ${latest} is ready to install`}
-                text="Android asks before installing it; then Moviko closes, and you open it again. Cancelled? Press Install again."
+                text="Android asks first. Open Moviko again once it's installed."
                 actions={
                     <Button size="sm" variant="primary" icon={<Download className="size-4" />} loading={apply.isPending} onClick={() => apply.mutate()}>
                         Install
@@ -207,7 +209,7 @@ function Banner({ inSettings }: { inSettings?: boolean }) {
                         {log.length > 0 && (
                             <details className="text-xs">
                                 <summary className="cursor-pointer text-subtle hover:text-fg">Output</summary>
-                                <pre className="mt-2 max-h-56 overflow-auto rounded-xl bg-black/30 p-3 leading-relaxed whitespace-pre-wrap text-fg/80">{log.join("\n")}</pre>
+                                <pre className={cn("mt-2 max-h-56 overflow-auto p-3 leading-relaxed whitespace-pre-wrap text-fg/80", classic ? "rounded-xl bg-black/30" : "rounded-sm border border-line")}>{log.join("\n")}</pre>
                             </details>
                         )}
                     </div>
@@ -279,13 +281,17 @@ function Panel({ icon, title, text, actions, children }: { icon: React.ReactNode
 }
 
 function Icon({ children, tone = "brand" }: { children: React.ReactNode; tone?: "brand" | "green" | "amber" | "red" }) {
-    const tones = {
-        brand: "bg-brand-soft text-brand-strong",
-        green: "bg-emerald-500/15 text-emerald-300",
-        amber: "bg-amber-500/15 text-amber-300",
-        red: "bg-rose-500/15 text-rose-300",
-    }
-    return <span className={cn("grid size-9 shrink-0 place-items-center rounded-lg [&>svg]:size-[18px]", tones[tone])}>{children}</span>
+    const classic = useClassic()
+    const tones = classic
+        ? {
+              brand: "bg-brand-soft text-brand-strong",
+              green: "bg-emerald-500/15 text-emerald-300",
+              amber: "bg-amber-500/15 text-amber-300",
+              red: "bg-rose-500/15 text-rose-300",
+          }
+        : // Only the icon, no box.
+          { brand: "text-fg", green: "text-emerald-300", amber: "text-amber-300", red: "text-rose-300" }
+    return <span className={cn("shrink-0", classic ? "grid size-9 place-items-center rounded-lg [&>svg]:size-[18px]" : "[&>svg]:size-5 [&>svg]:stroke-[1.5]", tones[tone])}>{children}</span>
 }
 
 function Spin() {
@@ -298,9 +304,10 @@ function Spin() {
 
 // A command to run in a terminal, with a copy button.
 function Command({ command }: { command: string }) {
+    const classic = useClassic()
     const copy = () => copyText(command).then(ok => (ok ? toast.success("Command copied") : toast.error("Couldn't copy it")))
     return (
-        <div className="flex w-full items-center gap-2 rounded-lg bg-black/30 py-1.5 pr-1.5 pl-3">
+        <div className={cn("flex w-full items-center gap-2 py-1.5", classic ? "rounded-lg bg-black/30 pr-1.5 pl-3" : "border-b border-line-strong")}>
             <code className="min-w-0 flex-1 overflow-x-auto font-mono text-xs whitespace-nowrap">{command}</code>
             <Button size="xs" variant="ghost" icon={<Copy className="size-3.5" />} onClick={copy}>
                 Copy

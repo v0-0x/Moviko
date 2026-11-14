@@ -21,7 +21,7 @@ export function MediaServersGroup({ servers, onChange, lan }: { servers: MediaSe
     return (
         <Group
             title="Media servers"
-            description="Your own Jellyfin, Emby or Plex servers: their movies and episodes show in Watch online, matched by their TMDB or IMDb ids, and play as the files they are. Save after adding one."
+            description="Your Jellyfin, Emby or Plex servers. Their movies and episodes show in Watch online. Save after adding one."
         >
             {servers.map((s, i) => (
                 <ServerRow key={i} s={s} lan={lan} onEdit={v => edit(i, v)} onRemove={() => onChange(servers.filter((_, j) => j !== i))} />

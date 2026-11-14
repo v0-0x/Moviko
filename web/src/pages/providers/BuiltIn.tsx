@@ -44,7 +44,7 @@ export function BuiltInTab() {
 
             <TabSection
                 title="From luffy and FreeFlix"
-                description="The sites the luffy and FreeFlix command-line apps stream from, built in. They're unofficial sites, off until you turn them on; each finds movies and episodes by their TMDB id."
+                description="Unofficial sites, off until you turn them on. They find movies and episodes by their TMDB id."
                 actions={
                     <Link to="/settings?tab=providers">
                         <Button size="sm" icon={<Settings2 className="size-4" />}>
@@ -84,7 +84,7 @@ export function BuiltInTab() {
 
             <TabSection
                 title="All providers"
-                description="Every source of streams, in the order they're asked (Stremio addons in your order). Streams are listed best first: direct links, then torrents; your preferred quality first."
+                description="In the order they're asked. Streams are listed best first: direct links, then torrents."
                 actions={
                     <Link to="/settings?tab=providers">
                         <Button size="sm" icon={<Settings2 className="size-4" />}>

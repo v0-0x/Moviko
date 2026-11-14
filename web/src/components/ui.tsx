@@ -4,7 +4,7 @@ import * as PopoverPrimitive from "@radix-ui/react-popover"
 import * as SwitchPrimitive from "@radix-ui/react-switch"
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, Loader2, RefreshCw, X } from "lucide-react"
-import React, { forwardRef, useEffect, useRef, useState } from "react"
+import React, { createContext, forwardRef, useContext, useEffect, useRef, useState } from "react"
 import { useClassic } from "@/lib/themes"
 import { tv } from "@/lib/tv"
 import { cn } from "@/lib/utils"
@@ -15,37 +15,44 @@ import { cn } from "@/lib/utils"
 type ButtonVariant = "primary" | "white" | "subtle" | "ghost" | "outline" | "danger" | "success"
 type ButtonSize = "xs" | "sm" | "md" | "lg"
 
+// One thing is filled in: the main action, in the ink (the accent). The rest
+// are words (index.css's word: brackets step in around them under the
+// pointer).
 const variants: Record<ButtonVariant, string> = {
-    // The accent, flat, with a faint light along its top edge.
-    primary: "bg-brand text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.14)] hover:bg-[color-mix(in_oklab,var(--brand)_88%,white)]",
-    white: "bg-white text-neutral-950 hover:bg-white/90",
+    primary: "bg-brand text-[color:var(--on-brand)] hover:opacity-85",
+    // On artwork: white whatever the accent.
+    white: "bg-white text-black hover:opacity-85",
+    subtle: "word text-fg/85 hover:text-fg data-[state=open]:text-fg",
+    ghost: "word text-muted hover:text-fg data-[state=open]:text-fg",
+    outline: "word text-fg/85 hover:text-fg data-[state=open]:text-fg",
+    danger: "word text-rose-300 hover:text-rose-200",
+    success: "word text-emerald-300 hover:text-emerald-200",
+}
+// In small capitals (index.css's label).
+const sizes: Record<ButtonSize, string> = {
+    xs: "label h-7 gap-1.5 rounded-sm px-2.5 text-[10px]",
+    sm: "label h-8 gap-1.5 rounded-sm px-3 text-[10.5px]",
+    md: "label h-9 gap-2 rounded-sm px-3.5",
+    lg: "label h-11 gap-2.5 rounded-sm px-5 text-xs",
+}
+// The Classic look's (before 3.0): rounded pills in the rounded face.
+const classicVariants: Record<ButtonVariant, string> = {
+    // The accent as a chunky pill: a solid edge under it, pressed down when
+    // pressed. Its text dark or white, whichever reads on the accent.
+    primary:
+        "bg-brand font-bold text-[color:var(--on-brand)] shadow-[0_3px_0_color-mix(in_oklab,var(--brand)_60%,black)] hover:bg-[color-mix(in_oklab,var(--brand)_88%,white)] active:translate-y-[2px] active:shadow-[0_1px_0_color-mix(in_oklab,var(--brand)_60%,black)]",
+    white: "bg-white font-bold text-neutral-950 shadow-[0_3px_0_#b9b1c9] hover:bg-white/90 active:translate-y-[2px] active:shadow-[0_1px_0_#b9b1c9]",
     subtle: "bg-white/[0.065] text-fg hover:bg-white/[0.1]",
     ghost: "text-muted hover:text-fg hover:bg-white/[0.06]",
     outline: "border border-line-strong text-fg hover:bg-white/[0.05]",
     danger: "bg-rose-500/12 text-rose-300 hover:bg-rose-500/20",
     success: "bg-emerald-500/12 text-emerald-300 hover:bg-emerald-500/20",
 }
-const sizes: Record<ButtonSize, string> = {
-    xs: "h-7 px-2.5 text-xs gap-1.5 rounded-md",
-    sm: "h-8 px-3 text-[13px] gap-1.5 rounded-lg",
-    md: "h-9 px-3.5 text-sm gap-2 rounded-[9px]",
-    lg: "h-11 px-5 text-[15px] gap-2 rounded-[10px]",
-}
-// The classic look's (before 2.0): flat, a little squarer.
-const classicVariants: Record<ButtonVariant, string> = {
-    primary: "bg-brand text-white hover:bg-[color-mix(in_oklab,var(--brand)_88%,white)]",
-    white: "bg-white text-neutral-950 hover:bg-white/85",
-    subtle: "bg-white/[0.07] text-fg hover:bg-white/[0.11]",
-    ghost: "text-muted hover:text-fg hover:bg-white/[0.06]",
-    outline: "border border-line-strong text-fg hover:bg-white/[0.05]",
-    danger: "bg-rose-500/12 text-rose-300 hover:bg-rose-500/20",
-    success: "bg-emerald-500/12 text-emerald-300 hover:bg-emerald-500/20",
-}
 const classicSizes: Record<ButtonSize, string> = {
-    xs: "h-7 px-2.5 text-xs gap-1.5 rounded-md",
-    sm: "h-8 px-3 text-[13px] gap-1.5 rounded-md",
-    md: "h-9 px-3.5 text-sm gap-2 rounded-lg",
-    lg: "h-11 px-5 text-[15px] gap-2 rounded-lg",
+    xs: "h-7 px-3 text-xs gap-1.5 rounded-full font-display",
+    sm: "h-8 px-3.5 text-[13px] gap-1.5 rounded-full font-display",
+    md: "h-9 px-4 text-sm gap-2 rounded-full font-display",
+    lg: "h-11 px-6 text-[15px] gap-2 rounded-full font-display",
 }
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -70,7 +77,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
             aria-disabled={busy || undefined}
             aria-busy={busy || undefined}
             className={cn(
-                "focus-ring inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap transition-[background-color,color,opacity,transform,filter] select-none active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 aria-busy:opacity-50 aria-busy:active:scale-100 [&_svg]:shrink-0",
+                "focus-ring inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap transition-[background-color,border-color,color,opacity,transform,filter] select-none active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 aria-busy:opacity-50 aria-busy:active:scale-100 [&_svg]:shrink-0",
                 (classic ? classicVariants : variants)[variant],
                 (classic ? classicSizes : sizes)[size],
                 className,
@@ -90,7 +97,7 @@ export const IconButton = forwardRef<HTMLButtonElement, ButtonProps & { label?: 
 ) {
     const dims = { xs: "size-7", sm: "size-8", md: "size-9", lg: "size-11" }[size]
     const btn = (
-        <Button ref={ref} variant={variant} size={size} className={cn(dims, "px-0", className)} aria-label={label} {...props}>
+        <Button ref={ref} variant={variant} size={size} className={cn(dims, "icon-only px-0", className)} aria-label={label} {...props}>
             {children}
         </Button>
     )
@@ -105,17 +112,17 @@ export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTML
         const classic = useClassic()
         return (
             <div className="relative w-full">
-                {icon && <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-subtle">{icon}</span>}
+                {icon && <span className={cn("pointer-events-none absolute top-1/2 -translate-y-1/2 text-subtle", classic ? "left-3" : "left-0.5")}>{icon}</span>}
                 <input
                     ref={ref}
                     className={cn(
                         classic
-                            ? "h-9 w-full rounded-lg border border-line bg-white/[0.035] px-3 text-sm text-fg placeholder:text-subtle"
-                            : "h-9 w-full rounded-[9px] border border-line bg-white/[0.035] px-3 text-sm text-fg placeholder:text-subtle",
+                            ? "h-9 w-full rounded-full border border-line bg-white/[0.035] px-4 text-sm text-fg placeholder:text-subtle"
+                            : "h-9 w-full rounded-none border-b border-line-strong bg-transparent px-0.5 text-sm text-fg placeholder:text-subtle",
                         classic
-                            ? "transition-[border-color,background-color] outline-none hover:border-line-strong focus:border-brand/70 focus:bg-white/[0.05] disabled:opacity-60"
-                            : "transition-[border-color,background-color,box-shadow] outline-none hover:border-line-strong focus:border-brand/60 focus:bg-white/[0.05] focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--brand)_12%,transparent)] disabled:opacity-60",
-                        icon && "pl-9",
+                            ? "transition-[border-color,background-color,box-shadow] outline-none hover:border-line-strong focus:border-brand/60 focus:bg-white/[0.05] focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--brand)_12%,transparent)] disabled:opacity-60"
+                            : "transition-[border-color] outline-none hover:border-fg/45 focus:border-fg disabled:opacity-60",
+                        icon && (classic ? "pl-9" : "pl-7"),
                         className,
                     )}
                     {...props}
@@ -135,8 +142,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttrib
             ref={ref}
             className={cn(
                 classic
-                    ? "min-h-24 w-full rounded-lg border border-line bg-white/[0.035] px-3 py-2 text-sm text-fg placeholder:text-subtle outline-none transition-[border-color] hover:border-line-strong focus:border-brand/70"
-                    : "min-h-24 w-full rounded-[9px] border border-line bg-white/[0.035] px-3 py-2 text-sm text-fg placeholder:text-subtle outline-none transition-[border-color,box-shadow] hover:border-line-strong focus:border-brand/60 focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--brand)_12%,transparent)]",
+                    ? "min-h-24 w-full rounded-[9px] border border-line bg-white/[0.035] px-3 py-2 text-sm text-fg placeholder:text-subtle outline-none transition-[border-color,box-shadow] hover:border-line-strong focus:border-brand/60 focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--brand)_12%,transparent)]"
+                    : "min-h-24 w-full rounded-sm border border-line bg-transparent px-3 py-2 text-sm text-fg placeholder:text-subtle outline-none transition-[border-color] hover:border-line-strong focus:border-fg",
                 className,
             )}
             {...props}
@@ -166,8 +173,8 @@ export function Select({
                 onChange={e => onChange(e.target.value)}
                 className={
                     classic
-                        ? "h-9 w-full cursor-pointer appearance-none rounded-lg border border-line bg-white/[0.035] pr-9 pl-3 text-sm text-fg outline-none transition-[border-color] hover:border-line-strong focus:border-brand/70 disabled:opacity-60"
-                        : "h-9 w-full cursor-pointer appearance-none rounded-[9px] border border-line bg-white/[0.035] pr-9 pl-3 text-sm text-fg outline-none transition-[border-color,box-shadow] hover:border-line-strong focus:border-brand/60 focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--brand)_12%,transparent)] disabled:opacity-60"
+                        ? "h-9 w-full cursor-pointer appearance-none rounded-full border border-line bg-white/[0.035] pr-9 pl-4 text-sm text-fg outline-none transition-[border-color,box-shadow] hover:border-line-strong focus:border-brand/60 focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--brand)_12%,transparent)] disabled:opacity-60"
+                        : "h-9 w-full cursor-pointer appearance-none rounded-none border-b border-line-strong bg-transparent pr-7 pl-0.5 text-sm text-fg outline-none transition-[border-color] hover:border-fg/45 focus:border-fg disabled:opacity-60"
                 }
             >
                 {options.map(o => (
@@ -176,21 +183,36 @@ export function Select({
                     </option>
                 ))}
             </select>
-            <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-subtle" />
+            <ChevronDown className={cn("pointer-events-none absolute top-1/2 size-4 -translate-y-1/2 text-subtle", classic ? "right-3" : "right-0.5")} />
         </div>
     )
 }
 
 export function Switch({ checked, onChange, disabled, label }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; label?: string }) {
+    const classic = useClassic()
+    if (classic)
+        return (
+            <SwitchPrimitive.Root
+                aria-label={label}
+                checked={checked}
+                onCheckedChange={onChange}
+                disabled={disabled}
+                className="focus-ring relative h-[22px] w-10 shrink-0 rounded-full bg-white/[0.14] transition-colors data-[state=checked]:bg-brand disabled:opacity-50"
+            >
+                <SwitchPrimitive.Thumb className="block size-4 translate-x-[3px] rounded-full bg-white shadow-sm transition-transform duration-200 ease-out data-[state=checked]:translate-x-[21px]" />
+            </SwitchPrimitive.Root>
+        )
+    // An outlined slot, its block on the left; on, the slot is filled with
+    // the ink and the block is on the right.
     return (
         <SwitchPrimitive.Root
             aria-label={label}
             checked={checked}
             onCheckedChange={onChange}
             disabled={disabled}
-            className="focus-ring relative h-[22px] w-10 shrink-0 rounded-full bg-white/[0.14] transition-colors data-[state=checked]:bg-brand disabled:opacity-50"
+            className="group/switch focus-ring relative flex h-5 w-9 shrink-0 items-center border border-line-strong transition-colors hover:border-fg/45 data-[state=checked]:border-brand data-[state=checked]:bg-brand disabled:opacity-50"
         >
-            <SwitchPrimitive.Thumb className="block size-4 translate-x-[3px] rounded-full bg-white shadow-sm transition-transform duration-200 ease-out data-[state=checked]:translate-x-[21px]" />
+            <SwitchPrimitive.Thumb className="block size-2.5 translate-x-1 bg-muted transition-[transform,background-color] duration-200 ease-out data-[state=checked]:translate-x-5 data-[state=checked]:bg-[color:var(--on-brand)]" />
         </SwitchPrimitive.Root>
     )
 }
@@ -209,20 +231,28 @@ export function Field({ label, help, children, className }: { label?: React.Reac
 // Display
 
 export function Badge({ children, className, tone = "gray" }: { children: React.ReactNode; className?: string; tone?: "gray" | "brand" | "green" | "amber" | "red" | "blue" }) {
-    const tones = {
-        gray: "bg-white/[0.07] text-fg/75",
-        brand: "bg-brand-soft text-brand-strong",
-        green: "bg-emerald-500/12 text-emerald-300",
-        amber: "bg-amber-500/12 text-amber-300",
-        red: "bg-rose-500/12 text-rose-300",
-        blue: "bg-sky-500/12 text-sky-300",
-    }
     const classic = useClassic()
-    return (
-        <span className={cn("inline-flex h-5 items-center gap-1 px-1.5", classic ? "rounded" : "rounded-md", "text-[11px] font-medium whitespace-nowrap", tones[tone], className)}>
-            {children}
-        </span>
-    )
+    if (classic) {
+        const tones = {
+            gray: "bg-white/[0.07] text-fg/75",
+            brand: "bg-brand-soft text-brand-strong",
+            green: "bg-emerald-500/12 text-emerald-300",
+            amber: "bg-amber-500/12 text-amber-300",
+            red: "bg-rose-500/12 text-rose-300",
+            blue: "bg-sky-500/12 text-sky-300",
+        }
+        return <span className={cn("inline-flex h-5 items-center gap-1 rounded-md px-1.5 text-[11px] font-medium whitespace-nowrap", tones[tone], className)}>{children}</span>
+    }
+    // A word in small capitals, in its tone.
+    const tones = {
+        gray: "text-muted",
+        brand: "text-brand-strong",
+        green: "text-emerald-300",
+        amber: "text-amber-300",
+        red: "text-rose-300",
+        blue: "text-sky-300",
+    }
+    return <span className={cn("label inline-flex h-5 items-center gap-1 text-[10px] whitespace-nowrap", tones[tone], className)}>{children}</span>
 }
 
 export function Skeleton({ className }: { className?: string }) {
@@ -247,14 +277,14 @@ export function EmptyState({ icon, title, children, action }: { icon?: React.Rea
         <div
             className={cn(
                 "flex flex-col items-center justify-center gap-2 px-6 py-14 text-center fade-in",
-                classic ? "rounded-xl bg-white/[0.02]" : "rounded-[14px] bg-white/[0.025]",
+                classic && "rounded-[14px] bg-white/[0.025]",
             )}
         >
             {icon &&
                 (classic ? (
-                    <div className="mb-1 text-subtle [&_svg]:size-6 [&_svg]:stroke-[1.5]">{icon}</div>
-                ) : (
                     <div className="mb-1 grid size-11 place-items-center rounded-full bg-white/[0.05] text-muted [&_svg]:size-5 [&_svg]:stroke-[1.6]">{icon}</div>
+                ) : (
+                    <div className="mb-1 text-subtle [&_svg]:size-7 [&_svg]:stroke-[1.25]">{icon}</div>
                 ))}
             <h3 className="text-[15px] font-semibold">{title}</h3>
             {children && <div className="max-w-md text-sm text-muted">{children}</div>}
@@ -303,11 +333,10 @@ export function ErrorState({
 }
 
 export function SectionHeader({ title, subtitle, action, className }: { title: React.ReactNode; subtitle?: React.ReactNode; action?: React.ReactNode; className?: string }) {
-    const classic = useClassic()
     return (
         <div className={cn("mb-4 flex items-end justify-between gap-4", className)}>
             <div>
-                <h2 className={cn("font-semibold tracking-tight", classic ? "text-xl" : "text-xl leading-tight")}>{title}</h2>
+                <h2 className="text-xl leading-tight font-semibold tracking-tight">{title}</h2>
                 {subtitle && <p className="mt-0.5 text-[13px] text-muted">{subtitle}</p>}
             </div>
             {action}
@@ -349,13 +378,15 @@ export function Tabs<T extends string>({
                         {t.icon}
                         {t.label}
                         {t.count !== undefined && (
-                            <span className={cn("tabular-nums", classic ? "text-xs text-subtle" : "rounded-md bg-white/[0.06] px-1.5 text-[11px] leading-[18px] text-muted")}>{t.count}</span>
+                            <span className={cn("tabular-nums", classic ? "rounded-md bg-white/[0.06] px-1.5 text-[11px] leading-[18px] text-muted" : "text-[11px] text-subtle")}>{t.count}</span>
                         )}
                         <span
                             className={cn(
-                                "absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-brand transition-opacity",
-                                !classic && "shadow-[0_0_6px_color-mix(in_oklab,var(--brand)_45%,transparent)]",
-                                value === t.value ? "opacity-100" : "opacity-0",
+                                "absolute inset-x-0 bg-brand",
+                                // The line under the open one: drawn out from its middle (inside the row, which cuts off what's under it).
+                                classic
+                                    ? cn("-bottom-px h-0.5 rounded-full shadow-[0_0_6px_color-mix(in_oklab,var(--brand)_45%,transparent)] transition-opacity", value === t.value ? "opacity-100" : "opacity-0")
+                                    : cn("bottom-0 h-px origin-center transition-transform duration-300 ease-out", value === t.value ? "scale-x-100" : "scale-x-0"),
                             )}
                         />
                     </button>
@@ -366,7 +397,7 @@ export function Tabs<T extends string>({
         <div
             className={cn(
                 "no-scrollbar inline-flex max-w-full gap-0.5 overflow-x-auto",
-                classic ? "rounded-lg bg-white/[0.04] p-0.5" : "rounded-[10px] bg-white/[0.04] p-[3px]",
+                classic ? "rounded-full bg-white/[0.04] p-[3px]" : "gap-1",
                 className,
             )}
         >
@@ -374,15 +405,17 @@ export function Tabs<T extends string>({
                 <button
                     key={t.value}
                     onClick={() => onChange(t.value)}
+                    aria-pressed={value === t.value}
                     className={cn(
-                        "focus-ring flex h-7 items-center gap-1.5 px-3 text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow] [&_svg]:size-3.5",
-                        classic ? "rounded-md" : "rounded-[7px]",
-                        value === t.value ? (classic ? "bg-white/[0.1] text-fg" : "bg-white/[0.1] text-fg shadow-[0_1px_2px_rgb(0_0_0/0.3)]") : "text-muted hover:text-fg",
+                        "focus-ring flex items-center gap-1.5 px-3 font-medium whitespace-nowrap transition-[background-color,color,box-shadow] [&_svg]:size-3.5",
+                        // This look: words, the chosen one in brackets (index.css's word).
+                        classic ? "h-7 rounded-full font-display text-[13px]" : "word label h-8 shrink-0 text-[10.5px]",
+                        value === t.value ? (classic ? "bg-white/[0.1] text-fg shadow-[0_1px_2px_rgb(0_0_0/0.3)]" : "text-fg") : "text-muted hover:text-fg",
                     )}
                 >
                     {t.icon}
                     {t.label}
-                    {t.count !== undefined && <span className={cn("text-xs tabular-nums", value === t.value ? "text-muted" : "text-subtle")}>{t.count}</span>}
+                    {t.count !== undefined && <span className={cn("tabular-nums", classic ? "text-xs" : "text-[10px]", value === t.value ? "text-muted" : "text-subtle")}>{t.count}</span>}
                 </button>
             ))}
         </div>
@@ -399,8 +432,15 @@ function layer() {
     return (document.fullscreenElement as HTMLElement | null) ?? undefined
 }
 
+// What's inside stays dark in a light theme (the player): its menus,
+// tooltips and dialogs too, which are drawn outside it (index.css's
+// on-dark).
+export const DarkScope = createContext(false)
+const useDark = () => (useContext(DarkScope) ? "on-dark" : undefined)
+
 export function Tooltip({ content, children, side = "top" }: { content: React.ReactNode; children: React.ReactNode; side?: "top" | "right" | "bottom" | "left" }) {
     const classic = useClassic()
+    const dark = useDark()
     return (
         <TooltipPrimitive.Root delayDuration={350}>
             <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
@@ -410,7 +450,8 @@ export function Tooltip({ content, children, side = "top" }: { content: React.Re
                     sideOffset={8}
                     className={cn(
                         "z-[100] px-2 py-1 text-xs font-medium text-fg shadow-lg shadow-black/40 fade-in",
-                        classic ? "rounded-md bg-surface-4" : "rounded-lg border border-line bg-surface-4",
+                        classic ? "rounded-lg border border-line bg-surface-4" : "rounded-sm border border-line-strong bg-surface-2",
+                        dark,
                     )}
                 >
                     {content}
@@ -440,14 +481,16 @@ export function Dialog({
     footer?: React.ReactNode
 }) {
     const classic = useClassic()
+    const dark = useDark()
     return (
         <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
             <DialogPrimitive.Portal container={layer()}>
-                <DialogPrimitive.Overlay className={cn("fixed inset-0 z-50 fade-in", classic ? "bg-black/65" : "bg-black/60 backdrop-blur-[2px]")} />
+                <DialogPrimitive.Overlay className={cn("fixed inset-0 z-50 fade-in", classic ? "bg-black/60 backdrop-blur-[2px]" : "bg-black/70", dark)} />
                 <DialogPrimitive.Content
                     className={cn(
                         "fixed top-1/2 left-1/2 z-50 flex max-h-[88vh] w-[min(92vw,560px)] -translate-x-1/2 -translate-y-1/2 flex-col border border-line-strong bg-surface-1 outline-none [animation:pop-in_0.16s_var(--ease)_both]",
-                        classic ? "rounded-xl shadow-2xl shadow-black/50" : "rounded-[14px] [box-shadow:0_24px_60px_-20px_rgb(0_0_0/0.65),inset_0_1px_0_rgb(255_255_255/0.04)]",
+                        classic ? "rounded-[14px] [box-shadow:0_24px_60px_-20px_rgb(0_0_0/0.65),inset_0_1px_0_rgb(255_255_255/0.04)]" : "rounded-sm bg-bg",
+                        dark,
                         className,
                     )}
                     // Without a description there is nothing to describe the
@@ -455,17 +498,14 @@ export function Dialog({
                     {...(description ? {} : { "aria-describedby": undefined })}
                 >
                     {(title || description) && (
-                        <div className={cn("flex items-start justify-between gap-4 px-6 pb-3", classic ? "pt-5" : "pt-6")}>
+                        <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-3">
                             <div>
-                                {title && <DialogPrimitive.Title className={cn("font-semibold", classic ? "text-base" : "text-base tracking-tight")}>{title}</DialogPrimitive.Title>}
+                                {title && <DialogPrimitive.Title className={cn("font-semibold", classic ? "text-base tracking-tight" : "font-display text-lg tracking-tight")}>{title}</DialogPrimitive.Title>}
                                 {description && <DialogPrimitive.Description className="mt-0.5 text-sm text-muted">{description}</DialogPrimitive.Description>}
                             </div>
                             <DialogPrimitive.Close
                                 aria-label="Close"
-                                className={cn(
-                                    "focus-ring -mt-1 -mr-2 grid size-8 place-items-center text-muted transition-colors hover:text-fg",
-                                    classic ? "rounded-md hover:bg-white/[0.06]" : "rounded-lg hover:bg-white/[0.07]",
-                                )}
+                                className="focus-ring -mt-1 -mr-2 grid size-8 place-items-center rounded-lg text-muted transition-colors hover:bg-white/[0.07] hover:text-fg"
                             >
                                 <X className="size-4" />
                             </DialogPrimitive.Close>
@@ -498,6 +538,7 @@ export function DropdownContent({
     className?: string
 }) {
     const classic = useClassic()
+    const dark = useDark()
     return (
         <DropdownPrimitive.Portal container={layer()}>
             <DropdownPrimitive.Content
@@ -508,13 +549,74 @@ export function DropdownContent({
                 onCloseAutoFocus={onCloseAutoFocus}
                 className={cn(
                     "z-[60] min-w-52 border border-line-strong bg-surface-2 pop-in origin-[var(--radix-dropdown-menu-content-transform-origin)]",
-                    classic ? "rounded-lg p-1 shadow-xl shadow-black/40" : "rounded-[10px] p-1 shadow-[0_14px_40px_-12px_rgb(0_0_0/0.65),inset_0_1px_0_rgb(255_255_255/0.04)]",
+                    classic ? "rounded-[10px] p-1 shadow-[0_14px_40px_-12px_rgb(0_0_0/0.65),inset_0_1px_0_rgb(255_255_255/0.04)]" : "rounded-sm bg-surface-1 p-1",
+                    dark,
                     className,
                 )}
             >
                 {children}
             </DropdownPrimitive.Content>
         </DropdownPrimitive.Portal>
+    )
+}
+
+// A menu at the pointer for a right-click on something (a TV's Menu key
+// right-clicks what the remote is on, lib/tv). onContextMenu goes on the
+// element, which must be positioned (relative), and node inside it. With no
+// menu both do nothing.
+export function useContextMenu(menu: React.ReactNode) {
+    const [at, setAt] = useState<{ x: number; y: number } | null>(null) // in the element
+    const focused = useRef<Element | null>(null)
+    const onContextMenu = (e: React.MouseEvent<HTMLElement>) => {
+        if (!menu) return
+        // React also brings right-clicks in what's drawn elsewhere (the open
+        // menu, a dialog: portals) here: those keep the browser's own menu.
+        // So does a field to type in (paste).
+        const t = e.target as HTMLElement
+        if (!e.currentTarget.contains(t)) return
+        if (t.isContentEditable || t.tagName === "TEXTAREA" || (t instanceof HTMLInputElement && !["checkbox", "radio", "range", "button", "submit", "color", "file"].includes(t.type))) return
+        e.preventDefault()
+        // One menu: not also the one of a box this is in.
+        e.stopPropagation()
+        const r = e.currentTarget.getBoundingClientRect()
+        const x = e.clientX - r.left
+        const y = e.clientY - r.top
+        focused.current = document.activeElement
+        // Opened with the menu key there may be no pointer in it.
+        setAt(x >= 0 && y >= 0 && x <= r.width && y <= r.height ? { x, y } : { x: r.width / 2, y: r.height / 3 })
+    }
+    const node = menu ? (
+        <Dropdown open={!!at} onOpenChange={v => !v && setAt(null)} modal={false}>
+            <DropdownTrigger asChild>
+                <span aria-hidden className="pointer-events-none absolute" style={{ left: at?.x, top: at?.y }} />
+            </DropdownTrigger>
+            <DropdownContent
+                align="start"
+                sideOffset={2}
+                // Focus goes back where it was (the card, after the menu
+                // key), unless something else took it (a dialog, a click).
+                onCloseAutoFocus={e => {
+                    e.preventDefault()
+                    if (document.activeElement === document.body && focused.current instanceof HTMLElement) focused.current.focus()
+                }}
+            >
+                {menu}
+            </DropdownContent>
+        </Dropdown>
+    ) : null
+    return { onContextMenu, node }
+}
+
+// A row, a card or any box with a right-click menu: the same items its "⋯"
+// button shows (give both the same fragment). It's a positioned div; with
+// no menu, a plain one.
+export function ContextArea({ menu, className, children, ...props }: Omit<React.HTMLAttributes<HTMLDivElement>, "onContextMenu"> & { menu: React.ReactNode }) {
+    const context = useContextMenu(menu)
+    return (
+        <div className={cn("relative", className)} onContextMenu={context.onContextMenu} {...props}>
+            {children}
+            {context.node}
+        </div>
     )
 }
 
@@ -546,26 +648,25 @@ export function DropdownItem({
             disabled={disabled}
             className={cn(
                 "flex h-8 cursor-pointer items-center gap-2.5 text-[13px] outline-none select-none data-[disabled]:opacity-40",
-                classic ? "rounded-md px-2 data-[highlighted]:bg-white/[0.07]" : "rounded-md px-2.5 data-[highlighted]:bg-white/[0.07]",
+                classic ? "rounded-md px-2.5 data-[highlighted]:bg-white/[0.07]" : "rounded-sm px-2.5 transition-colors duration-100 data-[highlighted]:bg-white/[0.09]",
                 danger ? "text-rose-300" : "text-fg",
                 className,
             )}
         >
-            {icon && <span className="text-muted [&>svg]:size-4 [&>svg]:stroke-[1.75]">{icon}</span>}
+            {icon && <span className={cn("text-muted [&>svg]:size-4", classic ? "[&>svg]:stroke-[1.75]" : "[&>svg]:stroke-[1.5]")}>{icon}</span>}
             {children}
         </DropdownPrimitive.Item>
     )
 }
 
 export function DropdownSeparator() {
-    const classic = useClassic()
-    return <DropdownPrimitive.Separator className={cn("h-px bg-line", classic ? "my-1" : "-mx-1 my-1")} />
+    return <DropdownPrimitive.Separator className="-mx-1 my-1 h-px bg-line" />
 }
 
 export function DropdownLabel({ children }: { children: React.ReactNode }) {
     const classic = useClassic()
     return (
-        <DropdownPrimitive.Label className={cn("pt-1.5 pb-1 text-xs font-medium text-subtle", classic ? "px-2" : "px-2.5")}>
+        <DropdownPrimitive.Label className={cn("pt-1.5 pb-1 text-subtle", classic ? "px-2.5 text-xs font-medium" : "label px-2.5 text-[10px]")}>
             {children}
         </DropdownPrimitive.Label>
     )
@@ -589,6 +690,7 @@ export function Popover({
     className?: string
 }) {
     const classic = useClassic()
+    const dark = useDark()
     return (
         <PopoverPrimitive.Root open={open} onOpenChange={onOpenChange}>
             <PopoverPrimitive.Trigger asChild>{trigger}</PopoverPrimitive.Trigger>
@@ -600,7 +702,8 @@ export function Popover({
                     collisionPadding={12}
                     className={cn(
                         "z-[60] max-h-[85vh] overflow-y-auto border border-line-strong bg-surface-1 p-4 outline-none pop-in origin-[var(--radix-popover-content-transform-origin)]",
-                        classic ? "rounded-xl shadow-xl shadow-black/40" : "rounded-[14px] shadow-[0_14px_40px_-12px_rgb(0_0_0/0.65),inset_0_1px_0_rgb(255_255_255/0.04)]",
+                        classic ? "rounded-[14px] shadow-[0_14px_40px_-12px_rgb(0_0_0/0.65),inset_0_1px_0_rgb(255_255_255/0.04)]" : "rounded-sm",
+                        dark,
                         className,
                     )}
                 >
@@ -608,6 +711,38 @@ export function Popover({
                 </PopoverPrimitive.Content>
             </PopoverPrimitive.Portal>
         </PopoverPrimitive.Root>
+    )
+}
+
+// A small switch of two or three words (sub / dub) a page builds itself:
+// its box, and each word. In this look they're words, the chosen one in
+// brackets: give it data-on too (index.css's word).
+export const switchBox = (classic: boolean) => cn("flex", classic ? "rounded-lg bg-white/[0.04] p-0.5" : "gap-0.5")
+export const switchItem = (classic: boolean, on: boolean) =>
+    cn("h-7 font-medium uppercase transition-colors", classic ? "rounded-md px-3 text-xs" : "word label px-2.5 text-[10px]", on ? (classic ? "bg-white/[0.1] text-fg" : "text-fg") : "text-muted hover:text-fg")
+
+// A link over artwork that looks like a button (a banner's Details), in
+// this look: a word in white.
+export const artButton = "word label focus-ring inline-flex h-9 items-center px-3.5 text-white/80 transition-colors hover:text-white"
+
+// One choice in a row of them (a genre, a filter): on, it's the one chosen.
+export function Chip({ on, className, children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { on?: boolean }) {
+    const classic = useClassic()
+    return (
+        <button
+            aria-pressed={!!on}
+            className={cn(
+                "h-8 shrink-0 font-medium transition-colors",
+                classic
+                    ? cn("rounded-full px-3.5 text-[13px]", on ? "bg-white text-neutral-950" : "bg-white/[0.05] text-muted hover:bg-white/[0.09] hover:text-fg")
+                    : // A word; the chosen one in brackets.
+                      cn("word label focus-ring px-3 text-[10.5px]", on ? "text-fg" : "text-muted hover:text-fg"),
+                className,
+            )}
+            {...props}
+        >
+            {children}
+        </button>
     )
 }
 

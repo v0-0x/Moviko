@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, ChevronDown, EyeOff, Folder, FolderOpen, Link2, Link2Off, Search } from "lucide-react"
+import { AlertTriangle, ChevronDown, EyeOff, Folder, FolderOpen, Link2, Link2Off, List, Search } from "lucide-react"
 import { useMemo, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { toast } from "@/lib/toast"
@@ -9,7 +9,7 @@ import { mediaRef } from "@/lib/ids"
 import { useCollection, useLibraryFiles, useLibraryFolders, useStatus } from "@/lib/queries"
 import type { FolderInfo, LocalFile, Media } from "@/lib/types"
 import { cn, formatBytes, plural, poster, title } from "@/lib/utils"
-import { Badge, Button, EmptyState, IconButton, Input, Tooltip } from "../ui"
+import { Badge, Button, ContextArea, DropdownItem, DropdownSeparator, EmptyState, IconButton, Input, Tooltip } from "../ui"
 import { cardRow, VirtualList } from "../VirtualList"
 import { MatchDialog, naturalCompare } from "./MatchDialog"
 
@@ -240,7 +240,7 @@ export function LibraryFolders() {
     return (
         <div className="flex flex-col gap-4">
             <p className="text-sm text-muted">
-                Wrong or missing match? Use <b>Match…</b> or <b>Change match…</b> to pick the right movie or show. Matches you pick are locked, so later scans keep them.
+                Wrong or missing match? Use <b>Match…</b> or <b>Change match…</b>. Later scans keep your pick.
             </p>
             <div className="w-full max-w-md">
                 <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Filter folders or titles…" icon={<Search className="size-4" />} />
@@ -279,11 +279,21 @@ export function LibraryFolders() {
                                     onIgnore={() => post("/api/library/ignore", { paths: r.selected.map(x => x.path), ignored: true }, `Ignoring ${plural(r.selected.length, "file")}`)}
                                 />
                             ) : r.kind === "file" ? (
-                                <FileRow file={r.x} media={media} first={r.first} last={r.last} checked={selected.has(r.x.path)} onCheck={() => toggle(setSelected, r.x.path)} />
+                                <FileRow
+                                    file={r.x}
+                                    media={media}
+                                    first={r.first}
+                                    last={r.last}
+                                    checked={selected.has(r.x.path)}
+                                    onCheck={() => toggle(setSelected, r.x.path)}
+                                    onMatch={() => setMatching({ files: [r.x], query: r.f.query })}
+                                    onUnmatch={() => post("/api/library/unmatch", { paths: [r.x.path] }, "Unmatched 1 file")}
+                                    onIgnore={() => post("/api/library/ignore", { paths: [r.x.path], ignored: true }, "Ignoring 1 file")}
+                                />
                             ) : r.kind === "heading" ? (
                                 <div className="pt-2">
                                     <h3 className="font-semibold">Nothing to match yet</h3>
-                                    <p className="text-sm text-muted">Moviko found these folders, but nothing in them it can play.</p>
+                                    <p className="text-sm text-muted">Nothing in these folders can be played.</p>
                                 </div>
                             ) : (
                                 <ProblemRow folder={r.f} trusted={trusted} />
@@ -328,10 +338,41 @@ function FolderRow({
 }) {
     const primary = f.matches.length === 1 ? media.get(f.matches[0].mediaId) : undefined
     const hasFiles = f.files.length > 0
+    // A right-click on the folder: what its buttons do.
+    const menu = (
+        <>
+            <DropdownItem icon={<Link2 />} disabled={preparing} onSelect={onMatchFolder}>
+                {f.matches.length === 0 ? "Match…" : "Change match…"}
+            </DropdownItem>
+            {f.matches.length > 0 && (
+                <DropdownItem icon={<Link2Off />} onSelect={() => onUnmatch(f.files)}>
+                    Unmatch folder
+                </DropdownItem>
+            )}
+            {hasFiles && (
+                <DropdownItem icon={<List />} onSelect={onToggle}>
+                    {open ? "Hide files" : "Show files"}
+                </DropdownItem>
+            )}
+            {trusted && (
+                <DropdownItem icon={<FolderOpen />} onSelect={() => openFolder(f.dir)}>
+                    Open folder
+                </DropdownItem>
+            )}
+            {hasFiles && (
+                <>
+                    <DropdownSeparator />
+                    <DropdownItem icon={<EyeOff />} onSelect={() => onIgnore(f.files)}>
+                        Ignore folder
+                    </DropdownItem>
+                </>
+            )}
+        </>
+    )
 
     return (
         <div className={cardRow(true, !open)}>
-            <div className="flex flex-wrap items-center gap-3 p-3 pr-4">
+            <ContextArea menu={menu} className="flex flex-wrap items-center gap-3 p-3 pr-4">
                 <button onClick={() => hasFiles && onToggle()} className={cn("flex min-w-0 flex-1 items-center gap-3 text-left", !hasFiles && "cursor-default")}>
                     <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-muted">
                         <Folder className="size-5" />
@@ -367,7 +408,7 @@ function FolderRow({
                     )}
                     {f.matches.length > 0 && f.unmatched > 0 && <Badge tone="amber">{f.unmatched} unmatched</Badge>}
                     {hasFiles && f.notIndexed > 0 && (
-                        <Tooltip content="Added since the last scan. Match… includes them.">
+                        <Tooltip content="Added since the last scan">
                             <Badge tone="blue">{f.notIndexed} new</Badge>
                         </Tooltip>
                     )}
@@ -412,7 +453,7 @@ function FolderRow({
                         </IconButton>
                     )}
                 </div>
-            </div>
+            </ContextArea>
         </div>
     )
 }
@@ -436,26 +477,74 @@ function SelectionBar({ selected, onMatch, onUnmatch, onIgnore }: { selected: Lo
 }
 
 // A file of an open folder, to pick.
-function FileRow({ file: x, media, first, last, checked, onCheck }: { file: LocalFile; media: Map<number, Media>; first: boolean; last: boolean; checked: boolean; onCheck: () => void }) {
+function FileRow({
+    file: x,
+    media,
+    first,
+    last,
+    checked,
+    onCheck,
+    onMatch,
+    onUnmatch,
+    onIgnore,
+}: {
+    file: LocalFile
+    media: Map<number, Media>
+    first: boolean
+    last: boolean
+    checked: boolean
+    onCheck: () => void
+    onMatch: () => void
+    onUnmatch: () => void
+    onIgnore: () => void
+}) {
     const m = x.mediaId > 0 ? media.get(x.mediaId) : undefined
+    // A right-click on a file: the selection's buttons, for this one.
+    const menu = (
+        <>
+            <DropdownItem icon={<Link2 />} onSelect={onMatch}>
+                Match…
+            </DropdownItem>
+            {x.mediaId > 0 && (
+                <DropdownItem icon={<Link2Off />} onSelect={onUnmatch}>
+                    Unmatch
+                </DropdownItem>
+            )}
+            <DropdownSeparator />
+            <DropdownItem icon={<EyeOff />} onSelect={onIgnore}>
+                Ignore
+            </DropdownItem>
+        </>
+    )
     return (
+        <ContextArea menu={menu}>
         <label className={cn(cardRow(false, last, first), "flex cursor-pointer items-center gap-3 px-4 py-2 text-sm transition hover:bg-white/[0.03]")}>
             <input type="checkbox" checked={checked} onChange={onCheck} className="size-4 accent-[var(--brand)]" />
             <span className="min-w-0 flex-1 truncate text-fg/85" title={x.path}>
                 {x.name}
             </span>
             <span className="hidden max-w-56 truncate text-xs text-subtle sm:inline">{x.mediaId > 0 ? title(m) || mediaRef(x.mediaId) : "Unmatched"}</span>
-            <Tooltip content={x.locked ? "Matched by hand — scans keep it" : "Matched automatically"}>
+            <Tooltip content={x.locked ? "Matched by hand. Scans keep it" : "Matched automatically"}>
                 <span className="w-24 shrink-0 text-right text-xs font-semibold tabular-nums">{x.mediaId > 0 ? fileLabel(x) : "—"}</span>
             </Tooltip>
         </label>
+        </ContextArea>
     )
 }
 
 // A folder with nothing to match, and why.
 function ProblemRow({ folder: f, trusted }: { folder: LibraryFolder; trusted: boolean }) {
     return (
-        <div className="card flex items-center gap-3 p-3 pr-4">
+        <ContextArea
+            menu={
+                trusted && (
+                    <DropdownItem icon={<FolderOpen />} onSelect={() => openFolder(f.dir)}>
+                        Open folder
+                    </DropdownItem>
+                )
+            }
+            className="card flex items-center gap-3 p-3 pr-4"
+        >
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-300">
                 <AlertTriangle className="size-5" />
             </span>
@@ -470,7 +559,7 @@ function ProblemRow({ folder: f, trusted }: { folder: LibraryFolder; trusted: bo
                     <FolderOpen className="size-4" />
                 </IconButton>
             )}
-        </div>
+        </ContextArea>
     )
 }
 

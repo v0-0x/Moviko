@@ -1,17 +1,32 @@
-import { CheckCircle2, Download, Loader2, RotateCcw, Trash2, X, XCircle } from "lucide-react"
+import { Download, Info, RotateCcw, Trash2, X } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { toast } from "@/lib/toast"
-import { Badge, Button, EmptyState, ErrorState, IconButton, Progress } from "@/components/ui"
+import { ContextArea, DropdownItem, DropdownSeparator, EmptyState, ErrorState, IconButton, Progress } from "@/components/ui"
 import { api } from "@/lib/api"
 import { formatKey, isShow } from "@/lib/ids"
 import { useDownloads, useProviders, useStatus } from "@/lib/queries"
+import { useClassic } from "@/lib/themes"
 import type { DownloadItem } from "@/lib/types"
 import { cn, img } from "@/lib/utils"
 
 const RUNNING = ["queued", "resolving", "downloading"]
+// A group's rows: in this look on hairlines, not a box each.
+const rows = (classic: boolean) => cn("flex flex-col", classic ? "gap-2" : "border-t border-line")
+
+// A group's name: in this look a small capital label (in a span: a heading
+// has its own face).
+function GroupName({ children }: { children: React.ReactNode }) {
+    const classic = useClassic()
+    return (
+        <h2 className={cn("text-sm font-medium text-muted", classic ? "mb-3" : "mb-1")}>
+            <span className={classic ? undefined : "label"}>{children}</span>
+        </h2>
+    )
+}
 
 export default function DownloadsPage() {
+    const classic = useClassic()
     const { data, isLoading, error, refetch, isFetching } = useDownloads()
     const { data: status } = useStatus()
     // This device's downloads go to another Moviko (a TV's to its computer):
@@ -31,30 +46,27 @@ export default function DownloadsPage() {
 
     return (
         <div className="min-h-full px-6 pt-8 pb-24 md:px-8 xl:px-10">
-            <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-                <div>
+            <div className="mb-8 flex items-center justify-between gap-4">
+                <div className="min-w-0">
                     <h1 className="text-[1.75rem] font-semibold tracking-tight">Downloads</h1>
-                    <p className="mt-1 text-muted">
-                        Movies and episodes downloaded from streaming providers, saved to{" "}
-                        <span className="font-medium text-fg">{status?.settings.downloads?.dir || status?.settings.library.dir || "your library"}</span>.
-                    </p>
+                    <p className="mt-1 truncate text-sm text-muted">Saved to {status?.settings.downloads?.dir || status?.settings.library.dir || "your library"}</p>
                 </div>
                 {done.length > 0 && (
-                    <Button icon={<Trash2 className="size-4" />} onClick={() => call(api.post("/api/downloads/clear"))}>
-                        Clear finished
-                    </Button>
+                    <IconButton label="Clear finished" onClick={() => call(api.post("/api/downloads/clear"))}>
+                        <Trash2 className="size-4" />
+                    </IconButton>
                 )}
             </div>
             {error && !data && <ErrorState title="Couldn't load the downloads" error={error} retrying={isFetching} onRetry={() => refetch()} />}
             {!isLoading && !error && items.length === 0 && (
                 <EmptyState icon={<Download className="size-6" />} title="No downloads yet">
-                    Open a movie or show, go to <b>Watch online</b> and hit the download button.
+                    Download a movie or an episode from its Watch online tab.
                 </EmptyState>
             )}
             {active.length > 0 && (
-                <section className="mb-10">
-                    <h2 className="mb-4 text-lg font-semibold tracking-tight">In progress</h2>
-                    <div className="flex flex-col gap-3">
+                <section className="mb-8">
+                    <GroupName>In progress</GroupName>
+                    <div className={rows(classic)}>
                         {active.map(i => (
                             <Row key={i.id} item={i} onCancel={() => call(api.post(`/api/downloads/${i.id}/cancel`))} />
                         ))}
@@ -63,8 +75,8 @@ export default function DownloadsPage() {
             )}
             {done.length > 0 && (
                 <section>
-                    <h2 className="mb-4 text-lg font-semibold tracking-tight">History</h2>
-                    <div className="flex flex-col gap-3">
+                    <GroupName>History</GroupName>
+                    <div className={rows(classic)}>
                         {done.map(i => (
                             <Row key={i.id} item={i} onRetry={() => call(api.post(`/api/downloads/${i.id}/retry`))} onRemove={() => call(api.del(`/api/downloads/${i.id}`))} />
                         ))}
@@ -76,6 +88,7 @@ export default function DownloadsPage() {
 }
 
 function HostDownloads({ host, items, error, refetch, local }: { host: string; items: DownloadItem[]; error?: string; refetch: () => void; local: DownloadItem[] }) {
+    const classic = useClassic()
     const call = (p: Promise<unknown>) => p.then(refetch, (e: Error) => toast.error(e.message))
     const active = items.filter(i => RUNNING.includes(i.status))
     const done = items.filter(i => !RUNNING.includes(i.status)).slice(0, 50)
@@ -83,20 +96,18 @@ function HostDownloads({ host, items, error, refetch, local }: { host: string; i
         <div className="min-h-full px-6 pt-8 pb-24 md:px-8 xl:px-10">
             <div className="mb-8">
                 <h1 className="text-[1.75rem] font-semibold tracking-tight">Downloads</h1>
-                <p className="mt-1 text-muted">
-                    This device's downloads go to <span className="font-medium text-fg">{host}</span>: these are its downloads, and they show up in its library.
-                </p>
+                <p className="mt-1 truncate text-sm text-muted">Saved on {host}</p>
             </div>
-            {error && <p className="mb-6 rounded-lg border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-rose-200">{error}</p>}
+            {error && <p className={cn("mb-8 text-sm text-rose-200", classic ? "rounded-xl bg-rose-500/10 p-4" : "border-l border-rose-400 pl-3")}>{error}</p>}
             {!error && items.length === 0 && (
                 <EmptyState icon={<Download className="size-6" />} title={`Nothing downloading on ${host}`}>
-                    Open a movie or show, go to <b>Watch online</b> and download a stream: it downloads on {host}.
+                    Download a movie or an episode from its Watch online tab.
                 </EmptyState>
             )}
             {active.length > 0 && (
-                <section className="mb-10">
-                    <h2 className="mb-4 text-lg font-semibold tracking-tight">In progress</h2>
-                    <div className="flex flex-col gap-3">
+                <section className="mb-8">
+                    <GroupName>In progress</GroupName>
+                    <div className={rows(classic)}>
                         {active.map(i => (
                             <Row key={i.id} item={i} onCancel={() => call(api.post(`/api/downloads/host/${encodeURIComponent(i.id)}/cancel`))} />
                         ))}
@@ -104,9 +115,9 @@ function HostDownloads({ host, items, error, refetch, local }: { host: string; i
                 </section>
             )}
             {done.length > 0 && (
-                <section className="mb-10">
-                    <h2 className="mb-4 text-lg font-semibold tracking-tight">History</h2>
-                    <div className="flex flex-col gap-3">
+                <section className="mb-8">
+                    <GroupName>History</GroupName>
+                    <div className={rows(classic)}>
                         {done.map(i => (
                             <Row key={i.id} item={i} onRetry={() => call(api.post(`/api/downloads/host/${encodeURIComponent(i.id)}/retry`))} />
                         ))}
@@ -115,8 +126,8 @@ function HostDownloads({ host, items, error, refetch, local }: { host: string; i
             )}
             {local.length > 0 && (
                 <section>
-                    <h2 className="mb-4 text-lg font-semibold tracking-tight">On this device</h2>
-                    <div className="flex flex-col gap-3">
+                    <GroupName>On this device</GroupName>
+                    <div className={rows(classic)}>
                         {local.map(i => (
                             <Row
                                 key={i.id}
@@ -134,37 +145,68 @@ function HostDownloads({ host, items, error, refetch, local }: { host: string; i
 
 function Row({ item, onCancel, onRetry, onRemove }: { item: DownloadItem; onCancel?: () => void; onRetry?: () => void; onRemove?: () => void }) {
     const statusLabel = { queued: "Queued", resolving: "Resolving stream", downloading: "Downloading", completed: "Completed", failed: "Failed", canceled: "Canceled" }[item.status]
-    const tone = { queued: "gray", resolving: "blue", downloading: "brand", completed: "green", failed: "red", canceled: "gray" }[item.status] as "gray"
     // The streaming provider by name ("" when any provider would do).
     const { data: providers } = useProviders()
     const provider = item.provider ? (providers?.find(p => p.id === item.provider)?.name ?? item.provider) : ""
     // Its length isn't known: how much is downloaded, instead of a percentage.
     const soFar = item.done && !item.progress
+    const running = item.status === "downloading" || item.status === "resolving"
+    // What it is and how it's going, on one line.
+    const facts = [
+        isShow(item.mediaId) && item.episode > 0 && formatKey(item.episode),
+        item.mode === "dub" && "Dub",
+        provider,
+        item.quality && item.quality !== "best" && item.quality,
+        item.status === "downloading" ? (soFar ? `${item.done} downloaded` : `${Math.floor(item.progress * 100)}%`) : statusLabel,
+        item.status === "downloading" && item.speed,
+        item.status === "downloading" && item.eta && `ETA ${item.eta}`,
+    ].filter(Boolean)
+    const classic = useClassic()
+    const navigate = useNavigate()
+    const canRetry = onRetry && (item.status === "failed" || item.status === "canceled")
+    // A right-click on the row: what its buttons do.
+    const menu = (
+        <>
+            <DropdownItem icon={<Info />} onSelect={() => navigate(`/entry?id=${item.mediaId}`)}>
+                Its page
+            </DropdownItem>
+            {canRetry && (
+                <DropdownItem icon={<RotateCcw />} onSelect={onRetry}>
+                    Retry
+                </DropdownItem>
+            )}
+            {(onCancel || onRemove) && <DropdownSeparator />}
+            {onCancel && (
+                <DropdownItem icon={<X />} onSelect={onCancel}>
+                    Cancel
+                </DropdownItem>
+            )}
+            {onRemove && (
+                <DropdownItem icon={<Trash2 />} onSelect={onRemove}>
+                    Remove from list
+                </DropdownItem>
+            )}
+        </>
+    )
     return (
-        <div className="card flex items-center gap-4 p-3 pr-4">
-            <Link to={`/entry?id=${item.mediaId}`} className="shrink-0">
-                {item.image ? <img src={img(item.image)} alt="" className="h-20 w-14 rounded-lg object-cover" /> : <div className="h-20 w-14 rounded-lg bg-surface-3" />}
+        <ContextArea menu={menu} className={cn("flex items-center gap-4 fade-in", classic ? "card p-3" : "border-b border-line py-3")}>
+            <Link to={`/entry?id=${item.mediaId}`} className="focus-ring shrink-0 rounded-lg">
+                {item.image ? <img src={img(item.image)} alt="" className="h-16 w-11 rounded-lg object-cover" /> : <div className="h-16 w-11 rounded-lg bg-surface-3" />}
             </Link>
             <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                    <p className="truncate font-semibold">{item.title || item.animeTitle}</p>
-                    {isShow(item.mediaId) && item.episode > 0 && <Badge tone="brand">{formatKey(item.episode)}</Badge>}
-                    {item.mode === "dub" && <Badge>Dub</Badge>}
-                    {provider && <Badge>{provider}</Badge>}
-                    {item.quality && item.quality !== "best" && <Badge>{item.quality}</Badge>}
-                </div>
-                <div className="mt-2 flex items-center gap-3">
-                    {item.status === "downloading" || item.status === "resolving" ? <Loader2 className="size-4 animate-spin text-brand" /> : item.status === "completed" ? <CheckCircle2 className="size-4 text-emerald-400" /> : item.status === "failed" ? <XCircle className="size-4 text-rose-400" /> : null}
-                    <Badge tone={tone}>{statusLabel}</Badge>
-                    {item.status === "downloading" && (
-                        <span className="text-xs text-muted tabular-nums">
-                            {soFar ? `${item.done} downloaded` : `${Math.floor(item.progress * 100)}%`} {item.speed && `· ${item.speed}`} {item.eta && `· ETA ${item.eta}`}
-                        </span>
-                    )}
-                    {item.error && <span className="truncate text-xs text-rose-300" title={item.error}>{item.error}</span>}
-                    {item.status === "completed" && item.output && <span className="truncate text-xs text-subtle" title={item.output}>{item.output}</span>}
-                </div>
-                {(item.status === "downloading" || item.status === "resolving") && !soFar && <Progress value={item.progress} className={cn("mt-2.5", item.status === "resolving" && "opacity-50")} />}
+                <p className="truncate font-medium">{item.title || item.animeTitle}</p>
+                <p className={cn("mt-0.5 truncate text-sm text-muted tabular-nums", item.status === "failed" && "text-rose-300", item.status === "completed" && "text-emerald-300/90")}>{facts.join(" · ")}</p>
+                {item.error && (
+                    <p className="mt-0.5 truncate text-xs text-rose-300" title={item.error}>
+                        {item.error}
+                    </p>
+                )}
+                {item.status === "completed" && item.output && (
+                    <p className="mt-0.5 truncate text-xs text-subtle" title={item.output}>
+                        {item.output}
+                    </p>
+                )}
+                {running && !soFar && <Progress value={item.progress} className={cn("mt-2", item.status === "resolving" && "opacity-50")} />}
             </div>
             <div className="flex shrink-0 gap-1">
                 {onCancel && (
@@ -172,7 +214,7 @@ function Row({ item, onCancel, onRetry, onRemove }: { item: DownloadItem; onCanc
                         <X className="size-4" />
                     </IconButton>
                 )}
-                {onRetry && (item.status === "failed" || item.status === "canceled") && (
+                {canRetry && (
                     <IconButton label="Retry" onClick={onRetry}>
                         <RotateCcw className="size-4" />
                     </IconButton>
@@ -183,6 +225,6 @@ function Row({ item, onCancel, onRetry, onRemove }: { item: DownloadItem; onCanc
                     </IconButton>
                 )}
             </div>
-        </div>
+        </ContextArea>
     )
 }

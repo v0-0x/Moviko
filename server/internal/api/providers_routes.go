@@ -335,8 +335,9 @@ type providerPlayBody struct {
 // providerPlay is POST /api/providers/play. A direct link opens in mpv or
 // gives the in-app player its sources (the stream picked, then the other
 // direct links as fallbacks), a torrent goes to the torrent client (into the
-// library), a YouTube video or a web page comes back to be opened:
-// {action: "builtin" | "mpv" | "torrent" | "external", ...}.
+// library), a YouTube video or a web page comes back to be opened (a web
+// player's page, in Moviko's own window):
+// {action: "builtin" | "mpv" | "torrent" | "external" | "embed", ...}.
 func (s *Server) providerPlay(r *http.Request) (any, error) {
 	var body providerPlayBody
 	if err := decode(r, &body); err != nil {
@@ -362,6 +363,10 @@ func (s *Server) providerPlay(r *http.Request) (any, error) {
 		u, err := url.Parse(st.ExternalURL)
 		if err != nil || (u.Scheme != "https" && u.Scheme != "http") {
 			return nil, badRequest("this source has no link to open")
+		}
+		if st.Embed {
+			// A web player: the page shows in Moviko's own window.
+			return map[string]any{"action": "embed", "url": st.ExternalURL, "provider": st.Provider, "providerName": st.ProviderName}, nil
 		}
 		return map[string]any{"action": "external", "url": st.ExternalURL}, nil
 	}

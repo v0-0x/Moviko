@@ -5,7 +5,8 @@ import { formatKey, isShow } from "@/lib/ids"
 import { useSettings } from "@/lib/queries"
 import { skipAt, skipName, skipOn } from "@/lib/skips"
 import { playbackStore, scanStore, useStore } from "@/lib/store"
-import { formatDuration } from "@/lib/utils"
+import { useClassic } from "@/lib/themes"
+import { cn, formatDuration } from "@/lib/utils"
 import { Progress } from "./ui"
 
 // Floating pill controlling the external mpv window: the movie or show,
@@ -14,6 +15,7 @@ import { Progress } from "./ui"
 export function NowPlaying() {
     const s = useStore(playbackStore)
     const settings = useSettings()
+    const classic = useClassic()
     if (!s || !s.active || s.player !== "mpv") return null
     const cmd = (c: string, value = 0) => api.post("/api/playback/command", { cmd: c, value }).catch(() => {})
     const pct = s.duration > 0 ? s.position / s.duration : 0
@@ -24,10 +26,10 @@ export function NowPlaying() {
     const skip = skipAt(s.skips ?? [], s.position)
     const offerSkip = !!skip && (!skipOn(settings?.playback, skip.type) || skip.end >= s.duration - 1)
     return (
-        <div className="fixed bottom-[calc(1.25rem+var(--phone-bar,0px))] left-1/2 z-50 w-[min(92vw,560px)] -translate-x-1/2 rounded-xl border border-line-strong bg-surface-2 p-3 shadow-2xl shadow-black/50 rise-in">
+        <div className={cn("fixed bottom-[calc(1.25rem+var(--phone-bar,0px))] left-1/2 z-50 w-[min(92vw,560px)] -translate-x-1/2 rounded-xl border border-line-strong p-3 shadow-2xl shadow-black/50 rise-in", classic ? "bg-surface-2" : "bg-surface-1")}>
             <div className="flex items-center gap-3">
                 <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs text-muted">Playing in mpv{episode ? ` · ${episode}` : ""}</p>
+                    <p className={classic ? "truncate text-xs text-muted" : "label truncate text-[10px] text-muted"}>Playing in mpv{episode ? ` · ${episode}` : ""}</p>
                     <Link to={`/entry?id=${s.mediaId}`} className="block truncate text-sm font-medium hover:underline">
                         {name}
                     </Link>
@@ -44,7 +46,7 @@ export function NowPlaying() {
                     <button className="grid size-9 place-items-center rounded-full text-muted transition-colors hover:bg-white/10 hover:text-fg" onClick={() => cmd("seek", -10)} title="Back 10s">
                         <RotateCcw className="size-4" />
                     </button>
-                    <button className="grid size-9 place-items-center rounded-full bg-white text-neutral-950 transition-colors hover:bg-white/85" onClick={() => cmd("toggle")} title="Play/Pause">
+                    <button className={cn("grid size-9 place-items-center rounded-full", classic ? "bg-white text-neutral-950 transition-colors hover:bg-white/85" : "bg-brand text-[color:var(--on-brand)] transition-opacity hover:opacity-85")} onClick={() => cmd("toggle")} title="Play/Pause">
                         {s.paused ? <Play className="ml-0.5 size-4 fill-current" /> : <Pause className="size-4 fill-current" />}
                     </button>
                     <button className="grid size-9 place-items-center rounded-full text-muted transition-colors hover:bg-white/10 hover:text-fg" onClick={() => cmd("seek", 30)} title="Forward 30s">
@@ -66,9 +68,10 @@ export function NowPlaying() {
 
 export function ScanIndicator() {
     const s = useStore(scanStore)
+    const classic = useClassic()
     if (!s.running) return null
     return (
-        <div className="fixed right-5 bottom-[calc(1.25rem+var(--phone-bar,0px))] z-50 w-[min(20rem,calc(100vw-2.5rem))] rounded-xl border border-line-strong bg-surface-2 p-4 shadow-2xl shadow-black/50 rise-in">
+        <div className={cn("fixed right-5 bottom-[calc(1.25rem+var(--phone-bar,0px))] z-50 w-[min(20rem,calc(100vw-2.5rem))] rounded-xl border border-line-strong p-4 shadow-2xl shadow-black/50 rise-in", classic ? "bg-surface-2" : "bg-surface-1")}>
             <div className="flex items-center gap-3">
                 <Loader2 className="size-4 animate-spin text-muted" />
                 <div className="min-w-0 flex-1">

@@ -110,8 +110,10 @@ export function invalidateList(qc: QueryClient, mediaId?: number) {
 // Has the Moviko apps sharing their libraries asked again what they share
 // and where they are in what they watch (their answers come as events). A
 // POST, as GET requests only read; sent alongside the query that wants it.
-function refreshSharing() {
-    api.post("/api/sharing/refresh").catch(() => {})
+export async function refreshSharing(qc?: QueryClient) {
+    await api.post("/api/sharing/refresh").catch(() => {})
+    // A Refresh button: what they answered shows at once.
+    qc?.invalidateQueries({ queryKey: ["sharing"] })
 }
 
 // The list with what the library has, asked again when Moviko's window
@@ -313,16 +315,18 @@ export function useDiscover(enabled = true) {
     })
 }
 
-// Library sharing: the Moviko apps on the network (asked again while shown).
+// Library sharing: the Moviko apps on the network. Opened, the hosts are asked
+// again what they share; then shown as they answer in their own time, so a
+// page open for an hour doesn't have every server answer every few seconds.
 export function useSharing(enabled = true) {
     return useQuery({
         queryKey: ["sharing", "status"],
-        queryFn: () => {
-            refreshSharing()
+        queryFn: ({ client }) => {
+            if (!client.getQueryState(["sharing", "status"])?.dataUpdateCount) refreshSharing()
             return api.get<SharingStatus>("/api/sharing")
         },
         enabled,
-        refetchInterval: 4000,
+        refetchInterval: 10_000,
     })
 }
 

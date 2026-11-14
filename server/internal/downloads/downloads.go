@@ -680,11 +680,19 @@ func (m *Manager) destination(cfg config.Settings, it *Item, title string, year 
 // download/library folder), otherwise a new one named folderName — never
 // loose in the library folder itself.
 func (m *Manager) folderFor(cfg config.Settings, mediaID int, folderName string) (string, error) {
-	baseDir := config.ExpandHome(util.FirstNonEmpty(cfg.Downloads.Dir, cfg.Library.Dir))
+	// Where new titles go: the download folder when set, else the library
+	// folder chosen for downloads (Settings › Library).
+	baseDir := util.FirstNonEmpty(config.ExpandHome(cfg.Downloads.Dir), cfg.DownloadDir())
 	if baseDir == "" {
 		return "", errors.New("no download directory configured")
 	}
 	baseDir = filepath.Clean(baseDir)
+	// The title's own folder, in any library folder, wins.
+	parents := append(cfg.LibraryDirs(), baseDir)
+	isParent := func(d string) bool { return slices.Contains(parents, d) }
+	below := func(d string) bool {
+		return slices.ContainsFunc(parents, func(p string) bool { return d != p && util.IsSubPath(p, d) })
+	}
 	if mediaID > 0 && m.files != nil {
 		if existing, _ := m.files.ByMedia(mediaID); len(existing) > 0 {
 			counts := map[string]int{}
@@ -693,11 +701,11 @@ func (m *Manager) folderFor(cfg config.Settings, mediaID int, folderName string)
 				// The movie's or show's folder, else the file's (a season
 				// folder is a show's: its parent is the show's).
 				d := filepath.Clean(util.FirstNonEmpty(f.Parsed.Folder, f.Dir))
-				if f.Parsed.Folder == "" && !release.NamesTitle(filepath.Base(d)) && filepath.Dir(d) != baseDir {
+				if f.Parsed.Folder == "" && !release.NamesTitle(filepath.Base(d)) && !isParent(filepath.Dir(d)) {
 					d = filepath.Dir(d)
 				}
-				// Only a folder of its own below the base folder.
-				if d == baseDir || !util.IsSubPath(baseDir, d) || strings.HasPrefix(filepath.Base(d), ".") {
+				// Only a folder of its own below a library folder.
+				if isParent(d) || !below(d) || strings.HasPrefix(filepath.Base(d), ".") {
 					continue
 				}
 				counts[d]++

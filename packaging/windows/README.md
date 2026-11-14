@@ -98,8 +98,21 @@ access (**Edit › Preferences › Remote**).
 
 Uninstalling keeps your data; delete the first two folders to remove it too.
 
-When **Allow devices on my network** is turned on, Windows Firewall asks
-whether `moviko.exe` may accept connections: allow it on **private** networks.
+The installer offers to add a **Windows Firewall rule** for `moviko.exe` on
+private networks (TCP 43311 for the apps and devices, UDP 43312 for the
+announcements the Movikos find each other by); Windows asks for an
+administrator's permission once. Without the rule, Windows Firewall asks
+whether `moviko.exe` may accept connections when **Allow devices on my
+network** is turned on (allow it on **private** networks), and it keeps
+dropping the other devices' announcements, so a media server or another
+Moviko shows as offline now and then between its answers (Settings › Devices
+says "its announcements aren't getting through"). Add the rule by hand in
+an administrator PowerShell:
+
+```powershell
+netsh advfirewall firewall add rule name="Moviko" dir=in action=allow program="$env:LOCALAPPDATA\Programs\Moviko\resources\moviko.exe" protocol=TCP localport=43311 profile=private
+netsh advfirewall firewall add rule name="Moviko" dir=in action=allow program="$env:LOCALAPPDATA\Programs\Moviko\resources\moviko.exe" protocol=UDP localport=43312 profile=private
+```
 
 `moviko.exe --web-ui` (in the app's `resources` folder) runs the server alone,
 without the window: the web UI is then at `http://127.0.0.1:43311`. The app
@@ -141,7 +154,7 @@ UI, embeds it into the server, runs `go vet` and `go test` (`-SkipTests`
 skips them), builds `dist\windows\moviko.exe`, then packages the app with
 electron-builder ([`desktop/electron-builder.yml`](../../desktop/electron-builder.yml)).
 The installer and the zip land in `dist\windows\release`. Unlike a release, a
-build of your own keeps the version in `desktop/package.json` (2.0.0), so
+build of your own keeps the version in `desktop/package.json` (3.0.0), so
 Moviko offers it the newest release as an update.
 
 For development, `cd desktop; npm ci; npx electron .` starts the window with
@@ -163,9 +176,9 @@ runs from the repository's **Actions** tab (**Windows release**): with
 commit updates it, replacing files of the same name); untick it to only get
 the files as workflow artifacts.
 
-The version is `2.0.<commits since 2.0.0's>`: the first two numbers come from
+The version is `3.0.<commits since 3.0.0's>`: the first two numbers come from
 `desktop/package.json`, the last one grows with every commit (counted from
-the commit its `movikoVersionBase` names, 2.0.0's), so there's nothing to bump
+the commit its `movikoVersionBase` names, 3.0.0's), so there's nothing to bump
 by hand. Releases before 2.0 were `1.0.<number of commits>`. The workflow builds it into `moviko.exe` with the
 commit, and installed copies of Moviko offer the release with the highest
 version as their update. The Arch package gets the same version from its

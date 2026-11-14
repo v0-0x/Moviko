@@ -41,13 +41,13 @@ import { Badge, Button, EmptyState, Input, Select, Switch } from "@/components/u
 import { UpdateBanner, versionName } from "@/components/UpdateBanner"
 import { whatsNewStore } from "@/components/WhatsNew"
 import { api, desktop, type DesktopPrefs } from "@/lib/api"
-import { useCheckUpdate, useSaveSettings, useSharing, useStatus, useUpdateStatus } from "@/lib/queries"
+import { refreshSharing, useCheckUpdate, useSaveSettings, useSharing, useStatus, useUpdateStatus } from "@/lib/queries"
 import { exampleMpvPath, installHint, installSource, platformName } from "@/lib/platform"
 import type { Tool } from "@/lib/platform"
 import { canInstallPrograms, useInstallPrograms, useWatchSetup } from "@/lib/programs"
 import { useStore } from "@/lib/store"
 import { useFadeBelow } from "@/lib/hooks"
-import { activeHoliday, COLOR_THEMES, HOLIDAYS, themePreviewStore, useClassic } from "@/lib/themes"
+import { activeHoliday, colorTheme, HOLIDAYS, ownAccent, themePreviewStore, themesOf, useClassic } from "@/lib/themes"
 import { setSubStyle, SUB_BACKGROUNDS, SUB_POSITIONS, SUB_SIZES, subStyleStore, subStyleVars, type SubStyle } from "@/lib/subtitles"
 import { systemNotifications } from "@/lib/alerts"
 import { androidApp, setTvWidth, TV_WIDTHS, tv, tvWidth } from "@/lib/tv"
@@ -105,14 +105,15 @@ type NavItem = {
     keywords?: string
 }
 
-// Settings in six groups, each page about one thing.
+// The settings' parts, each about one thing (search lists them one by one);
+// PAGES puts them on ten pages.
 const NAV: { title: string; items: NavItem[] }[] = [
     {
         title: "General",
         items: [
-            { id: "appearance", label: "Appearance", icon: <Palette />, description: "Themes, colors, holidays, the classic look and what Home shows", keywords: "ui theme color dark classic look spoilers card size home rows" },
+            { id: "appearance", label: "Appearance", icon: <Palette />, description: "Themes, colors and what's shown", keywords: "ui theme color dark classic look spoilers card size home rows" },
             { id: "notifications", label: "Notifications", icon: <Bell />, description: "Alerts for new episodes and finished downloads", keywords: "alerts notify" },
-            { id: "updates", label: "Updates & about", icon: <RefreshCw />, description: "Moviko's version, updates and beta updates", keywords: "version beta about what's new" },
+            { id: "updates", label: "Updates & about", icon: <RefreshCw />, description: "Version, updates and beta", keywords: "version beta about what's new" },
         ],
     },
     {
@@ -125,9 +126,9 @@ const NAV: { title: string; items: NavItem[] }[] = [
     {
         title: "Watching",
         items: [
-            { id: "playback", label: "Playback", icon: <Clapperboard />, description: "How movies and episodes play, progress, audio and subtitles", keywords: "player video subtitles audio skip intro credits" },
-            { id: "mpv", label: "mpv player", icon: <MonitorPlay />, description: "The desktop media player Moviko can play in", keywords: "external player" },
-            { id: "transcode", label: "Video conversion", icon: <Cpu />, description: "So the in-app player plays every format", keywords: "transcoding direct play ffmpeg hardware gpu hevc" },
+            { id: "playback", label: "Playback", icon: <Clapperboard />, description: "Player, progress, audio and subtitles", keywords: "player video subtitles audio skip intro credits" },
+            { id: "mpv", label: "mpv player", icon: <MonitorPlay />, description: "Play in mpv, a desktop media player", keywords: "external player" },
+            { id: "transcode", label: "Video conversion", icon: <Cpu />, description: "Convert video the in-app player can't play", keywords: "transcoding direct play ffmpeg hardware gpu hevc" },
             { id: "discord", label: "Discord", icon: <Gamepad2 />, description: "Show what you're watching on Discord", keywords: "rich presence status" },
         ],
     },
@@ -135,23 +136,23 @@ const NAV: { title: string; items: NavItem[] }[] = [
         title: "Movies & shows",
         items: [
             { id: "library", label: "Local library", icon: <LibraryBig />, description: "Your movie and show folders and how they're scanned", keywords: "folder files scan matching" },
-            { id: "providers", label: "Streaming providers", icon: <Tv />, description: "Where movies and episodes stream from, and stream downloads", keywords: "online stream sites stremio addons media servers jellyfin plex downloads" },
-            { id: "torrents", label: "Torrents", icon: <Magnet />, description: "Torrent sources, your torrent client and the auto downloader", keywords: "qbittorrent transmission torznab jackett prowlarr rss provider client" },
+            { id: "providers", label: "Streaming providers", icon: <Tv />, description: "Where movies and episodes stream from, and downloads", keywords: "online stream sites stremio addons media servers jellyfin plex downloads" },
+            { id: "torrents", label: "Torrents", icon: <Magnet />, description: "Torrent sources, client and auto downloader", keywords: "qbittorrent transmission torznab jackett prowlarr rss provider client" },
             { id: "extensions", label: "Extensions", icon: <Puzzle />, description: "Where extensions come from", keywords: "marketplace plugins" },
         ],
     },
     {
         title: "Devices & network",
         items: [
-            { id: "devices", label: "Other devices", icon: <MonitorSmartphone />, description: "Moviko on your other computers and TVs: sharing, waking, syncing", keywords: "share sharing tv fire library wake sync" },
-            { id: "network", label: "Network & web UI", icon: <Wifi />, description: "Using Moviko from a browser or other devices at home", keywords: "lan port password browser web" },
+            { id: "devices", label: "Other devices", icon: <MonitorSmartphone />, description: "Share, wake and sync with your other computers and TVs", keywords: "share sharing tv fire library wake sync" },
+            { id: "network", label: "Network & web UI", icon: <Wifi />, description: "Use Moviko from a browser or other devices at home", keywords: "lan port password browser web" },
         ],
     },
     {
         title: "This computer",
         items: [
-            { id: "desktop", label: "Desktop app & programs", icon: <AppWindow />, description: "The window, the tray, starting at login, and the programs Moviko uses", keywords: "tray background startup login ffmpeg yt-dlp mpv install" },
-            { id: "backup", label: "Backup & data", icon: <DatabaseBackup />, description: "Back up and restore, and where Moviko keeps its data", keywords: "restore export import folder" },
+            { id: "desktop", label: "Desktop app & programs", icon: <AppWindow />, description: "Window, tray, start at login and installed programs", keywords: "tray background startup login ffmpeg yt-dlp mpv install" },
+            { id: "backup", label: "Backup & data", icon: <DatabaseBackup />, description: "Back up, restore and the data folder", keywords: "restore export import folder" },
             { id: "logs", label: "Logs & cache", icon: <FileClock />, description: "Server logs and cached data", keywords: "debug clear" },
         ],
     },
@@ -162,6 +163,27 @@ const NAV: { title: string; items: NavItem[] }[] = [
 const NOT_ON_ANDROID: SectionId[] = ["mpv", "transcode", "discord", "desktop"]
 const SHOWN_NAV = androidApp ? NAV.map(g => ({ ...g, items: g.items.filter(i => !NOT_ON_ANDROID.includes(i.id)) })) : NAV
 const NAV_ITEMS = SHOWN_NAV.flatMap(g => g.items)
+
+// The pages, each with the parts on it (a page is named by its first part).
+const PAGES: (NavItem & { parts: SectionId[] })[] = (
+    [
+        { id: "appearance", label: "Appearance", icon: <Palette />, description: "Themes, colors and what's shown", parts: ["appearance"] },
+        { id: "metadata", label: "Accounts", icon: <KeyRound />, description: "TMDB, Letterboxd and notifications", parts: ["metadata", "letterboxd", "notifications"] },
+        { id: "playback", label: "Playback", icon: <Clapperboard />, description: "Player, progress, audio, subtitles and Discord", parts: ["playback", "discord"] },
+        { id: "mpv", label: "Players & conversion", icon: <MonitorPlay />, description: "The mpv player and video conversion", parts: ["mpv", "transcode"] },
+        { id: "library", label: "Library", icon: <LibraryBig />, description: "Your movie and show folders and how they're scanned", parts: ["library"] },
+        { id: "providers", label: "Streaming & torrents", icon: <Tv />, description: "Streaming providers, downloads, torrent sources and client", parts: ["providers", "torrents"] },
+        { id: "extensions", label: "Extensions", icon: <Puzzle />, description: "Where extensions come from", parts: ["extensions"] },
+        { id: "devices", label: "Devices & network", icon: <MonitorSmartphone />, description: "Your other computers and TVs, and browser access", parts: ["devices", "network"] },
+        { id: "desktop", label: "App & data", icon: <AppWindow />, description: "Window, programs, backups, logs and cache", parts: ["desktop", "backup", "logs"] },
+        { id: "updates", label: "Updates & about", icon: <RefreshCw />, description: "Version, updates and beta", parts: ["updates"] },
+    ] satisfies (NavItem & { parts: SectionId[] })[]
+)
+    .map(pg => ({ ...pg, parts: pg.parts.filter(id => NAV_ITEMS.some(i => i.id === id)) }))
+    .filter(pg => pg.parts.length > 0)
+// Parts whose first group has their name already.
+const TITLED: SectionId[] = ["mpv", "extensions"]
+const pageOf = (part: string) => PAGES.find(pg => pg.parts.includes(part as SectionId))
 
 // Older links (and the names before the regrouping).
 const ALIASES: Record<string, SectionId> = {
@@ -202,8 +224,11 @@ export default function SettingsPage() {
     const [params, setParams] = useSearchParams()
     const raw = params.get("tab") ?? "appearance"
     const tab = ALIASES[raw] ?? raw
-    // Unknown tabs (old links, typos) open the first one instead of nothing.
-    const section = (SECTION_IDS.includes(tab) ? tab : "appearance") as SectionId
+    // Unknown tabs (old links, typos) open the first page instead of
+    // nothing; a part's name opens its page, at that part.
+    const current = pageOf(tab) ?? PAGES[0]
+    const section = current.id
+    const part = SECTION_IDS.includes(tab) && tab !== current.parts[0] ? tab : ""
     const save = useSaveSettings()
     const server = status?.settings
     // draft is what the form edits, base the server copy it was made from.
@@ -235,7 +260,7 @@ export default function SettingsPage() {
         const onlyThemes = (Object.keys(server) as (keyof Settings)[]).every(k =>
             k === "ui" ? (Object.keys(server.ui) as (keyof Settings["ui"])[]).every(f => picked.includes(f) || same(server.ui[f], base.ui[f])) : same(server[k], base[k]),
         )
-        if (!onlyThemes && !same(draft, base) && !same(next, draft)) toast.info("Settings were changed somewhere else. Your unsaved changes here were kept.")
+        if (!onlyThemes && !same(draft, base) && !same(next, draft)) toast.info("Settings changed elsewhere. Your unsaved changes were kept.")
         setDraft(next)
         setBase(server)
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -255,16 +280,21 @@ export default function SettingsPage() {
     // field focused once the section is there.
     const [focusPassword, setFocusPassword] = useState(false)
     useEffect(() => {
-        if (!focusPassword || section !== "network") return
+        if (!focusPassword || !current.parts.includes("network")) return
         setFocusPassword(false)
         const field = document.getElementById(NETWORK_PASSWORD_ID)
         field?.scrollIntoView({ block: "center", behavior: "smooth" })
         field?.focus({ preventScroll: true })
     }, [focusPassword, section])
 
+    useEffect(() => {
+        if (part && !focusPassword) document.getElementById(`settings-${part}`)?.scrollIntoView({ block: "start" })
+        // Once the settings are here (the page is empty until then).
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [part, section, !draft])
+
     if (!draft || !status) return null
     const set = <K extends keyof Settings>(k: K, v: Partial<Settings[K]>) => setDraft(d => (d ? { ...d, [k]: { ...d[k], ...v } } : d))
-    const current = NAV_ITEMS.find(i => i.id === section) ?? NAV_ITEMS[0]
 
     const onSave = () => {
         const oldPort = status.settings.server.port
@@ -296,8 +326,9 @@ export default function SettingsPage() {
             className={cn(
                 "focus-ring flex h-8 items-center gap-2.5 px-2.5 text-[13.5px] font-medium transition-colors [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:stroke-[1.75]",
                 classic
-                    ? cn("rounded-md", !searching && section === it.id ? "bg-white/[0.08] text-fg" : "text-muted hover:bg-white/[0.04] hover:text-fg")
-                    : cn("rounded-lg", !searching && section === it.id ? "bg-white/[0.07] text-fg [&>svg]:text-brand-strong" : "text-muted hover:bg-white/[0.05] hover:text-fg"),
+                    ? cn("rounded-lg", !searching && section === it.id ? "bg-white/[0.07] text-fg [&>svg]:text-brand-strong" : "text-muted hover:bg-white/[0.05] hover:text-fg")
+                    : // The open one: bright, a line at its left edge.
+                      cn("rounded-none", !searching && section === it.id ? "text-fg shadow-[inset_1px_0_0_var(--text)]" : "text-muted shadow-[inset_1px_0_0_var(--line)] hover:text-fg"),
             )}
         >
             {it.icon}
@@ -327,16 +358,11 @@ export default function SettingsPage() {
                             setQuery("")
                             setParams({ tab: v }, { replace: true })
                         }}
-                        options={SHOWN_NAV.flatMap(g => g.items.map(it => ({ value: it.id, label: `${g.title} › ${it.label}` })))}
+                        options={PAGES.map(it => ({ value: it.id, label: it.label }))}
                     />
                 </div>
-                <nav aria-label="Settings sections" className="hidden flex-col gap-5 md:flex">
-                    {SHOWN_NAV.map(g => (
-                        <div key={g.title} className="flex flex-col gap-0.5">
-                            <p className="px-2.5 pb-1 text-[11px] font-medium text-subtle">{g.title}</p>
-                            {g.items.map(navButton)}
-                        </div>
-                    ))}
+                <nav aria-label="Settings sections" className="hidden flex-col gap-0.5 md:flex">
+                    {PAGES.map(navButton)}
                 </nav>
                 <p className="mt-6 hidden px-2.5 text-xs text-subtle md:block">
                     Moviko {status.version} · {platformName(status.platform)} · {status.client === "desktop" ? "Desktop" : status.client === "lan" ? "LAN" : "Web UI"}
@@ -355,7 +381,7 @@ export default function SettingsPage() {
                 )}
                 {status.client === "lan" && (
                     <p className="mb-6 rounded-lg bg-white/[0.04] px-3 py-2 text-xs text-muted lg:mt-[3.75rem]">
-                        You're using Moviko from another device: dimmed settings (folders, programs, network, logins) can only be changed on the computer it runs on.
+                        Dimmed settings can only be changed on the computer Moviko runs on.
                     </p>
                 )}
                 {searching ? (
@@ -370,7 +396,24 @@ export default function SettingsPage() {
                             <p className="mt-1 text-sm text-muted">{current.description}</p>
                         </div>
                         <div key={section} className="flex flex-col gap-8 fade-in">
-                            <SectionBody id={section} {...sectionProps} />
+                            {current.parts.map((id, i) => {
+                                const it = NAV_ITEMS.find(n => n.id === id)!
+                                return (
+                                    <div key={id} id={`settings-${id}`} className={cn("flex scroll-mt-6 flex-col gap-8", i > 0 && "border-t border-line pt-8")}>
+                                        {/* A page of several parts names each. */}
+                                        {current.parts.length > 1 && it.label !== current.label && !TITLED.includes(id) && (
+                                            <div>
+                                                <h3 className="flex items-center gap-2 text-base font-semibold tracking-tight [&>svg]:size-4 [&>svg]:text-muted">
+                                                    {it.icon}
+                                                    {it.label}
+                                                </h3>
+                                                <p className="mt-1 text-sm text-muted">{it.description}</p>
+                                            </div>
+                                        )}
+                                        <SectionBody id={id} {...sectionProps} />
+                                    </div>
+                                )
+                            })}
                         </div>
                     </>
                 )}
@@ -491,11 +534,11 @@ function SearchResults({ query, sectionProps, onOpen }: { query: string; section
 // Where other devices open Moviko, once LAN access is saved.
 function LanAddresses({ status }: { status?: Status }) {
     const urls = status?.lanUrls ?? []
-    if (!status?.settings.server.allowLan) return <p className="px-4 py-3.5 text-sm text-muted">Save, and the address to open on your other devices shows up here.</p>
+    if (!status?.settings.server.allowLan) return <p className="px-4 py-3.5 text-sm text-muted">Save to see the address for your other devices.</p>
     if (!urls.length)
         return (
             <p className="px-4 py-3.5 text-sm text-amber-200/80">
-                Moviko can't find this computer's address on your network. Is it connected to your router (by cable or Wi-Fi)?
+                Can't find this computer's network address. Check that it's connected to your router.
             </p>
         )
     return (
@@ -515,8 +558,8 @@ function LanAddresses({ status }: { status?: Status }) {
                 ))}
             </div>
             <p className="mt-2 text-xs text-subtle">
-                Type it with http://, not https://. On a Mac, Chrome, Brave and Firefox first need Local Network access (System Settings › Privacy & Security ›
-                Local Network); Safari works right away. A VPN on this computer can block other devices too: in Mullvad, turn on Local network sharing.
+                Use http://, not https://. On a Mac, Chrome, Brave and Firefox need Local Network access in System Settings › Privacy & Security. A VPN on this
+                computer can block other devices.
             </p>
         </div>
     )
@@ -531,26 +574,26 @@ function NetworkSection({ draft, set }: SectionProps) {
     const lan = status?.client === "lan"
     return (
         <>
-            <Group title="Web UI & network" description="Moviko only ever talks to this computer and — if you allow it — your home network. Connections from the internet are always refused.">
+            <Group title="Web UI & network" description="Connections from the internet are always refused.">
                 {/* The Android app is its own window, on its own port. */}
                 {!androidApp && (
                     <Row
                         label="Web UI"
                         help={
                             status?.webUiForced
-                                ? "Running without the desktop app, so the browser UI is always on."
-                                : `Use Moviko from any browser at http://127.0.0.1:${draft.server.port}`
+                                ? "Always on without the desktop app."
+                                : `Open Moviko in a browser at http://127.0.0.1:${draft.server.port}`
                         }
                     >
                         <Switch checked={draft.server.webUi || !!status?.webUiForced} disabled={!isDesktop || status?.webUiForced} onChange={v => set("server", { webUi: v })} />
                     </Row>
                 )}
-                <Row label="Allow devices on my network" help="Phones, tablets, TVs and other computers on your home network can open Moviko in a browser.">
+                <Row label="Allow devices on my network" help="Open Moviko in a browser on phones, TVs and other computers at home.">
                     <Switch checked={draft.server.allowLan} disabled={lan} onChange={v => set("server", { allowLan: v, webUi: v ? true : draft.server.webUi })} />
                 </Row>
                 {draft.server.allowLan && <LanAddresses status={status} />}
                 {draft.server.allowLan && (
-                    <Stack label="Network password" help={lan ? "Set on the computer Moviko runs on." : "Asked once per device on your network. This computer never needs it."}>
+                    <Stack label="Network password" help={lan ? "Set on the computer Moviko runs on." : "Asked once per device. Not needed on this computer."}>
                         <Password
                             id={NETWORK_PASSWORD_ID}
                             value={draft.server.password}
@@ -561,11 +604,11 @@ function NetworkSection({ draft, set }: SectionProps) {
                     </Stack>
                 )}
                 {!androidApp && (
-                    <Row label="Port" help="Restart-free: Moviko moves to the new port when you save.">
+                    <Row label="Port" help="Changes when you save. No restart needed.">
                         <Input type="number" className="w-28" disabled={lan} value={draft.server.port} onChange={e => set("server", { port: Number(e.target.value) })} />
                     </Row>
                 )}
-                {!isDesktop && !lan && !androidApp && <p className="px-4 py-3 text-xs text-amber-200/80">Turning the Web UI off is only possible from the desktop app, so you can't lock yourself out.</p>}
+                {!isDesktop && !lan && !androidApp && <p className="px-4 py-3 text-xs text-amber-200/80">The Web UI can only be turned off from the desktop app.</p>}
             </Group>
         </>
     )
@@ -583,7 +626,7 @@ function ExtensionsSection({ draft, set }: SectionProps) {
                 </Locked>
             </Group>
             <Group title="Your extensions">
-                <Row label="Installed extensions and the marketplace" help="Install, update, set up and remove extensions on the Extensions page." keywords="install update marketplace">
+                <Row label="Installed extensions and the marketplace" help="Manage them on the Extensions page." keywords="install update marketplace">
                     <Button size="sm" variant="ghost" onClick={() => navigate("/extensions")}>
                         Open
                     </Button>
@@ -644,8 +687,8 @@ function DesktopGroup() {
                 label="Keep running when the window is closed"
                 help={
                     mac
-                        ? "Off: closing the window quits Moviko. On: streaming to your other devices, downloads and the auto downloader keep going, without the window's memory; click Moviko in the Dock to open it again, quit with Cmd+Q or the button below."
-                        : `Off: closing the window quits Moviko. On: streaming to your other devices, downloads and the auto downloader keep going, without the window's memory; open or quit Moviko from its tray icon${win ? " (at the right of the taskbar, under ^ when hidden)" : ""}, or open it again from ${win ? "the Start menu" : "your app menu"} and quit with the button below.`
+                        ? "Streaming, downloads and the auto downloader keep going. Quit with Cmd+Q."
+                        : "Streaming, downloads and the auto downloader keep going. Open or quit from the tray icon."
                 }
             >
                 <Switch checked={prefs.keepRunning} onChange={v => change("keepRunning", v)} />
@@ -655,8 +698,8 @@ function DesktopGroup() {
                     label="Start Moviko when you log in"
                     help={
                         prefs.keepRunning
-                            ? `In the background, ${mac ? "in the Dock" : "with its tray icon"}: ready for your other devices, downloads and the auto downloader without opening its window.`
-                            : "It opens its window. Turn on keeping it running to start it in the background instead."
+                            ? "Starts in the background, without its window."
+                            : "Opens its window. Turn on the setting above to start in the background."
                     }
                 >
                     <Switch checked={prefs.startAtLogin} onChange={v => change("startAtLogin", v)} />
@@ -666,13 +709,13 @@ function DesktopGroup() {
             {(mac || win) && (
                 <Row
                     label="Free memory while the computer is locked"
-                    help="After 5 minutes locked, the window lets go of the page and loads it again when you unlock. Never while a video or Settings is open."
+                    help="After 5 minutes locked. Not while a video or Settings is open."
                 >
                     <Switch checked={prefs.freeWhenLocked} onChange={v => change("freeWhenLocked", v)} />
                 </Row>
             )}
             {bridge.quit && (
-                <Row label="Quit Moviko" help="Closes the window and stops the server: streaming to other devices, downloads and library sharing stop until Moviko is opened again.">
+                <Row label="Quit Moviko" help="Also stops streaming to other devices, downloads and sharing.">
                     <Button size="sm" variant="ghost" onClick={() => bridge.quit!()}>
                         Quit
                     </Button>
@@ -699,12 +742,12 @@ function ProgramsGroup() {
     useWatchSetup(status)
     const f = status?.features
     const programs: { tool: Tool; ok?: boolean; use: string }[] = [
-        { tool: "ffmpeg", ok: f?.ffmpeg, use: "The in-app player (most files) and downloads of streams" },
-        { tool: "mpv", ok: f?.mpv, use: "The external player" },
+        { tool: "ffmpeg", ok: f?.ffmpeg, use: "In-app player and downloads of streams" },
+        { tool: "mpv", ok: f?.mpv, use: "External player" },
         { tool: "yt-dlp", ok: f?.ytDlp, use: "Faster, more reliable downloads of streams" },
     ]
     return (
-        <Group title="Programs" description="Moviko uses these programs for some of what it does.">
+        <Group title="Programs">
             {programs.map(p => (
                 <Row
                     key={p.tool}
@@ -727,8 +770,8 @@ function ProgramsGroup() {
                     label="Install missing programs"
                     help={
                         status?.platform === "darwin"
-                            ? "Downloads ffmpeg and yt-dlp for this Mac (Apple silicon or Intel) into Moviko's folder, in a Terminal window: no Homebrew or password needed. mpv, the external player, comes from Homebrew on Apple silicon Macs that have it. Programs you already have are skipped."
-                            : "Installs ffmpeg, mpv, yt-dlp and the rest of what Moviko uses with Scoop, for your Windows user (no administrator rights), in a PowerShell window. Programs you already have are skipped. It also offers to sign you in to GitHub, for Moviko's updates."
+                            ? "Opens a Terminal window. No Homebrew or password needed. mpv needs Homebrew."
+                            : "Opens a PowerShell window and installs with Scoop. No administrator rights needed."
                     }
                 >
                     <InstallProgramsButton />
@@ -742,6 +785,7 @@ function ProgramsGroup() {
 // choices, matches made by hand, auto downloader rules, extensions), and
 // back. A restore merges, then Moviko starts again.
 function BackupGroup() {
+    const classic = useClassic()
     const [logins, setLogins] = useState(false)
     const [restoring, setRestoring] = useState(false)
     const restore = async (file: File) => {
@@ -762,8 +806,8 @@ function BackupGroup() {
         if (
             !confirm(
                 `Restore the backup of ${info.computer || "a computer"} from ${when}?\n\n` +
-                    "It's merged with what's here: positions and list entries newer here stay, and so do this computer's network and sharing settings. " +
-                    "What's here now is saved first, in Moviko's data folder. Moviko starts again after.",
+                    "It's merged with what's here. Newer positions and list entries stay, and so do this computer's network and sharing settings. " +
+                    "The current data is saved first in Moviko's data folder. Moviko restarts after.",
             )
         )
             return
@@ -773,7 +817,7 @@ function BackupGroup() {
             const sum = await res.json().catch(() => null)
             if (!res.ok) throw new Error(sum?.error || res.statusText)
             const parts = [sum.history && `${sum.history} positions`, sum.list && `${sum.list} list entries`, sum.extensions && `${sum.extensions} extensions`, sum.rules && `${sum.rules} auto downloader rules`].filter(Boolean)
-            toast.success(`Restored${parts.length ? `: ${parts.join(", ")}` : ""}. Moviko is starting again…`, { duration: 15_000 })
+            toast.success(`Restored${parts.length ? `: ${parts.join(", ")}` : ""}. Moviko is restarting…`, { duration: 15_000 })
             // Back once it answers again, with everything read afresh.
             await waitForRestart()
             location.reload()
@@ -783,19 +827,19 @@ function BackupGroup() {
         }
     }
     return (
-        <Group title="Backup" description="Your settings, watch history, list and diary, audio and subtitle choices, matches made by hand, auto downloader rules, Stremio add-ons and extensions, as one file. Put it back here, or on another computer.">
-            <Row label="Include logins and passwords" help="Your TMDB key, your Letterboxd login and the torrent clients' passwords. Keep a backup with them private.">
+        <Group title="Backup" description="Settings, watch history, list and diary, auto downloader rules, Stremio add-ons and extensions in one file.">
+            <Row label="Include logins and passwords" help="TMDB key, Letterboxd login and torrent client passwords. Keep that backup private.">
                 <Switch checked={logins} onChange={setLogins} />
             </Row>
-            <Row label="Make a backup" help="Downloads the file.">
+            <Row label="Make a backup">
                 <a href={`/api/backup?logins=${logins ? 1 : 0}`} download>
                     <Button size="sm">Download backup</Button>
                 </a>
             </Row>
-            <Row label="Restore a backup" help="Merged with what's here; Moviko starts again after.">
+            <Row label="Restore a backup" help="Merged with what's here. Moviko restarts after.">
                 <label>
                     <input type="file" accept=".json,application/json" className="sr-only" disabled={restoring} onChange={e => e.target.files?.[0] && restore(e.target.files[0])} />
-                    <span className={cn("inline-flex h-8 cursor-pointer items-center rounded-lg bg-white/[0.07] px-3 text-[13px] font-medium hover:bg-white/[0.12]", restoring && "pointer-events-none opacity-60")}>
+                    <span className={cn("inline-flex h-8 cursor-pointer items-center px-3", classic ? "rounded-lg bg-white/[0.07] text-[13px] font-medium hover:bg-white/[0.12]" : "word label text-[10.5px] text-fg/85 transition-colors hover:text-fg", restoring && "pointer-events-none opacity-60")}>
                         {restoring ? "Restoring…" : "Choose a backup…"}
                     </span>
                 </label>
@@ -828,21 +872,21 @@ function AlertsGroup({ draft, set }: SectionProps) {
     const [permission, setPermission] = useState(systemNotifications)
     const desktopApp = !!desktop()
     return (
-        <Group title="Alerts" description="Muted with the bell next to Settings, like Moviko's other messages.">
-            <Row label="New episodes" help="When an episode of a show you're watching comes out.">
+        <Group title="Alerts" description="The bell next to Settings mutes them.">
+            <Row label="New episodes" help="For shows you're watching.">
                 <Switch checked={notify.newEpisodes} onChange={v => set("notify", { ...notify, newEpisodes: v })} />
             </Row>
-            <Row label="Ready to watch" help="When a download finishes, or new movies or episodes show up in your library (a torrent that finished).">
+            <Row label="Ready to watch" help="When a download finishes or new movies or episodes reach your library.">
                 <Switch checked={notify.downloads} onChange={v => set("notify", { ...notify, downloads: v })} />
             </Row>
             {!desktopApp && !androidApp && permission === "default" && (
-                <Row label="Notifications of this browser" help="So alerts show while Moviko's tab isn't in front.">
+                <Row label="Notifications of this browser" help="Show alerts when Moviko's tab is in the background.">
                     <Button size="sm" onClick={() => Notification.requestPermission().then(() => setPermission(systemNotifications()))}>
                         Allow
                     </Button>
                 </Row>
             )}
-            {!desktopApp && !androidApp && permission === "denied" && <p className="px-4 py-3 text-xs text-subtle">This browser blocks Moviko's notifications: alerts show in Moviko only (allow them in the site's settings).</p>}
+            {!desktopApp && !androidApp && permission === "denied" && <p className="px-4 py-3 text-xs text-subtle">This browser blocks notifications. Allow them in the site's settings.</p>}
         </Group>
     )
 }
@@ -852,7 +896,7 @@ function AlertsGroup({ draft, set }: SectionProps) {
 function SubtitlesGroup() {
     const style = useStore(subStyleStore)
     return (
-        <Group title="How subtitles look" description="In the in-app player, on this device. Their timing: z and x while playing, or the player's subtitles menu (kept for each movie or show).">
+        <Group title="How subtitles look" description="In the in-app player, on this device. Adjust timing with z and x while playing.">
             <div className="px-4 py-4">
                 <div className="relative flex h-28 items-end justify-center overflow-hidden rounded-lg bg-gradient-to-br from-sky-900 via-slate-700 to-amber-800 pb-3" aria-hidden>
                     <span
@@ -874,7 +918,7 @@ function SubtitlesGroup() {
             <Row label="Background">
                 <Select className="w-48" value={style.background} onChange={v => setSubStyle({ background: v as SubStyle["background"] })} options={SUB_BACKGROUNDS} />
             </Row>
-            <Row label="Position" help="Higher up keeps them clear of a TV's edge or a video's own captions.">
+            <Row label="Position" help="Raise them to clear a TV's edge or a video's own captions.">
                 <Select className="w-40" value={style.position} onChange={v => setSubStyle({ position: v as SubStyle["position"] })} options={SUB_POSITIONS} />
             </Row>
         </Group>
@@ -899,9 +943,14 @@ function TvSizeRow() {
     )
 }
 
-const ACCENTS = ["#7c6cf2", "#5b8cff", "#22c3a6", "#f2557a", "#f59e0b", "#e879f9", "#38bdf8", "#a3e635"]
+// The Classic look's, as they were.
+const CLASSIC_ACCENTS = ["#7c6cf2", "#5b8cff", "#22c3a6", "#f2557a", "#f59e0b", "#e879f9", "#38bdf8", "#a3e635"]
+// Not #7c6cf2: saved by every install as its default before 3.0, it stands
+// for "the theme's own" (lib/themes.ts).
+const ACCENTS = ["#8b7cf6", ...CLASSIC_ACCENTS.slice(1)]
 const ACCENT_NAMES: Record<string, string> = {
     "#7c6cf2": "violet",
+    "#8b7cf6": "violet",
     "#5b8cff": "blue",
     "#22c3a6": "teal",
     "#f2557a": "pink",
@@ -915,22 +964,29 @@ function UISection({ draft, set }: SectionProps) {
     const seasonal = draft.ui.seasonal ?? "auto"
     // The one on now with these settings (or that would be, for the hint).
     const holiday = activeHoliday(seasonal)
+    // The themes of the look being set, and the saved one as it draws it.
+    const classicLook = !!draft.ui.classicLook
+    const theme = colorTheme(draft.ui.colorTheme, classicLook)
+    const own = ownAccent(draft.ui.accentColor, classicLook)
     return (
         <>
             <Group title="Theme">
-                <Row label="Classic look" help="Moviko as it looked before 2.0: its sidebar, cards, menus and holiday themes. The colors below work in both.">
+                <Row label="Classic look" help="Moviko as it looked before 3.0: rounded panels and its own colors.">
                     <Switch checked={!!draft.ui.classicLook} onChange={v => set("ui", { classicLook: v })} />
                 </Row>
                 <Stack label="Colors">
                     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                        {COLOR_THEMES.map(t => {
-                            const on = (draft.ui.colorTheme ?? "kumobox") === t.id
+                        {themesOf(classicLook).map(t => {
+                            const on = theme.id === t.id
                             return (
                                 <button
                                     key={t.id}
                                     onClick={() => set("ui", { colorTheme: t.id, accentColor: t.accent })}
                                     aria-pressed={on}
-                                    className={cn("focus-ring flex flex-col gap-2 rounded-lg border p-2 text-left transition", on ? "border-white/70" : "border-line hover:border-white/25")}
+                                    className={cn(
+                                        "focus-ring flex flex-col gap-2 rounded-lg border p-2 text-left transition",
+                                        classicLook ? (on ? "border-white/70" : "border-line hover:border-white/25") : on ? "border-transparent outline-2 outline-offset-2 outline-fg" : "border-line-strong hover:border-white/45",
+                                    )}
                                     style={{ background: t.palette.frame }}
                                 >
                                     {/* The window in small: the sidebar, a page with panels, the accent. */}
@@ -949,7 +1005,7 @@ function UISection({ draft, set }: SectionProps) {
                                             </span>
                                         </span>
                                     </span>
-                                    <span className="px-0.5 text-[13px] font-medium" style={{ color: "#ececee" }}>
+                                    <span className="px-0.5 text-[13px] font-medium" style={{ color: t.palette.text ?? "#ececee" }}>
                                         {t.name}
                                     </span>
                                 </button>
@@ -959,7 +1015,17 @@ function UISection({ draft, set }: SectionProps) {
                 </Stack>
                 <Stack label="Accent color" help={holiday ? `While the ${holiday.name} theme is on, its color is used instead.` : undefined}>
                     <div className="flex flex-wrap items-center gap-2.5">
-                        {ACCENTS.map(c => (
+                        {/* The theme's own ink (this look's themes have one each). */}
+                        {!classicLook && (
+                            <button
+                                onClick={() => set("ui", { accentColor: theme.accent })}
+                                className={cn("word label h-9 px-3 text-[10px] transition-colors", !own || own === theme.accent ? "text-fg" : "text-muted hover:text-fg")}
+                                aria-pressed={!own || own === theme.accent}
+                            >
+                                Theme's own
+                            </button>
+                        )}
+                        {(classicLook ? CLASSIC_ACCENTS : ACCENTS).map(c => (
                             <button
                                 key={c}
                                 onClick={() => set("ui", { accentColor: c })}
@@ -995,7 +1061,7 @@ function UISection({ draft, set }: SectionProps) {
                         options={[{ value: "auto", label: "By the date" }, { value: "off", label: "Off" }, ...HOLIDAYS.map(h => ({ value: h.id, label: `Always ${h.name}` }))]}
                     />
                 </Row>
-                <Row label="Holiday animations" help={`${holiday ? holiday.effectName : "Snow, bats, hearts"} over the pages (not over videos). Off with Reduce motion.`}>
+                <Row label="Holiday animations" help={`${holiday ? holiday.effectName : "Snow, bats, hearts"} over the pages. Off with Reduce motion.`}>
                     <Switch checked={draft.ui.seasonalEffects ?? true} disabled={seasonal === "off"} onChange={v => set("ui", { seasonalEffects: v })} />
                 </Row>
                 <Row label="Card size">
@@ -1017,7 +1083,7 @@ function UISection({ draft, set }: SectionProps) {
             </Group>
             <HomeSectionsGroup draft={draft} set={set} />
             <Group title="Content">
-                <Row label="Hide spoilers" help="Blur the stills and overviews of episodes you haven't watched yet">
+                <Row label="Hide spoilers" help="Blur the stills and overviews of unwatched episodes">
                     <Switch checked={draft.ui.blurUnwatched} onChange={v => set("ui", { blurUnwatched: v })} />
                 </Row>
                 <Row label="Show adult content" help="Include 18+ entries in search and discover">
@@ -1046,7 +1112,7 @@ function HomeSectionsGroup({ draft, set }: SectionProps) {
         save(next)
     }
     return (
-        <Group title="Home page" description="The rows of your list on Home. Your library and Discover's trending rows come after them.">
+        <Group title="Home page" description="The rows of your list on Home, before your library and Discover's rows.">
             {order.map(id => {
                 const s = HOME_SECTIONS.find(x => x.id === id)!
                 const shown = on.includes(id)
@@ -1116,34 +1182,39 @@ function SharingGroup({ draft, set }: SectionProps) {
     return (
         <Group
             title="Library sharing"
-            description="Watch the libraries of Moviko on your other computers and TVs at home, and share yours with them. Each computer decides who gets its library. Watching updates the list (and Letterboxd diary) of the computer you watch on, never the other's. Connected to the same Letterboxd account, Continue watching carries over to the second: to the computer whose files you watch as you watch, and back."
+            description="Watch the libraries of Moviko on your other computers and TVs at home, and share yours. Watching updates the list of the computer you watch on."
         >
-            <Row label="Library sharing" help="Find the Moviko apps on this network, and let them find this one. Turn it on on both computers.">
+            <Row label="Library sharing" help="Turn it on on both computers.">
                 <Switch checked={draft.sharing.enabled} disabled={!trusted} onChange={v => set("sharing", { enabled: v })} />
             </Row>
             {draft.sharing.enabled && (
-                <Stack label="Name on the network" help="What the other Moviko apps call this one.">
+                <Stack label="Name on the network" help="Shown to the other Moviko apps.">
                     <Input value={draft.sharing.name} disabled={!trusted} placeholder={sharing?.name || "This computer's name"} onChange={e => set("sharing", { name: e.target.value })} />
                 </Stack>
             )}
             {draft.sharing.enabled && (
-                <Row label="Sync watch history by itself" help="When a device this one is paired with comes back on the network, or Moviko's TV app is opened again, Continue watching and the positions are brought up to date. Sync on Home still does it at once.">
+                <Row label="Sync watch history by itself" help="When a paired device comes back on the network. Sync on Home does it at once.">
                     <Switch checked={draft.sharing.autoSync ?? true} disabled={!trusted} onChange={v => set("sharing", { autoSync: v })} />
                 </Row>
             )}
             {draft.sharing.enabled !== !!saved?.enabled && <p className="px-4 py-3 text-xs text-amber-200/80">Save to turn library sharing {draft.sharing.enabled ? "on" : "off"}.</p>}
             {saved?.enabled && sharing && (
                 <>
-                    <div className="px-4 pt-3.5 pb-1">
-                        <p className="text-sm font-medium">Moviko apps on this network</p>
-                        <p className="mt-0.5 text-xs text-subtle">
-                            Turn on <b>Share my library</b> for those that may watch this computer's movies and shows.
-                            {sharing.addresses.length > 0 && <> This computer is at {sharing.addresses.join(", ")}.</>}
-                        </p>
+                    <div className="flex items-start justify-between gap-3 px-4 pt-3.5 pb-1">
+                        <div>
+                            <p className="text-sm font-medium">Moviko apps on this network</p>
+                            <p className="mt-0.5 text-xs text-subtle">
+                                Turn on <b>Share my library</b> for those that may watch this computer's movies and shows.
+                                {sharing.addresses.length > 0 && <> This computer is at {sharing.addresses.join(", ")}.</>}
+                            </p>
+                        </div>
+                        <Button size="sm" variant="ghost" icon={<RefreshCw className="size-4" />} onClick={() => refreshSharing(qc)}>
+                            Refresh
+                        </Button>
                     </div>
                     {peers.length === 0 && (
                         <p className="px-4 py-3 text-sm text-muted">
-                            {sharing.listening ? "Looking for Moviko apps… Turn on library sharing on the other computer too." : "This computer can't listen for the others (another program uses the network port): add them by address below."}
+                            {sharing.listening ? "Looking for Moviko apps… Turn on library sharing on the other computer too." : "Another program uses the network port. Add the others by address below."}
                         </p>
                     )}
                     {peers.map(p => (
@@ -1161,6 +1232,7 @@ function SharingGroup({ draft, set }: SectionProps) {
                                         !p.online && p.lastSeen > 0 && `seen ${relativeTime(p.lastSeen)}`,
                                         p.shares && `shares its library with you${p.files ? ` (${p.files} ${p.files === 1 ? "file" : "files"})` : ""}`,
                                         p.error,
+                                        p.noBeacons && "found by address only, check its firewall or a network set to Public",
                                     ]
                                         .filter(Boolean)
                                         .join(" · ")}
@@ -1197,7 +1269,7 @@ function SharingGroup({ draft, set }: SectionProps) {
                             <div className="mt-3 ml-1 flex flex-col gap-3 border-l border-line pl-4">
                                 <PeerGrant
                                     label="Let it download here"
-                                    help="Its downloads and torrents go to this computer's library, and come back shared, and it can upload files and folders into it. It downloads here by default from then on."
+                                    help="Its downloads, torrents and uploads go to this computer's library."
                                     checked={p.downloads}
                                     disabled={!trusted}
                                     onChange={v => call(() => api.post(`/api/sharing/peers/${p.id}`, { downloads: v }))}
@@ -1207,7 +1279,7 @@ function SharingGroup({ draft, set }: SectionProps) {
                         </div>
                     ))}
                     {peers.some(p => p.shares && p.takesDownloads) && (
-                        <Row label="Downloads from this device go to" help="Movies, episodes and torrents you download here: to this device, or to a computer that lets it download there.">
+                        <Row label="Downloads from this device go to">
                             <Select
                                 className="w-48"
                                 value={draft.sharing.downloadTo ?? ""}
@@ -1218,7 +1290,7 @@ function SharingGroup({ draft, set }: SectionProps) {
                         </Row>
                     )}
                     {trusted && (
-                        <Stack label="Add by address" help="When the computers don't find each other by themselves (some routers block it): the other computer's address, shown in its settings here.">
+                        <Stack label="Add by address" help="For computers that don't find each other. The address is in the other computer's settings.">
                             <div className="flex gap-2">
                                 <Input value={address} onChange={e => setAddress(e.target.value)} onKeyDown={e => e.key === "Enter" && add()} placeholder="192.168.1.20:43311" />
                                 <Button onClick={add} loading={adding} disabled={!address.trim()}>
@@ -1242,8 +1314,8 @@ function VersionNote({ peer, mine }: { peer: SharingPeer; mine?: string }) {
     return (
         <p className="mt-1 text-xs text-amber-200/80">
             {c < 0
-                ? `Older than this one (Moviko ${mine}): update Moviko on ${peer.name} so everything works together. Its Home page has the update button.`
-                : `Newer than this one (Moviko ${mine}): update Moviko here so everything works together (Settings › Updates & about).`}
+                ? `Older than this one (Moviko ${mine}). Update Moviko on ${peer.name} from its Home page.`
+                : `Newer than this one (Moviko ${mine}). Update here in Settings › Updates & about.`}
         </p>
     )
 }
@@ -1261,8 +1333,8 @@ function DevicesSection({ draft, set }: SectionProps) {
                         label="Keep this computer awake"
                         help={
                             status?.keptAwake
-                                ? "Staying awake now: another device is playing from it. It can sleep again 15 minutes after the last episode."
-                                : "While a TV, phone or another computer plays an episode from this one, it doesn't go to sleep (the screen can still turn off). It can sleep again 15 minutes after."
+                                ? "Staying awake now. Another device is playing from it."
+                                : "While another device plays from it, and for 15 minutes after."
                         }
                     >
                         <Switch checked={draft.sharing.keepAwake ?? true} disabled={!trusted} onChange={v => set("sharing", { keepAwake: v })} />
@@ -1288,6 +1360,7 @@ function PeerGrant({ label, help, checked, disabled, onChange }: { label: string
 function LibrarySection({ draft, set }: SectionProps) {
     const [, setSearchParams] = useSearchParams()
     const extra = draft.library.extraDirs ?? []
+    const folders = [draft.library.dir, ...extra].filter(Boolean)
     const off = !!draft.library.off
     return (
         <>
@@ -1297,8 +1370,8 @@ function LibrarySection({ draft, set }: SectionProps) {
                         label="A library on this computer"
                         help={
                             off
-                                ? "Off: this computer plays the libraries your other computers share with it (Settings › Other devices). Its folders are kept for when you turn it back on."
-                                : "Turn it off to use only another computer's library. Moviko forgets this computer's files; nothing is deleted from the disk."
+                                ? "Off. This computer plays only libraries shared with it. Its folders are kept."
+                                : "Turn off to use only shared libraries. Nothing is deleted from the disk."
                         }
                     >
                         <Switch label="A library on this computer" checked={!off} onChange={v => set("library", { off: !v })} />
@@ -1309,10 +1382,10 @@ function LibrarySection({ draft, set }: SectionProps) {
                 <>
                     <Group title="Folders">
                         <Locked>
-                            <Stack label="Library directory" help="Where your movies and shows are, e.g. Movie (2010)/Movie (2010).mkv or Show/Season 01/Show S01E02.mkv.">
+                            <Stack label="Library directory" help="Like Movie (2010)/Movie (2010).mkv or Show/Season 01/Show S01E02.mkv">
                                 <PathInput value={draft.library.dir} onChange={v => set("library", { dir: v })} placeholder="/mnt/media/Movies" />
                             </Stack>
-                            <Stack label="Additional library directories" help="Include additional directory paths if your library is spread across multiple locations.">
+                            <Stack label="Additional library directories">
                                 <div className="flex flex-col gap-2">
                                     {extra.map((d, i) => (
                                         <div key={i} className="flex items-center gap-2">
@@ -1329,10 +1402,19 @@ function LibrarySection({ draft, set }: SectionProps) {
                                     </button>
                                 </div>
                             </Stack>
+                            {folders.length > 1 && (
+                                <Stack label="Downloads go to" help="For new movies and shows. One that already has a folder keeps it.">
+                                    <Select
+                                        value={folders.includes(draft.library.downloadDir ?? "") ? draft.library.downloadDir! : ""}
+                                        onChange={v => set("library", { downloadDir: v })}
+                                        options={[{ value: "", label: `${folders[0]} (the first folder)` }, ...folders.slice(1).map(f => ({ value: f, label: f }))]}
+                                    />
+                                </Stack>
+                            )}
                         </Locked>
                     </Group>
                     <Group title="Scanning">
-                        <Row label="Automatically refresh library" help="Watch the folders and pick up new or removed files on their own">
+                        <Row label="Automatically refresh library" help="Pick up new and removed files as they change">
                             <Switch checked={draft.library.autoRefresh} onChange={v => set("library", { autoRefresh: v })} />
                         </Row>
                         <Row label="Refresh library on startup">
@@ -1342,20 +1424,20 @@ function LibrarySection({ draft, set }: SectionProps) {
                 </>
             )}
             <Group title="Library sharing">
-                <Row label="Share this library with your other computers and TVs" help="Who gets it, and the libraries shared with this computer, are in Devices.">
+                <Row label="Share this library with your other computers and TVs" help="Choose who gets it in Devices.">
                     <Button size="sm" variant="ghost" onClick={() => setSearchParams({ tab: "devices" })}>
                         Open
                     </Button>
                 </Row>
             </Group>
             <Collapsible title="Advanced">
-                <Stack label={`Matching threshold — ${Math.round(draft.library.matchThreshold * 100)}%`} help="How similar a file name must be to a TMDB title to match automatically.">
+                <Stack label={`Matching threshold: ${Math.round(draft.library.matchThreshold * 100)}%`} help="How similar a file name must be to a TMDB title to match.">
                     <input type="range" min={0.3} max={0.95} step={0.05} value={draft.library.matchThreshold} onChange={e => set("library", { matchThreshold: Number(e.target.value) })} className="accent-[var(--brand)]" />
                 </Stack>
                 <Row label="Match movies and shows that aren't on my list" help="Search all of TMDB when a title isn't on your list">
                     <Switch checked={draft.library.matchOutsideList} onChange={v => set("library", { matchOutsideList: v })} />
                 </Row>
-                <Stack label="Ignore patterns" help="One glob per line, matched against file and folder names (e.g. *sample*, *trailer*).">
+                <Stack label="Ignore patterns" help="One glob per line, for file and folder names, like *sample* or *trailer*.">
                     <LinesInput value={draft.library.ignorePatterns ?? []} onChange={v => set("library", { ignorePatterns: v })} />
                 </Stack>
             </Collapsible>
@@ -1389,7 +1471,7 @@ function PlaybackSection({ draft, set }: SectionProps) {
         <>
             <Group title="Player">
                 {!androidApp && (
-                    <Row label="Default player for local files" help="mpv opens in its own window; the in-app player works everywhere (and on other devices).">
+                    <Row label="Default player for local files" help="mpv opens in its own window. The in-app player also works on other devices.">
                         <Select
                             className="w-48"
                             value={p.defaultPlayer}
@@ -1401,24 +1483,24 @@ function PlaybackSection({ draft, set }: SectionProps) {
                         />
                     </Row>
                 )}
-                <Row label="Resume where I left off" help="Movies and episodes continue from the saved position in mpv and the in-app player">
+                <Row label="Resume where I left off">
                     <Switch checked={p.resumePlayback} onChange={v => set("playback", { resumePlayback: v })} />
                 </Row>
                 <Row label="Auto play next episode">
                     <Switch checked={p.autoPlayNext} onChange={v => set("playback", { autoPlayNext: v })} />
                 </Row>
-                <Row label="Skip intros and recaps (chapters)" help="Jumps past chapters named intro, opening, title sequence or previously on, when the file has them">
+                <Row label="Skip intros and recaps (chapters)" help="Chapters named intro, opening, title sequence or previously on">
                     <Switch checked={p.skipIntro} onChange={v => set("playback", { skipIntro: v })} />
                 </Row>
                 <Row
                     label="Skip end credits (chapters)"
-                    help="Jumps past chapters named credits, ending or next episode preview. Credits at the very end are only skipped when the next episode plays then; scenes after the credits play."
+                    help="Chapters named credits, ending or preview. Scenes after the credits still play."
                 >
                     <Switch checked={p.skipCredits} onChange={v => set("playback", { skipCredits: v })} />
                 </Row>
             </Group>
             <Group title="Progress">
-                <Row label="Update progress automatically" help="Mark the movie or episode as watched when you finish it (a watched movie is logged in your diary)">
+                <Row label="Update progress automatically" help="Mark movies and episodes as watched when you finish them. Movies go in your diary.">
                     <Switch checked={p.autoUpdateProgress} onChange={v => set("playback", { autoUpdateProgress: v })} />
                 </Row>
                 <Stack label={`Count as watched at ${Math.round(p.completionThreshold * 100)}%`}>
@@ -1427,7 +1509,7 @@ function PlaybackSection({ draft, set }: SectionProps) {
             </Group>
             <Group
                 title="Audio & subtitles"
-                description="Movies and shows play in their original language, with forced subtitles (signs, foreign dialogue) when there are some. Moviko remembers the audio and subtitle track you pick for each show and uses it for the next episodes."
+                description="Movies and shows play in their original language, with forced subtitles when there are some."
             >
                 <Row label="Remember my track choice per movie or show">
                     <Switch checked={p.rememberTracks} onChange={v => set("playback", { rememberTracks: v })} />
@@ -1450,7 +1532,7 @@ function PlaybackSection({ draft, set }: SectionProps) {
                 </Row>
                 <Row
                     label="Subtitles only for foreign languages"
-                    help="Turn subtitles on when the audio isn't in your subtitle or audio language. Off: subtitles whenever there are some in your preferred subtitle language."
+                    help="Off shows subtitles whenever your subtitle language has some."
                 >
                     <Switch checked={p.subtitlesForForeign} onChange={v => set("playback", { subtitlesForForeign: v })} />
                 </Row>
@@ -1470,11 +1552,11 @@ function MpvSection({ draft, set }: SectionProps) {
             <Locked>
                 <Stack
                     label="Executable"
-                    help={`Name or full path, e.g. mpv or ${exampleMpvPath(status?.platform)} (install with: ${installHint(status?.platform, "mpv")})`}
+                    help={`Name or full path, like ${exampleMpvPath(status?.platform)}. Install with: ${installHint(status?.platform, "mpv")}`}
                 >
                     <Input value={draft.mpv.path} onChange={e => set("mpv", { path: e.target.value })} icon={<Terminal className="size-4" />} />
                 </Stack>
-                <Stack label="Extra arguments" help="Passed to every mpv launch, e.g. --profile=gpu-hq --hwdec=auto">
+                <Stack label="Extra arguments" help="For example --profile=gpu-hq --hwdec=auto">
                     <Input value={draft.mpv.extraArgs} onChange={e => set("mpv", { extraArgs: e.target.value })} />
                 </Stack>
             </Locked>
@@ -1490,7 +1572,7 @@ function TranscodeSection({ draft, set }: SectionProps) {
     const t = draft.transcode
     return (
         <>
-            <Group title="In-app player" description="Browsers can't decode every format (HEVC, AC3/DTS audio, MKV with multiple tracks…). Moviko repackages or converts those with ffmpeg on the fly so every file plays.">
+            <Group title="In-app player" description="Formats the browser can't play are converted with ffmpeg.">
                 <Row label="Status">
                     <div className="flex gap-2">
                         <Detect ok={status?.features.ffmpeg} label="ffmpeg" />
@@ -1576,13 +1658,12 @@ function ClientFields({ value, onChange, showTags }: { value: Settings["qbittorr
             <label className="flex flex-col gap-1.5">
                 <span className="text-sm font-medium">Tags</span>
                 <Input value={value.tags} onChange={e => onChange({ tags: e.target.value })} />
-                <span className="text-xs text-subtle">Comma separated tags to apply to downloaded torrents. e.g. moviko,movies</span>
+                <span className="text-xs text-subtle">Comma separated, like moviko,movies</span>
             </label>
             {showTags && (
                 <label className="flex flex-col gap-1.5">
                     <span className="text-sm font-medium">Category</span>
                     <Input value={value.category} onChange={e => onChange({ category: e.target.value })} />
-                    <span className="text-xs text-subtle">Category to apply to downloaded torrents.</span>
                 </label>
             )}
             <label className="flex items-center gap-3 text-sm">
@@ -1601,15 +1682,15 @@ function TorrentClientSection({ draft, set }: SectionProps) {
         try {
             await save.mutateAsync(draft)
             const s = await api.get<{ connected: boolean; version: string; error?: string }>("/api/torrent-client/status")
-            s.connected ? toast.success(`Connected — version ${s.version}`) : toast.error(s.error ?? "Not reachable")
+            s.connected ? toast.success(`Connected, version ${s.version}`) : toast.error(s.error ?? "Not reachable")
         } finally {
             setTesting(false)
         }
     }
     return (
         <>
-            <Group title="Torrent client" description="The program that downloads torrents. Moviko talks to its web interface.">
-                <Row label="Use" help="Where Moviko sends torrents." keywords="default client qbittorrent transmission">
+            <Group title="Torrent client" description="Moviko connects to the client's web interface.">
+                <Row label="Use" keywords="default client qbittorrent transmission">
                     <Select
                         className="w-44"
                         value={draft.torrent.defaultClient}
@@ -1640,20 +1721,20 @@ function TorrentClientSection({ draft, set }: SectionProps) {
                         </Locked>
                     </Shown>
                 ))}
-                <Row label="Check the connection" help="Saves your changes, then asks the client.">
+                <Row label="Check the connection" help="Saves your changes first.">
                     <Button size="sm" icon={<Network className="size-4" />} loading={testing} onClick={test} disabled={draft.torrent.defaultClient === "none"}>
                         Save & test
                     </Button>
                 </Row>
             </Group>
             <Group title="Integration">
-                <Row label="Show active torrent count" help="Show the number of active torrents in the sidebar.">
+                <Row label="Show active torrent count" help="In the sidebar.">
                     <Switch checked={draft.torrent.showActiveCount} onChange={v => set("torrent", { showActiveCount: v })} />
                 </Row>
-                <Row label="Create a folder per movie or show" help="Save each into its own folder inside the library, e.g. Movie (2010)/">
+                <Row label="Create a folder per movie or show" help="Inside the library, like Movie (2010)/">
                     <Switch checked={draft.torrent.createSubfolder} onChange={v => set("torrent", { createSubfolder: v })} />
                 </Row>
-                <Row label="Auto downloader" help="Look for new episodes of your shows periodically">
+                <Row label="Auto downloader" help="Looks for new episodes of your shows">
                     <Switch checked={draft.torrent.autoDownloader} onChange={v => set("torrent", { autoDownloader: v })} />
                 </Row>
                 <Row label="Check every (minutes)">
@@ -1666,14 +1747,14 @@ function TorrentClientSection({ draft, set }: SectionProps) {
 
 function DiscordSection({ draft, set }: SectionProps) {
     return (
-        <Group title="Rich presence" description="Talks to the Discord app on this computer. Shows “Watching <title>” with the episode or the year, the poster (Discord loads it from TMDB) and the time left.">
+        <Group title="Rich presence" description="Uses the Discord app on this computer. Shows the title, its poster and the time left.">
             <Row label="Show what I'm watching">
                 <Switch checked={draft.discord.richPresence} onChange={v => set("discord", { richPresence: v })} />
             </Row>
             <Locked>
                 <Stack
                     label="Discord application ID"
-                    help="Create an application at discord.com/developers (its name shows as “Watching <name>” in the activity's header) and paste its Application ID. Upload an image named moviko under Rich Presence › Art Assets for the badge and for titles without a poster."
+                    help="From an application made at discord.com/developers. An Art Asset named moviko is its badge."
                 >
                     <Input value={draft.discord.clientId} onChange={e => set("discord", { clientId: e.target.value })} />
                 </Stack>
@@ -1698,7 +1779,7 @@ function LogsSection() {
     const clearImages = async () => {
         try {
             await api.post("/api/images/clear")
-            toast.success("Artwork cache cleared — covers will be downloaded again")
+            toast.success("Artwork cache cleared. Posters will download again.")
             refetchImgs()
         } catch (e: any) {
             toast.error(e.message)
@@ -1706,13 +1787,13 @@ function LogsSection() {
     }
     return (
         <>
-            <Group title="Cache" description="Cached TMDB data, season details, search results and probes.">
+            <Group title="Cache" description="TMDB data, season details and search results.">
                 <Row label={`${cache?.entries ?? 0} cached entries`}>
                     <Button variant="danger" size="sm" icon={<Trash2 className="size-4" />} onClick={clear}>
                         Clear cache
                     </Button>
                 </Row>
-                <Row label={`Artwork: ${imgs?.files ?? 0} images (${formatBytes(imgs?.bytes ?? 0)})`} help="Posters, backdrops and episode stills downloaded for offline use">
+                <Row label={`Artwork: ${imgs?.files ?? 0} images (${formatBytes(imgs?.bytes ?? 0)})`} help="Posters, backdrops and episode stills">
                     <Button variant="danger" size="sm" icon={<Trash2 className="size-4" />} onClick={clearImages}>
                         Clear artwork
                     </Button>
@@ -1750,7 +1831,7 @@ function AboutSection() {
     else if (u.available) state = { tone: "brand", label: `${latest} available`, help: lan || u.canApply ? undefined : u.applyNote }
     else if (u.latest) state = { tone: "green", label: "Up to date", help: u.note }
     else if (u.error) state = { tone: "amber", label: "Couldn't check" }
-    else state = { tone: "gray", label: "Not checked yet", help: "Moviko checks shortly after it starts, then every 6 hours." }
+    else state = { tone: "gray", label: "Not checked yet", help: "Checked after Moviko starts, then every 6 hours." }
     if (u?.state === "failed" && !busy) state.help = [u.message, state.help].filter(Boolean).join(" ")
     return (
         <>
@@ -1765,7 +1846,7 @@ function AboutSection() {
                         )}
                     </span>
                 </Row>
-                <Row label="What's new" help="What came with the latest versions.">
+                <Row label="What's new">
                     <Button size="sm" variant="ghost" onClick={() => whatsNewStore.set("all")}>
                         Show
                     </Button>
@@ -1773,13 +1854,13 @@ function AboutSection() {
             </Group>
             {/* Installing it, from here too (as on Home). */}
             {!lan && <UpdateBanner inSettings />}
-            <Group title="Updates" description="Moviko looks for a newer version on GitHub and offers it here and on the Home page.">
+            <Group title="Updates" description="New versions are offered here and on Home.">
                 <Row
                     label="Beta updates"
                     help={
                         beta
-                            ? "On: each new version comes here first, as a beta, before everyone gets it. Betas can have rough edges."
-                            : "Off: only the stable releases everyone gets. Turn on to get each new version first, as a beta."
+                            ? "You get each new version first. Betas can have rough edges."
+                            : "Get each new version first, before the stable release."
                     }
                 >
                     <Locked>
@@ -1801,7 +1882,7 @@ function AboutSection() {
                         </a>
                     </Row>
                 )}
-                <Row label="Last check" help={u?.checking ? "Checking now…" : u?.checkedAt ? `${relativeTime(u.checkedAt)}. Moviko checks each time it opens, and every 6 hours.` : "Never"}>
+                <Row label="Last check" help={u?.checking ? "Checking now…" : u?.checkedAt ? `${relativeTime(u.checkedAt)}. Checked every 6 hours.` : "Never"}>
                     {!lan && (
                         <Button size="sm" icon={<RefreshCw className="size-4" />} loading={check.isPending || u?.checking} onClick={() => check.mutate()}>
                             Check for updates

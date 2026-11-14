@@ -5,6 +5,7 @@ import { createContext, isValidElement, useContext, useEffect, useState } from "
 import { Badge, Button, Dialog, Input, Textarea } from "@/components/ui"
 import { api } from "@/lib/api"
 import { useStatus } from "@/lib/queries"
+import { useClassic } from "@/lib/themes"
 import type { Settings } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -47,12 +48,14 @@ export function Group({ title, children, description }: { title?: string; descri
     const search = useContext(SearchContext)
     // The group's own name or words found: all of it.
     const all = !!search && (search.all || (!!title && matches(search.words, title, description)))
+    const classic = useClassic()
     const body = (
         <div data-group data-all={all || undefined}>
-            {title && <h3 className="mb-1 text-[15px] font-semibold">{title}</h3>}
+            {title && <h3 className={classic ? "mb-1 text-[15px] font-semibold" : "label mb-1.5 text-muted"}>{title}</h3>}
             {description && <p className="mb-3 text-[13px] text-muted">{description}</p>}
-            {!description && title && <div className="mb-3" />}
-            <div data-group-body className="card divide-y divide-line">
+            {!description && title && <div className={classic ? "mb-3" : "mb-2"} />}
+            {/* This look: no box, its rows under one line, a fainter one between them, to the page's own edges. */}
+            <div data-group-body className={classic ? "card divide-y divide-line" : "divide-y divide-line border-t border-line-strong *:px-0!"}>
                 {children}
             </div>
         </div>
