@@ -20,10 +20,9 @@
   ${endIf}
 !macroend
 
-; After a normal install (not a silent one, such as Moviko's own updates):
-; offer to install the programs Moviko uses (ffmpeg, mpv and yt-dlp, with
-; Scoop) with resources\install-tools.ps1, in a PowerShell window that shows
-; the progress. The installer doesn't wait for it.
+; The programs Moviko uses (ffmpeg, yt-dlp, mpv) aren't installed here: Moviko
+; downloads them itself, from the notice on its Home page or Settings > App &
+; data (server/internal/winsetup).
 !macro customInstall
   ; Explorer keeps showing the icons it cached for Moviko's shortcuts: tell it
   ; icons changed, so a new logo shows right after an update.
@@ -44,15 +43,6 @@
   ${andIfNot} ${isUpdated}
     ${if} ${Cmd} `MessageBox MB_YESNO|MB_ICONQUESTION "Let the other devices on your home network reach Moviko?$\r$\n$\r$\nThis adds a Windows Firewall rule for Moviko's server on private networks (for library sharing, the media server and the TV app). Windows asks for an administrator's permission once. Without it, Windows asks when sharing is first turned on, and the other devices may show as offline now and then.$\r$\n$\r$\nYou can add it later with: netsh advfirewall firewall add rule name=Moviko dir=in action=allow program=moviko.exe" /SD IDYES IDYES`
       ExecShell "runas" "$SYSDIR\cmd.exe" '/c netsh advfirewall firewall delete rule name="Moviko" >nul 2>&1 & netsh advfirewall firewall add rule name="Moviko" dir=in action=allow program="$INSTDIR\resources\moviko.exe" protocol=TCP localport=43311 profile=private & netsh advfirewall firewall add rule name="Moviko" dir=in action=allow program="$INSTDIR\resources\moviko.exe" protocol=UDP localport=43312 profile=private' SW_HIDE
-    ${endIf}
-  ${endIf}
-  ${ifNot} ${Silent}
-  ${andIfNot} ${isUpdated}
-    ${if} ${Cmd} `MessageBox MB_YESNO|MB_ICONQUESTION "Install the programs Moviko uses?$\r$\n$\r$\nMoviko can install ffmpeg (for its own player and downloads), mpv and yt-dlp with Scoop, for your Windows user (no administrator rights). A PowerShell window shows the progress: it takes a few minutes and needs an internet connection. Programs you already have are skipped.$\r$\n$\r$\nYou can also do this later in Moviko: Settings > App & data." /SD IDNO IDYES`
-      ; The 64-bit PowerShell, also from this 32-bit installer.
-      ${DisableX64FSRedirection}
-      Exec '"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\resources\install-tools.ps1"'
-      ${EnableX64FSRedirection}
     ${endIf}
   ${endIf}
 !macroend

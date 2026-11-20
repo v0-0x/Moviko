@@ -12,7 +12,7 @@ export function installHint(platform: string | undefined, tool: Tool) {
     if (platform === "windows") {
         return {
             ffmpeg: "winget install Gyan.FFmpeg",
-            mpv: "scoop install mpv",
+            mpv: "mpv.io",
             "yt-dlp": "winget install yt-dlp.yt-dlp",
         }[tool]
     }
@@ -21,7 +21,9 @@ export function installHint(platform: string | undefined, tool: Tool) {
 }
 
 // Where the hint comes from, said before it.
-export function installSource(platform: string | undefined) {
+export function installSource(platform: string | undefined, tool: Tool) {
+    // Moviko downloads them itself on the computer it runs on (Settings › App & data).
+    if (platform === "windows") return tool === "mpv" ? "Moviko can download it (App & data › Install), or get it from" : "Install it with"
     return platform === "darwin" ? "Install it with Homebrew (brew.sh):" : "Install it with"
 }
 

@@ -492,9 +492,6 @@ func (c *Checker) describe(err error) (string, string) {
 	switch {
 	case errors.As(err, &ae) && (ae.status == http.StatusNotFound || ae.status == http.StatusUnauthorized):
 		hint := "If the repository is private, sign in with the GitHub CLI (gh auth login) and check again."
-		if c.GOOS == "windows" {
-			hint = "If the repository is private, sign in to GitHub: Settings › App & data › Install missing programs signs you in, or run gh auth login."
-		}
 		return fmt.Sprintf("Moviko can't read github.com/%s (HTTP %d).", c.Repo, ae.status), hint
 	case errors.As(err, &ae) && ae.rateLimited:
 		return "GitHub's limit on requests was reached: Moviko checks again later.", "Signing in to GitHub (gh auth login) raises the limit."

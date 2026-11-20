@@ -181,20 +181,23 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ffmpeg -hide_banner -version
 
-      # The setup that installs the programs Moviko uses (ffmpeg, mpv and
-      # yt-dlp, with Scoop) only runs on users' computers, in Windows
-      # PowerShell 5.1: check here that it parses there.
-      - name: Check the programs setup script
-        shell: powershell
+      # The programs Moviko downloads for its users (ffmpeg and ffprobe,
+      # yt-dlp, mpv: server/internal/winsetup) come from their projects'
+      # release pages, which only a real run shows to still work: download
+      # them all here into an empty folder, as on a computer with none of
+      # them, and start each one. A project that moved or renamed its
+      # downloads fails the build here, with its name in the log.
+      - name: Check the programs setup against the real downloads
+        working-directory: server
+        timeout-minutes: 20
+        env:
+          MOVIKO_REALNET: "1"
         run: |
-          $script = "server/internal/winsetup/install-tools.ps1"
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $script).Path, [ref]$null, [ref]$errors) | Out-Null
-          if ($errors) {
-            $errors | ForEach-Object { "::error file=$script,line=$($_.Extent.StartLineNumber)::$($_.Message)" }
-            exit 1
+          go test -count 1 -timeout 15m -v -run '^TestRealDownloads$' ./internal/winsetup/
+          if ($LASTEXITCODE -ne 0) {
+            "::error title=Moviko's programs setup::The setup couldn't download or start a program Moviko installs for its users: see TestRealDownloads in this step's log."
+            exit $LASTEXITCODE
           }
-          "$script parses in Windows PowerShell $($PSVersionTable.PSVersion)"
 
       - name: go vet
         working-directory: server
@@ -306,7 +309,7 @@ jobs:
 
           Movie and show details come from TMDB: the first time, Moviko asks for your free TMDB API key. Letterboxd tracking only needs your Letterboxd username.
 
-          Some features use other programs: ffmpeg (needed by the in-app player for most files), mpv (the external player) and yt-dlp (stream downloads); for torrents, qBittorrent or Transmission (optional). The installer offers to install ffmpeg, mpv and yt-dlp for you (with Scoop, no admin rights), and so does Moviko's **Settings > App > Programs**. What to install for what, and where Moviko keeps its data: [packaging/windows/README.md]({guide}).
+          Some features use other programs: ffmpeg (needed by the in-app player for most files), mpv (the external player) and yt-dlp (stream downloads); for torrents, qBittorrent or Transmission (optional). Moviko downloads ffmpeg, yt-dlp and mpv itself, from **Install** on its Home page or **Settings › App & data**, with no administrator rights needed. What each is for, and where Moviko keeps its data: [packaging/windows/README.md]({guide}).
 
           Built from {sha} by [workflow run {run}]({runurl}).
           '@

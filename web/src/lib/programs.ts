@@ -1,7 +1,7 @@
 // The programs Moviko uses and the setup that installs them: on Windows
-// server/internal/winsetup (Scoop, ffmpeg, mpv, yt-dlp… in a PowerShell
-// window), on macOS server/internal/macsetup (downloads into Moviko's
-// folder, in Terminal).
+// server/internal/winsetup (Moviko downloads ffmpeg, yt-dlp and mpv itself,
+// into its own folder), on macOS server/internal/macsetup (downloads into
+// Moviko's folder, in Terminal).
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useEffect } from "react"
 import { toast } from "@/lib/toast"
@@ -26,9 +26,10 @@ export function canInstallPrograms(status?: Status) {
     return (status?.platform === "windows" || status?.platform === "darwin") && status.client !== "lan"
 }
 
-// The window the setup runs in.
-export function setupWindow(status?: Status) {
-    return status?.platform === "darwin" ? "Terminal" : "PowerShell"
+// The window the setup runs in, on macOS (on Windows there is none: the
+// pages show how far it is).
+export function setupWindow(_status?: Status) {
+    return "Terminal"
 }
 
 export function useInstallPrograms(status?: Status) {
@@ -36,7 +37,7 @@ export function useInstallPrograms(status?: Status) {
     return useMutation({
         mutationFn: () => api.post("/api/setup/programs"),
         onSuccess: () => {
-            toast.success(`Moviko's setup opened in a ${setupWindow(status)} window`)
+            if (status?.platform === "darwin") toast.success(`Moviko's setup opened in a ${setupWindow(status)} window`)
             qc.invalidateQueries({ queryKey: ["status"] })
         },
         onError: (e: any) => toast.error(e.message),

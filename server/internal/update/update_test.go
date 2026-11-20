@@ -224,9 +224,6 @@ func TestCheckPrivateRepository(t *testing.T) {
 		if !strings.Contains(st.Error, "can't read github.com/o/r") || !strings.Contains(st.Hint, "gh auth login") || st.Available {
 			t.Fatalf("%s: error %q, hint %q, available %v", goos, st.Error, st.Hint, st.Available)
 		}
-		if goos == "windows" && !strings.Contains(st.Hint, "Install missing programs") {
-			t.Fatalf("windows hint: %q", st.Hint)
-		}
 	}
 }
 

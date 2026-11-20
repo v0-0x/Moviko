@@ -45,6 +45,7 @@ import { refreshSharing, useCheckUpdate, useSaveSettings, useSharing, useStatus,
 import { exampleMpvPath, installHint, installSource, platformName } from "@/lib/platform"
 import type { Tool } from "@/lib/platform"
 import { canInstallPrograms, useInstallPrograms, useWatchSetup } from "@/lib/programs"
+import { setupFailures, setupStep, useSetupProgress } from "@/components/ProgramsNotice"
 import { useStore } from "@/lib/store"
 import { useFadeBelow } from "@/lib/hooks"
 import { activeHoliday, colorTheme, HOLIDAYS, ownAccent, themePreviewStore, themesOf, useClassic } from "@/lib/themes"
@@ -747,6 +748,9 @@ function InstallProgramsButton() {
 function ProgramsGroup() {
     const { data: status } = useStatus()
     useWatchSetup(status)
+    // Windows: Moviko downloads them itself, and says here how far it is.
+    const progress = useSetupProgress(status)
+    const running = !!status?.setupRunning || !!progress?.running
     const f = status?.features
     const programs: { tool: Tool; ok?: boolean; use: string }[] = [
         { tool: "ffmpeg", ok: f?.ffmpeg, use: "In-app player and downloads of streams" },
@@ -764,7 +768,7 @@ function ProgramsGroup() {
                             p.use
                         ) : (
                             <>
-                                {p.use}. {installSource(status?.platform)} <code className="rounded bg-black/30 px-1.5 py-0.5">{installHint(status?.platform, p.tool)}</code>
+                                {p.use}. {installSource(status?.platform, p.tool)} <code className="rounded bg-black/30 px-1.5 py-0.5">{installHint(status?.platform, p.tool)}</code>
                             </>
                         )
                     }
@@ -778,7 +782,9 @@ function ProgramsGroup() {
                     help={
                         status?.platform === "darwin"
                             ? "Opens a Terminal window. No Homebrew or password needed. mpv needs Homebrew."
-                            : "Opens a PowerShell window and installs with Scoop. No administrator rights needed."
+                            : running
+                              ? setupStep(progress)
+                              : setupFailures(progress) || "Downloads them into Moviko's folder. No administrator rights needed."
                     }
                 >
                     <InstallProgramsButton />

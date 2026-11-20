@@ -135,9 +135,9 @@ With linger on, the PC's library is there for the TV as soon as the PC is on, no
 
 ## Windows
 
-Moviko runs on Windows 10/11 (64-bit): get the installer (`Moviko-Setup-X.Y.Z-windows-x64.exe`) or the portable zip from the newest **Moviko X.Y.Z for Windows** [release](https://github.com/v0-0x/kumobox-movies/releases) (tag `windows-vX.Y.Z`). The installer also offers to install the programs Moviko uses (ffmpeg, mpv, yt-dlp) with Scoop, and the installed app updates itself from its Home page.
+Moviko runs on Windows 10/11 (64-bit): get the installer (`Moviko-Setup-X.Y.Z-windows-x64.exe`) or the portable zip from the newest **Moviko X.Y.Z for Windows** [release](https://github.com/v0-0x/kumobox-movies/releases) (tag `windows-vX.Y.Z`). Moviko downloads the programs it uses (ffmpeg, yt-dlp, mpv) itself, from **Install** on its Home page, and the installed app updates itself from its Home page.
 
-What to install alongside it, where it keeps its data, how to build it and how releases are made: [packaging/windows/README.md](packaging/windows/README.md).
+What it uses, where it keeps its data, how to build it and how releases are made: [packaging/windows/README.md](packaging/windows/README.md).
 
 ## macOS
 

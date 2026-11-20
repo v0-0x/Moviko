@@ -566,7 +566,7 @@ export type Status = {
     devicePrompts?: DevicePrompt[] | null
     keptAwake?: boolean // another device is playing this computer's files, so it stays awake
     webUiForced: boolean
-    setupRunning?: boolean // Windows: the window installing Moviko's programs is open
+    setupRunning?: boolean // Moviko's programs are being installed (on macOS, the setup's window is open)
     settings: Settings
 }
 

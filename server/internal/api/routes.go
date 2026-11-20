@@ -70,6 +70,7 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /api/fs/dirs", h(s.listDirs))
 	m.HandleFunc("POST /api/open", h(s.openPath))
 	m.HandleFunc("POST /api/setup/programs", h(s.installPrograms))
+	m.HandleFunc("GET /api/setup/programs", h(s.setupProgress))
 	// The server's log can hold addon links with their keys: this computer's.
 	m.HandleFunc("GET /api/logs", h(func(r *http.Request) (any, error) {
 		if !isTrusted(r) {

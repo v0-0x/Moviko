@@ -66,11 +66,6 @@ win:
   extraResources:
     - from: ../dist/windows/moviko.exe
       to: moviko.exe
-    # The setup that installs the programs Moviko uses (ffmpeg, mpv, yt-dlp,
-    # with Scoop): the installer offers to run it (installer.nsh), and
-    # moviko.exe has the same script built in for Settings > Desktop app & programs.
-    - from: ../server/internal/winsetup/install-tools.ps1
-      to: install-tools.ps1
 
 nsis:
   artifactName: Moviko-Setup-${version}-windows-${arch}.${ext}

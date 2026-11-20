@@ -33,48 +33,42 @@ Letterboxd username.
 | yt-dlp | Faster, more reliable stream downloads |
 | qBittorrent or Transmission | Torrents (optional) |
 
-**Moviko installs ffmpeg, mpv and yt-dlp for you**: at the end of the install,
-the installer asks whether to install them (also later from **Settings ›
-Desktop app & programs › Install**). A PowerShell window then installs, with
-[Scoop](https://scoop.sh) and for your Windows user only (no administrator
-rights):
+**Moviko downloads ffmpeg, yt-dlp and mpv for you**: click **Install** on the
+Home page (it shows while ffmpeg is missing), or **Settings › App & data ›
+Install missing programs**. Moviko then downloads their ready-made Windows
+builds from their projects' release pages into its own folder
+(`%APPDATA%\Moviko\bin`), for your Windows user only: no package manager, no
+administrator rights, no window to follow. The page says which program is
+downloading and how far it is.
 
-- Scoop itself and its extras bucket (where mpv is), with Git for Windows,
-  which Scoop needs to add a bucket
-- ffmpeg, mpv and yt-dlp
+| Program | Downloaded from | Checked against |
+|---|---|---|
+| ffmpeg and ffprobe | [BtbN's builds](https://github.com/BtbN/FFmpeg-Builds/releases) of the newest ffmpeg release ([Gyan's](https://github.com/GyanD/codexffmpeg/releases) when those can't be had) | BtbN's `checksums.sha256` |
+| yt-dlp | [its releases](https://github.com/yt-dlp/yt-dlp/releases) | its `SHA2-256SUMS` |
+| mpv, the optional external player | [mpv's releases](https://github.com/mpv-player/mpv/releases) | nothing published |
 
-Programs you already have are skipped, so you can run it again whenever
-something is missing. Moviko picks newly installed programs up by itself. The
-script is
-[`server/internal/winsetup/install-tools.ps1`](../../server/internal/winsetup/install-tools.ps1).
+That's about 250 MB to download on a computer with none of them (over
+400 MB once unpacked: ffmpeg is large). Programs you already have (anywhere
+on your `PATH`) are skipped, so you can run it again whenever something is
+missing. A download that fails is named with the reason, and the others are
+installed all the same. mpv's own build needs Microsoft's Visual C++ runtime,
+which most computers have from another program: without it the setup says so
+and leaves mpv out. The code is
+[`server/internal/winsetup`](../../server/internal/winsetup).
 
-To install them yourself instead, from a terminal (PowerShell or Windows
-Terminal): **Settings** shows what Moviko found; for a program that isn't on
-your `PATH`, enter its full path there.
+To install them yourself instead: **Settings** shows what Moviko found; for a
+program that isn't on your `PATH`, enter its full path there.
 
 | For | Install |
 |---|---|
 | ffmpeg | `winget install Gyan.FFmpeg` |
 | yt-dlp | `winget install yt-dlp.yt-dlp` |
-| mpv | `scoop install mpv` ([Scoop](#scoop), extras bucket) or [mpv.io](https://mpv.io/installation/); then choose it in **Settings › Playback** |
+| mpv | [mpv.io](https://mpv.io/installation/); then choose it in **Settings › Playback** |
 | Torrents | qBittorrent: `winget install qBittorrent.qBittorrent`, [then turn on its Web UI](#qbittorrent); or Transmission: `winget install Transmission.Transmission` |
 
 Hardware encoding for the in-app player (**Settings › Players & conversion**):
 NVENC (NVIDIA) and Quick Sync (Intel) work on Windows; VA-API is
 Linux only.
-
-### Scoop
-
-[Scoop](https://scoop.sh) installs command-line programs for your user. In
-PowerShell:
-
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
-scoop install git          # Scoop adds buckets with it
-scoop bucket add extras
-scoop install ffmpeg yt-dlp mpv
-```
 
 ### qBittorrent
 
@@ -91,7 +85,7 @@ access (**Edit › Preferences › Remote**).
 
 | Folder | What's in it |
 |---|---|
-| `%APPDATA%\Moviko` | Your data: the database (your list, diary, library matches, settings, watch progress), downloaded artwork, extension storage |
+| `%APPDATA%\Moviko` | Your data: the database (your list, diary, library matches, settings, watch progress), downloaded artwork, extension storage; in `bin`, the [programs Moviko downloaded](#programs-moviko-uses) |
 | `%LOCALAPPDATA%\Moviko` | Cache and temporary files: the in-app player's segments (`hls`), the running server's address and token (`run`), the app window's browser data (`electron`), the last downloaded update (`update`) |
 | `%LOCALAPPDATA%\Programs\Moviko` | The app, when installed with the installer |
 | `%USERPROFILE%\Videos` | The library folder, until you pick yours in **Settings › Library** |
