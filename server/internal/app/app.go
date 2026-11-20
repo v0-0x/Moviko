@@ -29,6 +29,7 @@ import (
 	"github.com/v0-0x/kumobox-movies/server/internal/letterboxd"
 	"github.com/v0-0x/kumobox-movies/server/internal/library"
 	"github.com/v0-0x/kumobox-movies/server/internal/lifecycle"
+	"github.com/v0-0x/kumobox-movies/server/internal/livetv"
 	"github.com/v0-0x/kumobox-movies/server/internal/notify"
 	"github.com/v0-0x/kumobox-movies/server/internal/player"
 	"github.com/v0-0x/kumobox-movies/server/internal/playlist"
@@ -58,6 +59,7 @@ type App struct {
 	// TorrentStream plays torrents as they download (package torrentstream).
 	TorrentStream *torrentstream.Engine
 	Playlists     *playlist.Store
+	LiveTV        *livetv.Service
 	AutoDL        *torrent.AutoDownloader
 	Extensions    *extensions.Manager
 	Stream        *stream.Service
@@ -175,7 +177,7 @@ func New(dataDir string) (*App, error) {
 	exits := lifecycle.NewExits()
 
 	a := &App{
-		DB: d, Playlists: playlist.New(d), Settings: settings, Hub: hub, Platform: platform, Files: files, Scanner: scanner,
+		DB: d, Playlists: playlist.New(d), LiveTV: livetv.New(d, filepath.Join(dataDir, "livetv")), Settings: settings, Hub: hub, Platform: platform, Files: files, Scanner: scanner,
 		Library: lib, History: hist, Player: pl, Downloads: dls, Torrents: torrents,
 		AutoDL:     torrent.NewAutoDownloader(d, torrents, platform, files, hub),
 		Extensions: exts, Stream: stream.NewService(streamOptions(settings)), Local: stream.NewLocal(settings, files, d),
@@ -293,6 +295,12 @@ func (a *App) wire() {
 
 	// Stable releases, or betas too (Settings › Updates & about).
 	a.Update.Channel = func() string { return a.Settings.Get().Updates.Channel }
+	// Live TV: its country is TMDB's region unless it has its own, and the
+	// app is told when its channels, checks or guide changed.
+	a.LiveTV.Region = func() string { return a.Settings.Get().TMDB.Region }
+	a.LiveTV.OnChange = func(what string, payload any) {
+		a.Hub.Publish("livetv-updated", map[string]any{"what": what, "check": payload})
+	}
 	util.SetOffline(a.Settings.Get().Server.Offline)
 	a.Settings.OnChange(func(old, cur config.Settings) {
 		// Listeners run apart: two saves close together may arrive in either
@@ -413,6 +421,7 @@ func (a *App) Shutdown() {
 	// The player first: it saves where it stopped, which sharing then sends
 	// to the other Movikos before it stops.
 	a.Player.Stop()
+	a.LiveTV.StopCheck()
 	a.Images.Close()
 	a.TorrentStream.Close()
 	a.Share.Stop()

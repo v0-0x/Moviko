@@ -6,6 +6,22 @@ export type Release = { id: number; title: string; changes: Change[] }
 
 export const RELEASES: Release[] = [
     {
+        id: 8,
+        title: "Live TV",
+        changes: [
+            {
+                title: "Channels from your own sources",
+                text: "A playlist (M3U), an Xtream Codes login from your IPTV provider, or the free public channels of a country. Moviko comes with none: add them on the computer it runs on, watch on any device.",
+                to: "/live",
+            },
+            {
+                title: "What's on, favourites, and only what works",
+                text: "The guide shows what's on now and next where a source has one. Channels are checked in the background and the dead ones left out; one that doesn't play is tried from your other lists. Up and Down change channel.",
+                to: "/live",
+            },
+        ],
+    },
+    {
         id: 7,
         title: "Notifications, your year, and a sturdier Moviko",
         changes: [

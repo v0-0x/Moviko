@@ -44,6 +44,7 @@ const YearPage = lazy(() => import("./pages/Year"))
 const TorrentsPage = lazy(() => import("./pages/Torrents"))
 const DownloadsPage = lazy(() => import("./pages/Downloads"))
 const PlaylistsPage = lazy(() => import("./pages/Playlists"))
+const LiveTVPage = lazy(() => import("./pages/LiveTV"))
 const AutoDownloaderPage = lazy(() => import("./pages/AutoDownloader"))
 const LibraryPage = lazy(() => import("./pages/Library"))
 const LocalLibraryPage = lazy(() => import("./pages/LocalLibrary"))
@@ -193,6 +194,7 @@ function MovikoApp() {
                                 <Route path="/torrent-list" element={<TorrentsPage />} />
                                 <Route path="/downloads" element={<DownloadsPage />} />
                                 <Route path="/playlists" element={<PlaylistsPage />} />
+                                <Route path="/live" element={<LiveTVPage />} />
                                 <Route path="/auto-downloader" element={<AutoDownloaderPage />} />
                                 <Route path="/library" element={<LibraryPage />} />
                                 <Route path="/local" element={<LocalLibraryPage />} />

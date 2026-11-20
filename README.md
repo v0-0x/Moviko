@@ -61,6 +61,13 @@
 
 See [docs/PROVIDERS.md](docs/PROVIDERS.md) for the formats and how to write a provider.
 
+**Live TV**
+- Channels from sources you add (Moviko comes with none): **M3U playlists** with their XMLTV guide, **Xtream Codes** logins, or the free public channels of a country (the [iptv-org](https://github.com/iptv-org/iptv) lists). Added on the computer Moviko runs on, watched on any device; a source on your own network (Tvheadend, xTeVe) works too.
+- Groups, search, **favourites** and recently watched; **what's on now and next** where the source has a guide.
+- Channels are **checked in the background** and the ones that don't answer left out, with those marked as playing only in another country; a channel that doesn't play is tried from your other lists that have it.
+- Plays in the in-app player: HLS as it is, any other stream converted by ffmpeg. Up and Down change channel. A channel's address (it can carry your login) never leaves the server.
+- Made after [Stream Goat](https://github.com/sherazi5110/stream-goat)'s Live TV.
+
 **Torrents**
 - **qBittorrent** (Web UI API, v4 and v5) and **Transmission** sync: list, pause/resume, remove (with data), open folder, active count in the sidebar. Moviko can launch the client for you.
 - Search from any movie or show page, by IMDb/TMDB/TVDB id where the source supports it: **Torznab** indexers (**Jackett**, **Prowlarr**), **YTS** (movies), **EZTV** (shows), **The Pirate Bay**, **Torrents-CSV**, **Internet Archive**, plus extension providers. Results are merged, de-duplicated and filtered to the right season/episode, with resolution, release group, pack and seeder badges. Each source can be turned off or pointed at a mirror (**Settings › Streaming & torrents**).
@@ -180,4 +187,4 @@ Data lives in `~/.local/share/moviko` (SQLite database, artwork cache, extension
 - TMDB's API may rate-limit large first scans; Moviko waits and retries automatically.
 - Letterboxd only tracks films: shows are tracked in Moviko. The public diary feed holds your most recent viewings; import your Letterboxd export once to bring in everything older.
 - Image-based subtitles (PGS/VobSub) show in mpv as they are; the in-app player has them drawn into the picture by the computer that has the file.
-- Moviko is a personal project, unaffiliated with TMDB, Letterboxd, Stremio, Nuvio, the Internet Archive, luffy, FreeFlix or the sites they stream from. This product uses the TMDB API but is not endorsed or certified by TMDB. Licensed GPL-3.0.
+- Moviko is a personal project, unaffiliated with TMDB, Letterboxd, Stremio, Nuvio, the Internet Archive, iptv-org, luffy, FreeFlix, Stream Goat or the sites they stream from. This product uses the TMDB API but is not endorsed or certified by TMDB. Licensed GPL-3.0.

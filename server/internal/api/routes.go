@@ -40,6 +40,7 @@ func (s *Server) routes() {
 	s.backupRoutes()
 	s.playlistRoutes()
 	s.notificationRoutes()
+	s.liveTVRoutes()
 
 	// --- core
 	m.HandleFunc("GET /api/status", h(s.status))

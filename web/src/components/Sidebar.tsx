@@ -23,6 +23,7 @@ import {
     Settings as SettingsIcon,
     Settings2,
     Unplug,
+    Tv,
     UserRound,
     WifiOff,
 } from "lucide-react"
@@ -114,6 +115,7 @@ export function useNavGroups(): { label: string; items: NavItem[] }[] {
                 { to: "/local", label: "Local library", icon: <HardDrive /> },
                 { to: "/lists", label: "My list", icon: <ListChecks /> },
                 { to: "/schedule", label: "Calendar", icon: <CalendarDays /> },
+                { to: "/live", label: "Live TV", icon: <Tv /> },
             ],
         },
         {

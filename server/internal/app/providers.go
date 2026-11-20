@@ -133,6 +133,8 @@ func (a *App) wireProviders() error {
 				out = append(out, stream.HostKey(u))
 			}
 		}
+		// Live TV sources added as ones of the home network.
+		out = append(out, a.LiveTV.LocalHosts()...)
 		return append(out, mediaserver.Hosts(a.mediaServers())...)
 	}
 	// The media servers' tokens are added when Moviko fetches their

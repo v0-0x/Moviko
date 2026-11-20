@@ -128,6 +128,12 @@ export function connectEvents(qc: QueryClient) {
                 qc.invalidateQueries({ queryKey: ["plugins-ui"] })
                 qc.invalidateQueries({ queryKey: ["providers"] })
                 break
+            case "livetv-updated":
+                // A check's progress comes with it; the rest is asked again.
+                if (p?.what === "check" && p.check) qc.setQueryData(["livetv", "info"], (old: any) => (old ? { ...old, check: p.check } : old))
+                else if (p?.what === "guide") qc.invalidateQueries({ queryKey: ["livetv", "guide"] })
+                else qc.invalidateQueries({ queryKey: ["livetv"] })
+                break
             case "providers-updated":
                 qc.invalidateQueries({ queryKey: ["providers"] })
                 qc.invalidateQueries({ queryKey: ["stremio-addons"] })
