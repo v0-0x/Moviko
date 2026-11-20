@@ -435,7 +435,7 @@ export type Settings = {
     }
     qbittorrent: TorrentClientConfig
     transmission: TorrentClientConfig
-    server: { host: string; port: number; allowLan: boolean; password: string; webUi: boolean }
+    server: { host: string; port: number; allowLan: boolean; password: string; webUi: boolean; offline?: boolean }
     // downloadTo: the Moviko this one's downloads go to (its ID; "" here).
     // keepAwake: don't let this computer sleep while another device plays its
     // files. autoSync: sync watch history when a paired device comes back.
@@ -574,7 +574,7 @@ export type Status = {
 // preview of the next episode (GET /api/playback/skips).
 export type SkipInterval = { type: string; start: number; end: number }
 
-export type DevicePrompt = { kind: "new" | "older" | "newer"; id: string; name: string; platform?: string; version: string }
+export type DevicePrompt = { kind: "new" | "offer" | "older" | "newer"; id: string; name: string; platform?: string; version: string }
 
 export type PlaybackSession = {
     id: string
@@ -1089,6 +1089,7 @@ export type SharingPeer = {
     version: string
     allowed: boolean // this Moviko shares its library with it
     shares: boolean // it shares its library with this Moviko
+    offers?: boolean // it says it does, and this Moviko hasn't accepted it yet
     files: number
     manual: boolean
     error?: string

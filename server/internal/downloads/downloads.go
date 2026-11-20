@@ -397,8 +397,19 @@ func (m *Manager) ClearFinished() {
 
 func (m *Manager) worker() {
 	for {
-		m.execute(m.next())
+		m.run(m.next())
 	}
+}
+
+// run downloads one: an extension gone wrong in it (a panic) fails that
+// download, not Moviko.
+func (m *Manager) run(r *run) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Printf("downloads: %v", err)
+		}
+	}()
+	m.execute(r)
 }
 
 // next waits for a queued item and claims it.

@@ -111,7 +111,7 @@ const NAV: { title: string; items: NavItem[] }[] = [
     {
         title: "General",
         items: [
-            { id: "appearance", label: "Appearance", icon: <Palette />, description: "Themes, colors and what's shown", keywords: "ui theme color dark classic look spoilers card size home rows" },
+            { id: "appearance", label: "Appearance", icon: <Palette />, description: "Themes, colors and what's shown", keywords: "ui theme color dark light spoilers card size home rows" },
             { id: "notifications", label: "Notifications", icon: <Bell />, description: "Alerts for new episodes and finished downloads", keywords: "alerts notify" },
             { id: "updates", label: "Updates & about", icon: <RefreshCw />, description: "Version, updates and beta", keywords: "version beta about what's new" },
         ],
@@ -603,6 +603,13 @@ function NetworkSection({ draft, set }: SectionProps) {
                         />
                     </Stack>
                 )}
+                <Row
+                    label="Offline mode"
+                    help="Nothing goes to the internet: Moviko uses what it has here (your list, your files, artwork seen). Other devices at home still work."
+                    keywords="internet no connection plane"
+                >
+                    <Switch checked={!!draft.server.offline} disabled={lan} onChange={v => set("server", { offline: v })} />
+                </Row>
                 {!androidApp && (
                     <Row label="Port" help="Changes when you save. No restart needed.">
                         <Input type="number" className="w-28" disabled={lan} value={draft.server.port} onChange={e => set("server", { port: Number(e.target.value) })} />
@@ -965,15 +972,12 @@ function UISection({ draft, set }: SectionProps) {
     // The one on now with these settings (or that would be, for the hint).
     const holiday = activeHoliday(seasonal)
     // The themes of the look being set, and the saved one as it draws it.
-    const classicLook = !!draft.ui.classicLook
+    const classicLook = false as boolean
     const theme = colorTheme(draft.ui.colorTheme, classicLook)
     const own = ownAccent(draft.ui.accentColor, classicLook)
     return (
         <>
             <Group title="Theme">
-                <Row label="Classic look" help="Moviko as it looked before 3.0: rounded panels and its own colors.">
-                    <Switch checked={!!draft.ui.classicLook} onChange={v => set("ui", { classicLook: v })} />
-                </Row>
                 <Stack label="Colors">
                     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                         {themesOf(classicLook).map(t => {
@@ -1231,6 +1235,7 @@ function SharingGroup({ draft, set }: SectionProps) {
                                         p.version && `Moviko ${p.version}${p.platform === "android" ? " for Android" : ""}`,
                                         !p.online && p.lastSeen > 0 && `seen ${relativeTime(p.lastSeen)}`,
                                         p.shares && `shares its library with you${p.files ? ` (${p.files} ${p.files === 1 ? "file" : "files"})` : ""}`,
+                                        p.offers && "offers its library",
                                         p.error,
                                         p.noBeacons && "found by address only, check its firewall or a network set to Public",
                                     ]
@@ -1243,6 +1248,11 @@ function SharingGroup({ draft, set }: SectionProps) {
                                 {p.shares && p.takesDownloads && trusted && !tv && (
                                     <Button size="sm" variant="ghost" icon={<Upload className="size-4" />} onClick={() => setUploadTo(p.id)}>
                                         Upload
+                                    </Button>
+                                )}
+                                {p.offers && trusted && (
+                                    <Button size="sm" variant="ghost" onClick={() => call(() => api.post(`/api/sharing/peers/${p.id}`, { accepted: true }))}>
+                                        Use its library
                                     </Button>
                                 )}
                                 {!p.online && p.canWake && (

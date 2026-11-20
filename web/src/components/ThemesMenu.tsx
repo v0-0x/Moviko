@@ -1,4 +1,4 @@
-import { Check, ChevronRight, ChevronUp, History, Palette, Settings2, Sparkles } from "lucide-react"
+import { Check, ChevronRight, ChevronUp, Palette, Settings2, Sparkles } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { useSaveUI, useSettings } from "@/lib/queries"
 import { useStore } from "@/lib/store"
@@ -9,7 +9,7 @@ import { HolidayIcon } from "./HolidayBadge"
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger, Tooltip } from "./ui"
 
 // The sidebar's Themes menu: every color theme, the holiday themes (by the
-// date, off, or one always) and their animation, and the classic look,
+// date, off, or one always) and their animation,
 // changed at once and the menu left open to try another. Settings ›
 // Appearance has the same.
 export function ThemesMenu({ wide }: { wide: boolean }) {
@@ -105,10 +105,9 @@ function useThemes() {
         navigate: useNavigate(),
         holiday: useStore(holidayStore),
         // The saved one, as this look draws it (lib/themes.ts).
-        theme: colorTheme(ui?.colorTheme, !!ui?.classicLook).id,
+        theme: colorTheme(ui?.colorTheme).id,
         seasonal: ui?.seasonal ?? "auto",
         effects: ui?.seasonalEffects ?? true,
-        classicLook: !!ui?.classicLook,
         // What "by the date" is now.
         today: activeHoliday("auto"),
     }
@@ -117,7 +116,7 @@ function useThemes() {
 // The menu: a panel. Each color theme is a small window in its colors, the
 // holiday themes a grid, and the colors fade from one theme to the next.
 function PanelMenu({ wide }: { wide: boolean }) {
-    const { saveUI, navigate, holiday, theme, seasonal, effects, classicLook, today } = useThemes()
+    const { saveUI, navigate, holiday, theme, seasonal, effects, today } = useThemes()
     // Drawn as the look is now, with its themes.
     const classic = useClassic()
     const themes = themesOf(classic)
@@ -223,10 +222,6 @@ function PanelMenu({ wide }: { wide: boolean }) {
                 <DropdownItem keepOpen disabled={!holiday} onSelect={() => saveUI({ seasonalEffects: !effects })} icon={<Sparkles />} className="h-9 rounded-lg">
                     <span className="min-w-0 flex-1 truncate">{holiday ? `Animation: ${holiday.effectName}` : "Holiday animations"}</span>
                     <MenuSwitch on={effects && !!holiday} />
-                </DropdownItem>
-                <DropdownItem keepOpen onSelect={() => pick({ classicLook: !classicLook })} icon={<History />} className="h-9 rounded-lg">
-                    <span className="min-w-0 flex-1">Classic look</span>
-                    <MenuSwitch on={classicLook} />
                 </DropdownItem>
             </div>
 

@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/v0-0x/kumobox-movies/server/internal/providers"
+
+	"github.com/v0-0x/kumobox-movies/server/internal/util"
 )
 
 // Importing a Stremio account's addons
@@ -37,7 +39,7 @@ func APIURL() string {
 }
 
 // accountHTTP reaches Stremio's API.
-var accountHTTP = &http.Client{Timeout: 30 * time.Second}
+var accountHTTP = &http.Client{Timeout: 30 * time.Second, Transport: util.OnlineTransport}
 
 // AccountAddons signs in to a Stremio account at the API apiURL and returns
 // the addons installed on it, in the account's order.

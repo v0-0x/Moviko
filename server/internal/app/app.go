@@ -293,7 +293,11 @@ func (a *App) wire() {
 
 	// Stable releases, or betas too (Settings › Updates & about).
 	a.Update.Channel = func() string { return a.Settings.Get().Updates.Channel }
+	util.SetOffline(a.Settings.Get().Server.Offline)
 	a.Settings.OnChange(func(old, cur config.Settings) {
+		// Listeners run apart: two saves close together may arrive in either
+		// order, so what's set follows the settings now.
+		util.SetOffline(a.Settings.Get().Server.Offline)
 		if !cur.Discord.RichPresence || cur.Discord.ClientID != old.Discord.ClientID {
 			a.clearPresence() // turned off: don't leave "Watching…" behind
 		}

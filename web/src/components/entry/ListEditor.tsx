@@ -54,8 +54,7 @@ export function ListStatusButton({ media, entry }: { media: Media; entry: Entry 
             </DropdownTrigger>
             <DropdownContent align="start">
                 {ORDER.map(k => (
-                    <DropdownItem key={k} onSelect={() => pick(k)}>
-                        {entry?.status === k ? "● " : ""}
+                    <DropdownItem key={k} checked={entry?.status === k} onSelect={() => pick(k)}>
                         {LIST_STATUS[k]}
                     </DropdownItem>
                 ))}

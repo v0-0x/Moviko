@@ -161,7 +161,9 @@ export type ThemeChoice = { colorTheme?: string; accentColor?: string; seasonal?
 // holiday (the sidebar's decoration and its animation), and whether in the
 // Classic look (before 3.0).
 export function resolveTheme(ui: ThemeChoice | undefined, now = new Date()) {
-    const classic = !!ui?.classicLook
+    // One look: the Classic one is gone (what a device from before saved
+    // for it isn't read).
+    const classic = false
     const theme = colorTheme(ui?.colorTheme, classic)
     const holiday = activeHoliday(ui?.seasonal ?? "auto", now)
     return { theme, holiday, accent: holiday?.accent ?? (ownAccent(ui?.accentColor, classic) || theme.accent), effects: !!holiday && (ui?.seasonalEffects ?? true), classic }
@@ -251,7 +253,8 @@ function setVars(vars: Record<string, string>, holiday: string, classic: boolean
 export function applyCachedTheme() {
     try {
         const c = JSON.parse(localStorage.getItem(CACHE_KEY) ?? "null") as { vars?: Record<string, string>; holiday?: string; classic?: boolean; light?: boolean } | null
-        if (c?.vars) setVars(c.vars, HOLIDAYS.some(h => h.id === c.holiday) ? c.holiday! : "", c.classic === true, c.light === true)
+        // Not the colors of the look that's gone (Classic).
+        if (c?.vars && c.classic !== true) setVars(c.vars, HOLIDAYS.some(h => h.id === c.holiday) ? c.holiday! : "", false, c.light === true)
     } catch {
         /* the default colors */
     }

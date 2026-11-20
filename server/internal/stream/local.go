@@ -836,7 +836,11 @@ func (l *Local) ServeFile(w http.ResponseWriter, r *http.Request, path string) {
 		return
 	}
 	defer f.Close()
-	st, _ := f.Stat()
+	st, err := f.Stat()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
 	// Set the type explicitly so a mislabelled file is never sniffed as HTML.
 	ct := mime.TypeByExtension(strings.ToLower(filepath.Ext(path)))
 	if strings.EqualFold(filepath.Ext(path), ".mkv") {

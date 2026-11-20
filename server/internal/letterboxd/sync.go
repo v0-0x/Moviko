@@ -15,6 +15,8 @@ import (
 	"github.com/v0-0x/kumobox-movies/server/internal/config"
 	"github.com/v0-0x/kumobox-movies/server/internal/db"
 	"github.com/v0-0x/kumobox-movies/server/internal/events"
+
+	"github.com/v0-0x/kumobox-movies/server/internal/util"
 )
 
 // Catalog is what Sync needs of catalog.Platform.
@@ -120,7 +122,7 @@ type syncState struct {
 	DisplayName string `json:"displayName"`
 }
 
-var defaultHTTP = &http.Client{Timeout: 30 * time.Second}
+var defaultHTTP = &http.Client{Timeout: 30 * time.Second, Transport: util.OnlineTransport}
 
 func (s *Sync) init() {
 	s.once.Do(func() {

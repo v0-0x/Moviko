@@ -5,6 +5,7 @@ import { useClassic } from "@/lib/themes"
 import type { PluginState } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { Popover, Tooltip } from "../ui"
+import { PluginBoundary } from "./PluginBoundary"
 import { PluginTree, sendPluginEvent } from "./PluginRenderer"
 import { Puzzle } from "lucide-react"
 import { NavLink } from "react-router-dom"
@@ -36,9 +37,19 @@ export function usePlugins() {
     return useStore(pluginStore)
 }
 
+// In the sidebar, outside the pages' own error page: a tray that can't be
+// drawn is left out (one, or all of them) rather than taking the app down.
 export function PluginTrays() {
-    const classic = useClassic()
     const plugins = usePlugins()
+    return (
+        <PluginBoundary resetKey={plugins}>
+            <Trays plugins={plugins} />
+        </PluginBoundary>
+    )
+}
+
+function Trays({ plugins }: { plugins: Record<string, PluginState> }) {
+    const classic = useClassic()
     const open = useStore(trayOpenStore)
     const trays = useMemo(
         () => Object.values(plugins).flatMap(p => (p.state?.trays ?? []).map(t => ({ plugin: p, tray: t }))),
@@ -54,7 +65,8 @@ export function PluginTrays() {
     return (
         <div className="mb-1 flex flex-wrap items-center justify-center gap-1 border-b border-line pb-2 lg:justify-start">
             {pages.map(({ plugin, view }) => (
-                <Tooltip key={plugin.id + view.id} content={view.options.sidebar?.label || plugin.name} side="right">
+                <PluginBoundary key={plugin.id + view.id} resetKey={view}>
+                <Tooltip content={view.options.sidebar?.label || plugin.name} side="right">
                     <NavLink
                         to={`/webview?plugin=${encodeURIComponent(plugin.id)}&id=${encodeURIComponent(view.id)}`}
                         aria-label={view.options.sidebar?.label || plugin.name}
@@ -64,6 +76,7 @@ export function PluginTrays() {
                         {plugin.icon ? <img src={plugin.icon} alt="" className="size-5 rounded object-contain" /> : <Puzzle className="size-[18px] stroke-[1.75] text-muted" />}
                     </NavLink>
                 </Tooltip>
+                </PluginBoundary>
             ))}
             {trays.map(({ plugin, tray }) => {
                 const isOpen = open?.pluginId === plugin.id && open?.trayId === tray.id
@@ -93,14 +106,14 @@ export function PluginTrays() {
                 )
                 if (!tray.withContent) {
                     return (
-                        <Tooltip key={plugin.id + tray.id} content={tray.tooltipText || plugin.name} side="right">
-                            {icon}
-                        </Tooltip>
+                        <PluginBoundary key={plugin.id + tray.id} resetKey={tray}>
+                            <Tooltip content={tray.tooltipText || plugin.name} side="right">{icon}</Tooltip>
+                        </PluginBoundary>
                     )
                 }
                 return (
+                    <PluginBoundary key={plugin.id + tray.id} resetKey={tray}>
                     <Popover
-                        key={plugin.id + tray.id}
                         open={isOpen}
                         onOpenChange={v => {
                             trayOpenStore.set(v ? { pluginId: plugin.id, trayId: tray.id } : null)
@@ -119,6 +132,7 @@ export function PluginTrays() {
                             <PluginTree pluginId={plugin.id} node={tray.tree} />
                         </div>
                     </Popover>
+                    </PluginBoundary>
                 )
             })}
         </div>

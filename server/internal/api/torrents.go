@@ -211,6 +211,11 @@ func (s *Server) torrentDownload(r *http.Request) (any, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", res.Name, err)
 		}
+		// What goes to the torrent client is the request's own (a result
+		// sent back): a link, and one.
+		if !torrentURI(m) {
+			return nil, badRequest(res.Name + ": not a magnet link or a .torrent URL")
+		}
 		all = append(all, m)
 		season := -1
 		if media.IsShow() {
@@ -289,6 +294,11 @@ func (s *Server) torrentAction(r *http.Request) (any, error) {
 	case "remove":
 		return nil, c.Remove(r.Context(), body.Hashes, false)
 	case "removeData":
+		// Deleting files is for this computer, and the Movikos it lets
+		// download onto it: not any device on the network.
+		if !isTrusted(r) && !peerOf(r).Downloads {
+			return nil, forbidden("deleting a torrent's files is only available on this computer")
+		}
 		return nil, c.Remove(r.Context(), body.Hashes, true)
 	case "open":
 		if !isTrusted(r) {
@@ -312,6 +322,16 @@ func (s *Server) torrentAction(r *http.Request) (any, error) {
 	return nil, badRequest("unknown action")
 }
 
+// torrentURI reports a magnet link or a .torrent's address, and nothing
+// more (the clients take a list of them, a line each; Transmission takes a
+// file's path too).
+func torrentURI(u string) bool {
+	if strings.ContainsAny(u, "\r\n\t ") {
+		return false
+	}
+	return strings.HasPrefix(u, "magnet:?") || strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://")
+}
+
 // torrentAdd adds a magnet link or .torrent address, saved to the library
 // folder (in the title's folder when MediaID is given).
 func (s *Server) torrentAdd(r *http.Request) (any, error) {
@@ -323,7 +343,7 @@ func (s *Server) torrentAdd(r *http.Request) (any, error) {
 		return nil, err
 	}
 	body.Magnet = strings.TrimSpace(body.Magnet)
-	if !strings.HasPrefix(body.Magnet, "magnet:") && !strings.HasPrefix(body.Magnet, "http") {
+	if !torrentURI(body.Magnet) {
 		return nil, badRequest("enter a magnet link or a .torrent URL")
 	}
 	if out, sent, err := s.sendDownload(r.Context(), share.DownloadTorrent, share.TorrentDownload{MediaID: body.MediaID, URIs: []string{body.Magnet}}); sent {

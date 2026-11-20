@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query"
 import {
     ArrowLeft,
     ChevronDown,
@@ -23,10 +24,11 @@ import {
     Settings2,
     Unplug,
     UserRound,
+    WifiOff,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { NavLink, useLocation, useNavigate } from "react-router-dom"
-import { desktop } from "@/lib/api"
+import { api, desktop } from "@/lib/api"
 import { useMediaQuery, usePersisted } from "@/lib/hooks"
 import { resultSummary, useCollection, useDownloads, useLetterboxd, useStatus } from "@/lib/queries"
 import { notificationsMutedStore, torrentCountStore, useStore } from "@/lib/store"
@@ -234,6 +236,27 @@ export function Sidebar() {
             onError: () => toast.dismiss(id),
         })
     }
+    // Offline mode (Settings › Devices & network): this computer's, so not
+    // switched from another device.
+    const qc = useQueryClient()
+    const offline = !!status?.settings.server.offline
+    const canOffline = !!status && status.client !== "lan"
+    const toggleOffline = async () => {
+        const s = status?.settings
+        if (!s) return
+        try {
+            await api.put("/api/settings", { ...s, server: { ...s.server, offline: !offline } })
+            toast.success(offline ? "Back online" : "Offline mode: Moviko uses what it has here")
+        } catch (e: any) {
+            toast.error(e.message)
+        }
+        qc.invalidateQueries()
+    }
+    const offlineItem = canOffline && (
+        <DropdownItem icon={<WifiOff />} checked={offline} onSelect={toggleOffline}>
+            Offline mode
+        </DropdownItem>
+    )
     const disconnect = () => letterboxd.disconnect.mutate(undefined, { onSuccess: () => toast.success("Disconnected from Letterboxd") })
 
     const link = (it: Item) => {
@@ -390,7 +413,7 @@ export function Sidebar() {
                             {wide && (
                                 <span className="min-w-0 flex-1">
                                     <span className="block truncate text-[13px] font-medium">{viewer ? viewer.name : "Letterboxd"}</span>
-                                    <span className="block truncate text-[11px] text-subtle">{viewer ? "Letterboxd" : "Connect to sync"}</span>
+                                    <span className="block truncate text-[11px] text-subtle">{offline ? "Offline" : viewer ? "Letterboxd" : "Connect to sync"}</span>
                                 </span>
                             )}
                         </button>
@@ -411,6 +434,7 @@ export function Sidebar() {
                                 <DropdownItem icon={<Settings2 />} onSelect={() => navigate("/settings?tab=letterboxd")}>
                                     Import & export
                                 </DropdownItem>
+                                {offlineItem}
                                 {/* The account is managed on the computer Moviko runs on. */}
                                 {status?.client !== "lan" && (
                                     <>
@@ -422,9 +446,12 @@ export function Sidebar() {
                                 )}
                             </>
                         ) : (
-                            <DropdownItem icon={<Plug />} onSelect={() => setLetterboxdOpen(true)}>
-                                Connect Letterboxd
-                            </DropdownItem>
+                            <>
+                                <DropdownItem icon={<Plug />} onSelect={() => setLetterboxdOpen(true)}>
+                                    Connect Letterboxd
+                                </DropdownItem>
+                                {offlineItem}
+                            </>
                         )}
                     </DropdownContent>
                 </Dropdown>

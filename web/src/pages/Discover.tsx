@@ -4,7 +4,7 @@ import { Link } from "react-router-dom"
 import { ListCardMenu } from "@/components/ListCardMenu"
 import { Carousel, MediaCard, MediaCardSkeleton } from "@/components/MediaCard"
 import { PluginSlot } from "@/components/plugins/PluginSlot"
-import { artButton, Button, ChipRow, EmptyState, ErrorState, SectionHeader, Skeleton, Tabs } from "@/components/ui"
+import { artButton, Backdrop, Button, ChipRow, EmptyState, ErrorState, SectionHeader, Skeleton, Tabs } from "@/components/ui"
 import { HolidayIcon } from "@/components/HolidayBadge"
 import { usePersisted } from "@/lib/hooks"
 import { useDiscover, useGenres, useSearch, useStatus } from "@/lib/queries"
@@ -182,7 +182,7 @@ function Featured({ media, index, count, onIndex, onHold }: { media: Media; inde
             onFocus={() => onHold(true)}
             onBlur={e => !e.currentTarget.contains(e.relatedTarget as Node | null) && onHold(false)}
         >
-            <img key={media.id} src={banner(media)} alt="" className="absolute inset-0 size-full object-cover fade-in [mask-image:linear-gradient(to_bottom,#000_80%,transparent)]" />
+            <Backdrop src={banner(media)} className="absolute inset-0 size-full object-cover [mask-image:linear-gradient(to_bottom,#000_80%,transparent)]" />
             <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/60 to-bg/5" />
             <div className="absolute inset-0 bg-gradient-to-r from-bg/80 via-bg/25 to-transparent" />
             <div key={media.id + "t"} className="absolute inset-x-0 bottom-24 max-w-3xl px-6 rise-in md:px-8 xl:px-10">

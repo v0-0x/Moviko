@@ -243,6 +243,10 @@ type ServerSettings struct {
 	// Serve the web UI to browsers (http://127.0.0.1:<port>). The desktop
 	// window always works.
 	WebUI bool `json:"webUi"`
+	// Offline: nothing goes to the internet (TMDB, Letterboxd, providers,
+	// extensions, artwork, torrents, updates); what was kept is used. The
+	// home network stays.
+	Offline bool `json:"offline"`
 }
 
 type UISettings struct {
@@ -260,8 +264,8 @@ type UISettings struct {
 	ColorTheme      string `json:"colorTheme"`
 	Seasonal        string `json:"seasonal"`
 	SeasonalEffects bool   `json:"seasonalEffects"`
-	// Moviko's look from before the current one (before 3.0), instead of
-	// it.
+	// The Classic look there was until 3.0 (the one from before): kept for
+	// devices from before, always off.
 	ClassicLook bool `json:"classicLook"`
 }
 
@@ -569,6 +573,8 @@ func sanitize(s Settings) Settings {
 	if !slices.Contains(UpdateChannels, s.Updates.Channel) {
 		s.Updates.Channel = d.Updates.Channel
 	}
+	// One look: the Classic one is gone, and what was saved for it with it.
+	s.UI.ClassicLook = false
 	if !slices.Contains(ColorThemes, s.UI.ColorTheme) {
 		s.UI.ColorTheme = d.UI.ColorTheme
 	}

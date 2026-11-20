@@ -298,7 +298,7 @@ function EntryHero({ entry, onTab }: { entry: EntryView; onTab: (t: Tab) => void
                                 {dropdownActions.length > 0 && <DropdownSeparator />}
                                 {dropdownActions.map(a => (
                                     <DropdownItem key={a.pluginId + a.id} onSelect={() => sendPluginEvent(a.pluginId, { kind: "action", actionId: a.id, mediaId: media.id })}>
-                                        {a.props.label}
+                                        {String(a.props?.label ?? "")}
                                     </DropdownItem>
                                 ))}
                             </DropdownContent>

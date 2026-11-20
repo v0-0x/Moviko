@@ -123,6 +123,10 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) er
 	if !bearer {
 		q.Set("api_key", key)
 	}
+	// Offline mode: not tried (the copies kept are used).
+	if util.Offline() {
+		return fmt.Errorf("tmdb: %w", util.ErrOffline)
+	}
 	target := c.base + path + "?" + q.Encode()
 
 	const attempts = 4

@@ -32,7 +32,7 @@ import { useLibraryCardMenu } from "@/components/library/LibraryCardMenu"
 import { PluginSlot } from "@/components/plugins/PluginSlot"
 import { ProgramsNotice } from "@/components/ProgramsNotice"
 import { SleepingHosts } from "@/components/SleepingHosts"
-import { artButton, Button, Chip, ChipRow, Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownSeparator, DropdownTrigger, EmptyState, IconButton, SectionHeader, Skeleton } from "@/components/ui"
+import { artButton, Backdrop, Button, Chip, ChipRow, Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownSeparator, DropdownTrigger, EmptyState, IconButton, SectionHeader, Skeleton } from "@/components/ui"
 import { UpdateBanner } from "@/components/UpdateBanner"
 import { WatchPicker } from "@/components/WatchPicker"
 import { api } from "@/lib/api"
@@ -202,11 +202,11 @@ export default function HomePage() {
                             </DropdownTrigger>
                             <DropdownContent>
                                 <DropdownLabel>Show</DropdownLabel>
-                                <DropdownItem icon={<HardDrive />} onSelect={() => setOnlyLocal(!onlyLocal)}>
-                                    {onlyLocal ? "● " : ""}Only what's in my library
+                                <DropdownItem icon={<HardDrive />} checked={onlyLocal} onSelect={() => setOnlyLocal(!onlyLocal)}>
+                                    Only what's in my library
                                 </DropdownItem>
-                                <DropdownItem icon={<ListFilter />} onSelect={() => setOnlyLocal(false)}>
-                                    {!onlyLocal ? "● " : ""}Everything on my list
+                                <DropdownItem icon={<ListFilter />} checked={!onlyLocal} onSelect={() => setOnlyLocal(false)}>
+                                    Everything on my list
                                 </DropdownItem>
                                 <DropdownSeparator />
                                 <DropdownLabel>Sort by</DropdownLabel>
@@ -219,8 +219,7 @@ export default function HomePage() {
                                         ["airing", "Next episode"],
                                     ] as [SortKey, string][]
                                 ).map(([k, l]) => (
-                                    <DropdownItem key={k} icon={<ArrowDownUp />} onSelect={() => setSort(k)}>
-                                        {sort === k ? "● " : ""}
+                                    <DropdownItem key={k} icon={<ArrowDownUp />} checked={sort === k} onSelect={() => setSort(k)}>
                                         {l}
                                     </DropdownItem>
                                 ))}
@@ -401,7 +400,7 @@ function Hero({
     const show = item && mediaIsShow(item.media)
     return (
         <div className="relative h-[clamp(340px,50vh,540px)] w-full overflow-hidden max-sm:h-[440px]">
-            {img ? <img key={img} src={img} alt="" className="absolute inset-0 size-full object-cover fade-in [mask-image:linear-gradient(to_bottom,#000_80%,transparent)]" /> : <div className="absolute inset-0 bg-surface-1" />}
+            {img ? <Backdrop src={img} className="absolute inset-0 size-full object-cover [mask-image:linear-gradient(to_bottom,#000_80%,transparent)]" /> : <div className="absolute inset-0 bg-surface-1" />}
             <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/60 to-bg/5" />
             <div className="absolute inset-0 bg-gradient-to-r from-bg/80 via-bg/25 to-transparent" />
             <div className="absolute top-4 right-4 z-20">{toolbar}</div>
@@ -538,7 +537,7 @@ function ContinueRow({ items, onFocus }: { items: ContinueItem[]; onFocus: (i: n
             data-tv-skip-nav
             aria-label={dir < 0 ? "Back" : "More"}
             className={cn(
-                "absolute top-[calc((min(82vw,400px)*9/16)/2)] z-10 grid size-10 -translate-y-1/2 place-items-center rounded-full border border-white/10 bg-black/60 text-white/85 shadow-lg backdrop-blur transition-colors hover:bg-black/80 hover:text-white fade-in",
+                "absolute top-[calc((min(82vw,400px)*9/16)/2)] z-10 grid size-10 -translate-y-1/2 place-items-center rounded-full border border-white/10 bg-black/60 text-white/85 shadow-lg backdrop-blur transition-colors hover:bg-black/80 hover:text-white fade-in [@media(hover:none)]:hidden",
                 dir < 0 ? "left-1" : "right-1",
             )}
         >
@@ -574,7 +573,7 @@ function ContinueRow({ items, onFocus }: { items: ContinueItem[]; onFocus: (i: n
         <div className="relative">
             {!tv && edges.left && arrow(-1)}
             {!tv && edges.right && arrow(1)}
-        <div ref={ref} className="no-scrollbar -mx-2 -mt-1.5 flex snap-x scroll-px-2 gap-5 overflow-x-auto px-2 pt-1.5 pb-2">
+        <div ref={ref} className="stagger no-scrollbar -mx-2 -mt-1.5 flex snap-x scroll-px-2 gap-5 overflow-x-auto px-2 pt-1.5 pb-2">
             {items.map((it, i) => {
                 const show = mediaIsShow(it.media)
                 const total = totalEpisodes(it.media) || it.total

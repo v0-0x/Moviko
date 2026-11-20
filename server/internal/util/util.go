@@ -58,7 +58,7 @@ func GetJSON(ctx context.Context, url string, headers map[string]string, out any
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return fmt.Errorf("GET %s: %s: %s", url, resp.Status, strings.TrimSpace(string(body)))
 	}
-	return json.NewDecoder(resp.Body).Decode(out)
+	return json.NewDecoder(io.LimitReader(resp.Body, 64<<20)).Decode(out)
 }
 
 // GetBytes performs a GET request and returns the body.

@@ -10,7 +10,8 @@ import (
 )
 
 // Prompt is what Home asks about another Moviko on the network: whether to
-// share this Moviko's library with one that's new ("new"), or to update one
+// share this Moviko's library with one that's new ("new"), to use the library
+// one offers ("offer"), or to update one
 // of the two, their versions differing ("older": its Moviko is older than
 // this one, "newer": this one is).
 type Prompt struct {
@@ -33,6 +34,14 @@ func (s *Service) Prompts() []Prompt {
 	out := []Prompt{}
 	for _, p := range s.peers {
 		if !p.online(now) {
+			continue
+		}
+		// It says it shares its library with this Moviko: used once the
+		// owner says so here.
+		if p.offers && !p.accepted {
+			if !p.declined {
+				out = append(out, Prompt{Kind: "offer", ID: p.id, Name: s.view(p, now).Name, Platform: p.platform, Version: p.version})
+			}
 			continue
 		}
 		// A mediaserver: it shares its library with this Moviko when its
