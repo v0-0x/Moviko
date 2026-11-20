@@ -35,6 +35,7 @@ func vidlinkStreams(p *Provider, ctx context.Context, r providers.Request) ([]pr
 	var v struct {
 		Stream struct {
 			Playlist  string `json:"playlist"`
+			Delivery  string `json:"deliveryType"`
 			Qualities map[string]struct {
 				Type string `json:"type"`
 				URL  string `json:"url"`
@@ -46,7 +47,11 @@ func vidlinkStreams(p *Provider, ctx context.Context, r providers.Request) ([]pr
 		return nil, err
 	}
 	subs := subtitles(v.Stream.Captions)
-	if isWebLink(v.Stream.Playlist) {
+	// A DASH manifest (what Vidlink hands the players that ask for it, each
+	// request signed with cookies) isn't an HLS playlist: listed as one, it
+	// only failed in the player. Its files are listed instead.
+	dash := strings.EqualFold(v.Stream.Delivery, "dash") || strings.Contains(strings.ToLower(v.Stream.Playlist), ".mpd")
+	if isWebLink(v.Stream.Playlist) && !dash {
 		return []providers.Stream{{
 			Title: "Vidlink", URL: v.Stream.Playlist, Type: providers.StreamM3U8, Headers: maps.Clone(headers), Subtitles: subs,
 		}}, nil
@@ -80,6 +85,9 @@ func vidlinkStreams(p *Provider, ctx context.Context, r providers.Request) ([]pr
 	var out []providers.Stream
 	for _, f := range files {
 		out = append(out, f.Stream)
+	}
+	if len(out) == 0 && dash {
+		return nil, fmt.Errorf("vidlink only has a DASH stream for this, which Moviko doesn't play")
 	}
 	return out, nil
 }

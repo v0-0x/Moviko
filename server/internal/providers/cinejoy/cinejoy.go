@@ -39,8 +39,10 @@ const (
 
 	// DefaultAPIURL is the resolver; DefaultSiteURL the site, which its
 	// CDNs want as Origin and Referer.
-	DefaultAPIURL  = "https://api.shegu.st"
-	DefaultSiteURL = "https://cinejoy.to"
+	DefaultAPIURL  = "https://api.wing.st"
+	DefaultSiteURL = "https://cinejoy.pk"
+	// formerAPIURL is where the resolver was (gone: Cloudflare 530).
+	formerAPIURL = "https://api.shegu.st"
 
 	httpTimeout   = 15 * time.Second
 	serverTimeout = 25 * time.Second
@@ -672,7 +674,13 @@ func (p *Provider) api() string {
 	if !strings.Contains(a, "://") {
 		a = "https://" + a
 	}
-	return strings.TrimRight(a, "/")
+	a = strings.TrimRight(a, "/")
+	// The resolver's address until October 2026, saved as it was shown:
+	// it's gone, and the one now is meant.
+	if strings.EqualFold(a, formerAPIURL) {
+		return DefaultAPIURL
+	}
+	return a
 }
 
 func (p *Provider) site() string {

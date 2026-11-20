@@ -217,7 +217,7 @@ after the Internet Archive, and finds movies and episodes by their TMDB id.
 Their CDNs want a Referer (and Origin): the streams carry it, the stream
 proxy and mpv send it.
 
-* **Cinejoy** (`url`: the resolver, `https://api.shegu.st`): the resolver
+* **Cinejoy** (`url`: the resolver, `https://api.wing.st`): the resolver
   only takes requests sealed by Cinejoy's own encoder, `crush.wasm`
   (an ephemeral key; the answer comes back AES-256-GCM encrypted).
   Moviko downloads it from the resolver, checks its SHA-256 against the

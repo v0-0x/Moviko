@@ -753,7 +753,102 @@ function webPlayerSession() {
     webPlayerSes.setPermissionRequestHandler((_wc, permission, cb) => cb(permission === "fullscreen"))
     webPlayerSes.setPermissionCheckHandler((_wc, permission) => permission === "fullscreen")
     webPlayerSes.on("will-download", e => e.preventDefault())
+    webPlayerSes.webRequest.onBeforeRequest((details, cb) => cb({ cancel: adHost(details.url) }))
     return webPlayerSes
+}
+
+// Ads and trackers the players' pages load, by host: the list of the
+// Streambert app (github.com/truelockmc/streambert, GPL-3.0), whose players
+// these are. Not asked for at all in the web player's session: fewer
+// overlays, and fewer clicks that go to an ad.
+// These hosts and the ones under them:
+const AD_SITES = new Set([
+    "aarems.org", "ads-twitter.com", "adsco.re", "aelwynvel.com", "aerionvel.com", "ahacdn.me", "alloha.tv", "ancillammmm.com", "asemquips.cfd",
+    "bancadeltempoidea.org", "bawrelcuttail.com", "blockadsnot.com", "brushetenglandagacant.qpon", "canseealltheugline.org", "cdn4ads.com",
+    "cepesbritons.qpon", "cloudflareinsights.com", "coiffesreal.qpon", "cometslourdy.cfd", "connatix.com", "cruzswim.org", "cysyjucymudity.com",
+    "darnobedienceupscale.com", "datariaarpent.com", "deedwaifpleas.org", "derricknationtop.com", "directyp.org", "doubleclick.net",
+    "e89d45b16370ee7e43daeaf6ce8d9547.com", "eifitcannotke.org", "embercascademaple.com", "facebook.com", "fakerstoterframing.qpon",
+    "gamesrevenue.com", "getaim.org", "google-analytics.com", "hubeamily.com", "hyaloidsatury.com", "imp-mintads.site", "ixiondartman.com",
+    "jwpltx.com", "karthliunstagy.com", "luugy.com", "mgid.com", "myangular.life", "nimbusgrovelodge.com", "nresystems.com", "oceanicdreamcove.com",
+    "pncloudfl.com", "pushaffiliate.net", "pusleybrand.cyou", "pxltag.com", "rapidadexchange.com", "rstprgapipt.com", "runative-syndicate.com",
+    "saidairakas.com", "sainwertapr.com", "sarplerlacunes.qpon", "shankedunwindy.cyou", "soakysecrets.com", "solarcyclonesky.com", "srvqk3.com",
+    "stummelbeelbow.com", "tabaxirethnize.cyou", "tantrajoni.cfd", "thatdisform.cyou", "thyriswh.cyou", "todditehexarch.com", "tryedesign.com",
+    "tsyndicate.com", "ukankingwithea.com", "uniolaicecaps.com", "usrpubtrck.com", "uuidksinc.net", "varnishtala.cyou", "vdrk.site", "webvisor.org",
+    "xadsmart.com", "yadro.ru",
+])
+// These hosts alone (what's under them is something else: fonts, players' libraries):
+const AD_HOSTS = new Set([
+    "1037973644.rsc.cdn77.org", "1158060716.rsc.cdn77.org", "1376341044.rsc.cdn77.org", "5mq.get64t9vqg8pnbex1y463o.rest",
+    "73ed366d3137ec936bd60b1184467776.com", "7jtjubf8p5kq7x3z2.u3qleufcm6vure326ktfpbj.cfd", "908df012d9bb72e6d26b41054588d758.com", "acscdn.com",
+    "adeptspiritual.com", "adexchangeclear.com", "adright.xml-v4.ak-is2.net", "adservice.google.com", "adservice.google.de", "amavhxdlofklxjg.xyz",
+    "americanacademyofthermology.org", "analytics.google.com", "autorepairworcester.com", "b7510.com", "bvtpk.com", "cdn.adx1.com",
+    "cdn.pncloudfl.com.cdn.cloudflare.net", "csp-reporting.cloudflare.com", "d2pf0ys5xus6n.cloudfront.net", "epicgameshubham.com",
+    "fonts.googleapis.com", "fonts.gstatic.com", "gillyspencie.com", "googleapis.com", "googletagmanager.com", "googletagservices.com",
+    "gstatic.com", "gt.unbrownunflat.com", "hameltnoummos.com", "im.malocacomals.com", "imasdk.googleapis.com", "improving.duckduckgo.com",
+    "intelligenceadx.com", "kettledroopingcontinuation.com", "llvpn.com", "lt.taloseempest.com", "mc.yandex.com", "mc.yandex.ru", "mdstats.info",
+    "my.rtmark.net", "nf.sixmossin.com", "openfpcdn.io", "pagead2.googlesyndication.com", "pc.alloviewroll.com", "pgo99.com", "phruk.org",
+    "pl26708123.profitableratecpm.com", "preferencenail.com", "protrafficinspector.com", "realizationnewestfangs.com", "rzjzjnavztycv.online",
+    "s10.histats.com", "stats.g.doubleclick.net", "tmstr4.cloudnestra.com", "tmstr4.neonhorizonworkshops.com", "users.videasy.net", "usrpubtrk.com",
+    "veselchaga.link", "wayfarerorthodox.com", "weirdopt.com", "welcomingexpulsion.com", "woxaglasuy.net", "www.calculating-laugh.com",
+    "www.google-analytics.com", "www.googletagmanager.com",
+])
+
+function adHost(url) {
+    let host
+    try {
+        host = new URL(url).hostname.toLowerCase()
+    } catch {
+        return false
+    }
+    if (AD_HOSTS.has(host)) return true
+    for (let h = host; h; h = h.slice(h.indexOf(".") + 1)) {
+        if (AD_SITES.has(h)) return true
+        if (!h.includes(".")) break
+    }
+    return false
+}
+
+// What a player's page shows besides its player, hidden (Streambert's
+// tweaks): by the page's host, and the hosts under it.
+const hideCss = (...selectors) => `${selectors.join(",")} { display: none !important; }`
+const SITE_CSS = [
+    {
+        // KinoHub: its player picker and player only.
+        hosts: ["on.kinohub.vip"],
+        css: `html, body { overflow: hidden !important; background: #000 !important; }
+body * { visibility: hidden !important; }
+section.player_section, section.player_section * { visibility: visible !important; }
+section.player_section { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; max-width: none !important; margin: 0 !important; z-index: 2147483647 !important; background: #000 !important; overflow: auto !important; }`,
+    },
+    {
+        // Aether: its top bar, episode picker and "back to home".
+        hosts: ["aether.ist"],
+        css: hideCss("div:has(> .top-content)", ".top-content", '[id="__overlayRouter::episodes"]', '[id="__overlayRouter::episodes"] + button', 'a.tabbable[class*="cancelHover"]'),
+    },
+    { hosts: ["vidnest.fun"], css: hideCss(".popup-selector", "#overlay-id") },
+    { hosts: ["frembed.uno"], css: hideCss(".popup-selector") },
+]
+
+function siteCss(url) {
+    let host
+    try {
+        host = new URL(url).hostname.toLowerCase()
+    } catch {
+        return ""
+    }
+    const rule = SITE_CSS.find(r => r.hosts.some(h => host === h || host.endsWith("." + h)))
+    return rule ? rule.css : ""
+}
+
+// Players that turn away Electron by its name: they get this Chromium's own
+// user agent without the "Electron/x" and app tokens. Only they do: the
+// others' checks (Cloudflare's) pass with the one the session has.
+const PLAIN_UA_SITES = ["vidfast.pro"]
+function plainUserAgent() {
+    return app.userAgentFallback
+        .replace(/\s?Electron\/\S+/i, "")
+        .replace(/\s?moviko\/\S+/i, "")
+        .trim()
 }
 
 // The site of a host: its last two names ("embed.vidrift.net" is
@@ -880,9 +975,13 @@ ipcMain.handle("moviko:webplayer-open", (e, url, bounds) => {
     wc.on("render-process-gone", () => {
         if (webPlayer === me) closeWebPlayer()
     })
+    wc.on("dom-ready", () => {
+        const css = siteCss(wc.getURL())
+        if (css) wc.insertCSS(css, { cssOrigin: "user" }).catch(() => {})
+    })
     mainWindow.contentView.addChildView(view)
     placeWebPlayer(bounds)
-    wc.loadURL(u.href).catch(() => {})
+    wc.loadURL(u.href, PLAIN_UA_SITES.includes(me.site) ? { userAgent: plainUserAgent() } : undefined).catch(() => {})
     return true
 })
 ipcMain.on("moviko:webplayer-bounds", (e, bounds) => {

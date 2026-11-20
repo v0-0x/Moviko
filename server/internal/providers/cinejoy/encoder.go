@@ -27,7 +27,7 @@ import (
 const (
 	// EncoderSHA256 is the encoder build Moviko runs (luffy's pin). A
 	// changed encoder is refused until it has been looked at.
-	EncoderSHA256 = "b706f1f2d21ef20d49758672dbdf3559b0d0916bb19850b0ef04991918eea73c"
+	EncoderSHA256 = "40c923580779e2a850fc5ab3f0046be565ed717883cf4547ed3a87de2450bdcf"
 
 	sealTimeout = 5 * time.Second
 	// encoderMaxSize bounds the encoder download.

@@ -15,7 +15,9 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/v0-0x/kumobox-movies/server/internal/providers"
 )
@@ -73,6 +75,7 @@ func newTest(t *testing.T, id string, routes map[string]http.HandlerFunc) (*Prov
 	p := New(SiteByID(id), "https://"+id+".test")
 	p.DecryptURL = "https://dec.test/api"
 	p.HTTP = &http.Client{Transport: hostRouter{srv}}
+	p.RetryWait = time.Millisecond
 	return p, f
 }
 
@@ -401,5 +404,59 @@ func TestClientRefusesLocal(t *testing.T) {
 	p := New(vidlinkSite, srv.URL)
 	if _, err := p.fetch(context.Background(), http.MethodGet, srv.URL+"/x", nil, nil); err == nil || !strings.Contains(err.Error(), "not allowed") {
 		t.Fatalf("err = %v, want a refusal", err)
+	}
+}
+
+// A DASH manifest isn't listed as an HLS playlist (it failed in the player):
+// the files that came with it are, and with none the answer says why.
+func TestVidlinkDASHIsNotHLS(t *testing.T) {
+	enc := func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"status":200,"result":"ENC"}`)
+	}
+	p, _ := newTest(t, "vidlink", map[string]http.HandlerFunc{
+		"dec.test/api/enc-vidlink": enc,
+		"vidlink.test/api/b/movie/ENC": writeJSON(map[string]any{"stream": map[string]any{
+			"playlist": "https://sacdn.test/v/manifest.mpd", "deliveryType": "dash",
+			"qualities": map[string]any{"720": map[string]any{"type": "mp4", "url": "https://cdn.test/720.mp4"}},
+		}}),
+	})
+	streams, err := p.Streams(context.Background(), movie)
+	if err != nil || len(streams) != 1 || streams[0].Type != providers.StreamMP4 || streams[0].URL != "https://cdn.test/720.mp4" {
+		t.Fatalf("streams = %+v, %v (want the file)", streams, err)
+	}
+
+	p, _ = newTest(t, "vidlink", map[string]http.HandlerFunc{
+		"dec.test/api/enc-vidlink": enc,
+		"vidlink.test/api/b/movie/ENC": writeJSON(map[string]any{"stream": map[string]any{
+			"playlist": "https://sacdn.test/v/manifest.mpd",
+		}}),
+	})
+	if streams, err := p.Streams(context.Background(), movie); err == nil || len(streams) != 0 || !strings.Contains(err.Error(), "DASH") {
+		t.Fatalf("streams = %+v, %v (want an error saying DASH)", streams, err)
+	}
+}
+
+// A site too busy for one request (a 503, a 429) is asked again; one that
+// says no (a 404) isn't.
+func TestFetchTriesAgain(t *testing.T) {
+	var busy, missing atomic.Int32
+	p, _ := newTest(t, "vidlink", map[string]http.HandlerFunc{
+		"vidlink.test/busy": func(w http.ResponseWriter, r *http.Request) {
+			if busy.Add(1) < 3 {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
+			_, _ = io.WriteString(w, "ok")
+		},
+		"vidlink.test/missing": func(w http.ResponseWriter, r *http.Request) {
+			missing.Add(1)
+			http.NotFound(w, r)
+		},
+	})
+	if b, err := p.fetch(context.Background(), http.MethodGet, "https://vidlink.test/busy", nil, nil); err != nil || string(b) != "ok" || busy.Load() != 3 {
+		t.Fatalf("busy: %q, %v after %d requests (want ok on the third)", b, err, busy.Load())
+	}
+	if _, err := p.fetch(context.Background(), http.MethodGet, "https://vidlink.test/missing", nil, nil); err == nil || missing.Load() != 1 {
+		t.Fatalf("missing: %v after %d requests (want one, failed)", err, missing.Load())
 	}
 }

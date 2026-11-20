@@ -19,7 +19,7 @@ export type StreamSiteInfo = {
 }
 
 export const STREAM_SITES: StreamSiteInfo[] = [
-    { key: "cinejoy", name: "Cinejoy", app: "luffy", help: "luffy's own source: HLS from several servers, each checked before it's listed.", url: "https://api.shegu.st" },
+    { key: "cinejoy", name: "Cinejoy", app: "luffy", help: "luffy's own source: HLS from several servers, each checked before it's listed.", url: "https://api.wing.st" },
     { key: "vidlink", name: "Vidlink", app: "FreeFlix", help: "HLS, or MP4 files in several qualities, with subtitles.", url: "https://vidlink.pro", decrypts: true },
     { key: "hexa", name: "Hexa", app: "FreeFlix", help: "HLS from several servers.", url: "https://themoviedb.hexa.su", decrypts: true },
     { key: "xpass", name: "Xpass", app: "FreeFlix", help: "HLS and MP4 from several playlists.", url: "https://play.xpass.top" },

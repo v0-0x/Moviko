@@ -74,6 +74,9 @@ type Provider struct {
 	// HTTP is the client used (one with Chrome's TLS fingerprint, which
 	// can't reach the LAN, when nil).
 	HTTP *http.Client
+	// RetryWait is the wait before a failed request is made again (400ms
+	// when zero, twice that before the last try).
+	RetryWait time.Duration
 }
 
 // New returns the provider of site; baseURL replaces its address when not
@@ -130,21 +133,46 @@ func (p *Provider) client() *http.Client {
 }
 
 // fetch makes a request and returns the answer's body. body, when not nil,
-// is sent as JSON.
+// is sent as JSON. A request that didn't get through, or that the site was
+// too busy for (429, 5xx), is made again, twice at most and a moment apart:
+// these sites drop one request in a few, and a source isn't gone for that.
 func (p *Provider) fetch(ctx context.Context, method, url string, headers map[string]string, body any) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
-	defer cancel()
-	var rd io.Reader
+	var sent []byte
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
 			return nil, err
 		}
-		rd = bytes.NewReader(b)
+		sent = b
+	}
+	wait := p.RetryWait
+	if wait <= 0 {
+		wait = 400 * time.Millisecond
+	}
+	for attempt := 0; ; attempt++ {
+		b, again, err := p.fetchOnce(ctx, method, url, headers, sent)
+		if err == nil || !again || attempt == 2 || ctx.Err() != nil {
+			return b, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, err
+		case <-time.After(wait << attempt):
+		}
+	}
+}
+
+// fetchOnce is one try of fetch; again says whether another could do better.
+func (p *Provider) fetchOnce(ctx context.Context, method, url string, headers map[string]string, body []byte) (out []byte, again bool, err error) {
+	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+	var rd io.Reader
+	if body != nil {
+		rd = bytes.NewReader(body)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, url, rd)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	req.Header.Set("User-Agent", util.UserAgent)
 	if body != nil {
@@ -155,20 +183,22 @@ func (p *Provider) fetch(ctx context.Context, method, url string, headers map[st
 	}
 	resp, err := p.client().Do(req)
 	if err != nil {
-		return nil, err
+		// Not one that took its whole time (trying again would triple the
+		// wait), nor in offline mode, where nothing gets through by design.
+		return nil, !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, util.ErrOffline), err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("%s", resp.Status)
+		return nil, resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500, fmt.Errorf("%s", resp.Status)
 	}
 	b, err := io.ReadAll(io.LimitReader(resp.Body, maxResponse+1))
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
 	if len(b) > maxResponse {
-		return nil, errors.New("answer too large")
+		return nil, false, errors.New("answer too large")
 	}
-	return b, nil
+	return b, false, nil
 }
 
 func (p *Provider) fetchJSON(ctx context.Context, method, url string, headers map[string]string, body, out any) error {
