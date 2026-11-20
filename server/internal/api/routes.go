@@ -52,6 +52,17 @@ func (s *Server) routes() {
 		n = min(n, 36)
 		return s.app.History.Monthly(n, s.app.Settings.Get().Playback.CompletionThreshold, time.Now(), time.Local)
 	}))
+	// The Year in review page: a calendar year of it (this one without ?year).
+	m.HandleFunc("GET /api/stats/year", h(func(r *http.Request) (any, error) {
+		year := queryInt(r, "year")
+		if year < 1 || year > 9999 {
+			year = time.Now().Year()
+		}
+		return s.app.History.Year(year, s.app.Settings.Get().Playback.CompletionThreshold, time.Local)
+	}))
+	// The Search page's saved and recent searches.
+	m.HandleFunc("GET /api/searches", h(s.getSearches))
+	m.HandleFunc("PUT /api/searches", h(s.putSearches))
 	m.HandleFunc("PUT /api/settings", h(s.saveSettings))
 	m.HandleFunc("GET /api/events", s.events)
 	m.HandleFunc("POST /api/auth/server-login", s.serverLogin)
@@ -86,6 +97,7 @@ func (s *Server) routes() {
 	m.HandleFunc("PUT /api/media/{id}/language", h(s.putLanguage))
 	m.HandleFunc("POST /api/catalog/search", h(s.search))
 	m.HandleFunc("GET /api/catalog/discover", h(s.discover))
+	m.HandleFunc("GET /api/catalog/recommended", h(s.recommended))
 	m.HandleFunc("GET /api/catalog/schedule", h(s.schedule))
 	m.HandleFunc("GET /api/catalog/list", h(s.rawList))
 	m.HandleFunc("GET /api/catalog/genres", h(func(r *http.Request) (any, error) { return s.app.Platform.Genres(r.Context()) }))

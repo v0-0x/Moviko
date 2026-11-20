@@ -1,9 +1,10 @@
 import { keepPreviousData, type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "@/lib/toast"
 import { api, download, qs } from "./api"
 import { formatKey, mediaIsShow } from "./ids"
 import { setUpdateLater } from "./store"
+import { readLocal, writeLocal } from "./utils"
 import { installIfWanted, wantInstall } from "./tv"
 import type {
     AutoItem,
@@ -297,6 +298,48 @@ export function useSearch(params: SearchParams, enabled = true) {
         placeholderData: keepPreviousData,
         staleTime: 5 * 60_000,
     })
+}
+
+// Discover's "Because you watched…": TMDB's recommendations for a movie or
+// show of the list, without what's on the list already; another each time
+// Discover opens: n is where to start among the ones watched. The row takes a
+// few lookups, so the one for the next time is fetched ahead and kept in this
+// browser: it is there at once when Discover opens.
+type Recommended = { because: Media; items: Media[]; next?: number }
+const RECOMMENDED_AT = "moviko-recommended-at"
+const RECOMMENDED_ROW = "moviko-recommended-row"
+function keptRecommended(): Recommended | undefined {
+    try {
+        const r = JSON.parse(readLocal(RECOMMENDED_ROW) || "null")
+        return r?.because && Array.isArray(r.items) ? r : undefined
+    } catch {
+        return undefined
+    }
+}
+export function useRecommended(enabled = true) {
+    const [kept] = useState(keptRecommended)
+    const [n] = useState(() => Number(readLocal(RECOMMENDED_AT)) || 0)
+    const q = useQuery({
+        queryKey: ["recommended", n],
+        queryFn: async () => {
+            const get = (at: number) => api.get<Recommended[]>(`/api/catalog/recommended?n=${at}`)
+            let show = kept
+            let at = n
+            if (!show) {
+                show = (await get(at))[0]
+                // Nothing from these: start further on the next time.
+                at = show?.next ?? at + 4
+            }
+            const ahead = (await get(at))[0]
+            writeLocal(RECOMMENDED_AT, String(ahead?.next ?? at + 4))
+            // Kept only while it differs from what's shown now.
+            writeLocal(RECOMMENDED_ROW, ahead && ahead.because.id !== show?.because.id ? JSON.stringify(ahead) : "")
+            return show ? [show] : []
+        },
+        enabled,
+        staleTime: 30 * 60_000,
+    })
+    return { ...q, data: q.data ?? (kept ? [kept] : undefined) }
 }
 
 export function useDiscover(enabled = true) {

@@ -7,11 +7,11 @@ import { PluginSlot } from "@/components/plugins/PluginSlot"
 import { artButton, Backdrop, Button, ChipRow, EmptyState, ErrorState, SectionHeader, Skeleton, Tabs } from "@/components/ui"
 import { HolidayIcon } from "@/components/HolidayBadge"
 import { usePersisted } from "@/lib/hooks"
-import { useDiscover, useGenres, useSearch, useStatus } from "@/lib/queries"
+import { useDiscover, useGenres, useRecommended, useSearch, useStatus } from "@/lib/queries"
 import { useStore } from "@/lib/store"
 import { holidayStore, useClassic } from "@/lib/themes"
 import type { Discover, Media } from "@/lib/types"
-import { banner, cn, formatLabel, title, year } from "@/lib/utils"
+import { banner, cn, entryUrl, formatLabel, title, year } from "@/lib/utils"
 
 type Kind = "" | "MOVIE" | "TV"
 type Row = { key: Exclude<keyof Discover, "fetchedAt">; title: string; more: string; kind: Kind }
@@ -32,6 +32,7 @@ export default function DiscoverPage() {
     const tmdb = status?.tmdbConfigured !== false
     const { data, isLoading, error, refetch, isFetching } = useDiscover(tmdb)
     const { data: genres } = useGenres()
+    const { data: recommended } = useRecommended(tmdb)
     const [kind, setKind] = usePersisted<Kind>("kumobox-discover-kind", "")
     const items = (k: Row["key"]) => (data?.[k] ?? []).filter(m => !kind || m.type === kind)
     const featured = items("trending")
@@ -102,6 +103,24 @@ export default function DiscoverPage() {
                         TMDB returned nothing. Check your connection and your API key.
                     </EmptyState>
                 )}
+                {/* From what you watched: first, before what everyone watches. */}
+                {(recommended ?? []).map(r => {
+                    const list = r.items.filter(m => !kind || m.type === kind)
+                    if (list.length < 4) return null
+                    return (
+                        <section key={r.because.id}>
+                            <SectionHeader
+                                title={`Because you watched ${title(r.because)}`}
+                                action={
+                                    <Link to={entryUrl(r.because)} className="text-[13px] font-medium text-muted transition-colors hover:text-fg">
+                                        {title(r.because)}
+                                    </Link>
+                                }
+                            />
+                            <Carousel>{list.map(m => <MediaCard key={m.id} media={m} listEntry={m.mediaListEntry} menu={<ListCardMenu media={m} />} />)}</Carousel>
+                        </section>
+                    )
+                })}
                 {holiday && picks && pickMedia.length > 0 && (
                     <section>
                         <SectionHeader

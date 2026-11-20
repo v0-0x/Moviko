@@ -40,6 +40,7 @@ const SearchPage = lazy(() => import("./pages/Search"))
 const SchedulePage = lazy(() => import("./pages/Schedule"))
 const ListsPage = lazy(() => import("./pages/Lists"))
 const StatsPage = lazy(() => import("./pages/Stats"))
+const YearPage = lazy(() => import("./pages/Year"))
 const TorrentsPage = lazy(() => import("./pages/Torrents"))
 const DownloadsPage = lazy(() => import("./pages/Downloads"))
 const PlaylistsPage = lazy(() => import("./pages/Playlists"))
@@ -188,6 +189,7 @@ function MovikoApp() {
                                 <Route path="/schedule" element={<SchedulePage />} />
                                 <Route path="/lists" element={<ListsPage />} />
                                 <Route path="/stats" element={<StatsPage />} />
+                                <Route path="/year" element={<YearPage />} />
                                 <Route path="/torrent-list" element={<TorrentsPage />} />
                                 <Route path="/downloads" element={<DownloadsPage />} />
                                 <Route path="/playlists" element={<PlaylistsPage />} />
