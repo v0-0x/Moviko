@@ -541,3 +541,28 @@ func TestNoCrossSitePosts(t *testing.T) {
 		t.Errorf("page headers: %v", w.Header())
 	}
 }
+
+// A request a proxy or tunnel on this computer passed on (it says for whom
+// it asks) isn't this computer's own: refused while devices on the network
+// aren't allowed, and a device on the network at most when they are.
+func TestForwardedIsNotThisComputer(t *testing.T) {
+	s := newTestServer(t)
+	fwd := func(r *http.Request) { r.Header.Set("X-Forwarded-For", "203.0.113.9") }
+	if w := do(s, "GET", "/api/status", "127.0.0.1:5000", "", fwd); w.Code != http.StatusForbidden {
+		t.Fatalf("forwarded, network off: %d (want 403)", w.Code)
+	}
+	if w := do(s, "GET", "/api/status", "127.0.0.1:5000", "", nil); w.Code != http.StatusOK {
+		t.Fatalf("this computer: %d", w.Code)
+	}
+	cfg := s.app.Settings.Get()
+	cfg.Server.AllowLAN = true
+	if _, err := s.app.Settings.Save(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if w := do(s, "GET", "/api/status", "127.0.0.1:5000", "", fwd); w.Code != http.StatusOK {
+		t.Fatalf("forwarded, network on: %d", w.Code)
+	}
+	if w := do(s, "GET", "/api/logs", "127.0.0.1:5000", "", fwd); w.Code != http.StatusForbidden {
+		t.Fatalf("forwarded reads the logs: %d (want 403)", w.Code)
+	}
+}

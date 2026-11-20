@@ -6,12 +6,55 @@ export type Release = { id: number; title: string; changes: Change[] }
 
 export const RELEASES: Release[] = [
     {
+        id: 7,
+        title: "Notifications, your year, and a sturdier Moviko",
+        changes: [
+            {
+                title: "Notifications",
+                text: "The bell on Home: episodes out for the shows you're watching and watchlist movies that came out, and what Moviko did (downloads, scans, the auto downloader, updates).",
+                to: "/",
+            },
+            {
+                title: "Year in review",
+                text: "Your year in Moviko: hours, movies and episodes, month by month, the longest binge, the most watched and your highest rated. From Stats.",
+                to: "/year",
+            },
+            {
+                title: "Kept searches, and Because you watched…",
+                text: "Save a search with the bookmark beside Filters; the last ones you made are under the box. Discover starts with recommendations from something on your list.",
+                to: "/search",
+            },
+            {
+                title: "Offline mode",
+                text: "In the menu under your account, and Settings › Devices & network: nothing goes to the internet, Moviko uses what it has here. The other devices at home still work.",
+            },
+            {
+                title: "A new device asks first",
+                text: "When another Moviko offers its library, Home asks before this one uses it. The ones you already use stay as they are.",
+                to: "/",
+            },
+            {
+                title: "Providers",
+                text: "Cinejoy works again at its new address, and the FreeFlix sites try again when a request is dropped. In the desktop app, the web players load without their ads and trackers.",
+                to: "/extensions?tab=builtin",
+            },
+            {
+                title: "Windows",
+                text: "Moviko downloads the programs it uses (ffmpeg, yt-dlp, mpv) itself, into its own folder: no Scoop, no PowerShell.",
+            },
+            {
+                title: "One look",
+                text: "The Classic look is gone; a theme saved in it shows as its nearest here. Banners fade from one picture to the next and menus tick what's chosen.",
+            },
+        ],
+    },
+    {
         id: 6,
         title: "Moviko 3.0",
         changes: [
             {
                 title: "A new look",
-                text: "Fewer boxes, words you click, one ink on one ground: Black, White, Graphite, Paper, Phosphor, Amber, Ice and Rose (White and Paper are light). Right-click a movie, an episode or a row for its menu. The look from before is Settings › Appearance › Classic look.",
+                text: "Fewer boxes, words you click, one ink on one ground: Black, White, Graphite, Paper, Phosphor, Amber, Ice and Rose (White and Paper are light). Right-click a movie, an episode or a row for its menu.",
                 to: "/settings?tab=appearance",
             },
             {
@@ -82,7 +125,7 @@ export const RELEASES: Release[] = [
         changes: [
             {
                 title: "A new look",
-                text: "Rounder panels, a sidebar in groups, a Back arrow, and a layout for phones with tabs along the bottom. Prefer the old one? Settings › Appearance › Classic look.",
+                text: "Rounder panels, a sidebar in groups, a Back arrow, and a layout for phones with tabs along the bottom.",
                 to: "/settings?tab=appearance",
             },
             {
